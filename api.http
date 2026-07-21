@@ -1,0 +1,40 @@
+### GET request to example server
+
+
+###
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "1234"
+}
+
+
+###
+GET http://localhost:8080/api/security/all
+
+###
+GET http://localhost:8080/api/security/member
+
+###
+GET http://localhost:8080/api/security/member
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTc4Mjg2ODA3NiwiZXhwIjoxNzgyODY4Mzc2fQ.2xTOCo3HHSJrh9kC5zXQS9nybjxiHDakxsAksYPXp3MChxro9Y2OsJGFohIT0wDA
+
+###
+GET http://localhost:8080/api/security/admin
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTc4Mjg2ODIwOCwiZXhwIjoxNzgyODY4NTA4fQ.w0GxTx1Q2DmsW7nHzx8BkznJZUQY--B0gbUou2RLZC_-I-_v71ygPgxkhzlzxS6t
+
+
+###
+GET http://localhost:8080/api/security/xxx
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiJ1c2VyMCIsImlhdCI6MTc4Mjg2NzgyMywiZXhwIjoxNzgyODY4MTIzfQ.6mynHy2Nz8FBCPL2tH1N8I0r4MPJLzfa6k4wyyWfkJG787N5i6g4opjTZVFnUXAS
+
+
+
+###
+GET localhost:8080/api/member/checkusername/admin
+
+###
+GET localhost:8080/api/member/checkusername/user100
+
