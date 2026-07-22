@@ -75,5 +75,6 @@ public class BoardController {
         return ResponseEntity.ok(service.deleteAttachment(no));
 
     }
+    public String test;
 
 }
