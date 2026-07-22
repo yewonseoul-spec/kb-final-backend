@@ -24,6 +24,7 @@ import java.util.List;
 public class BoardController {
     private final BoardService service;
     private final String name;
+    private final String test;
 
     @GetMapping("")
     public ResponseEntity<List<BoardDTO>> getList() {
