@@ -20,7 +20,7 @@ import java.util.List;
 @RequestMapping("/api/board")
 @RequiredArgsConstructor
 @Log4j2
-@Api(tags = "게시글 관리")
+@Api(tags = "게시글 관리    jh")
 public class BoardController {
     private final BoardService service;
 
