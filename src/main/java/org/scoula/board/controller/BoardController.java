@@ -23,6 +23,7 @@ import java.util.List;
 @Api(tags = "게시글 관리")
 public class BoardController {
     private final BoardService service;
+    private final String name;
 
     @GetMapping("")
     public ResponseEntity<List<BoardDTO>> getList() {
@@ -32,8 +33,8 @@ public class BoardController {
     @GetMapping("/{no}")
     public ResponseEntity<BoardDTO> get(
             @ApiParam(value = "게시글 ID", required = true, example = "1")
-            @PathVariable Long no) {
-        return ResponseEntity.ok(service.get(no));
+            @PathVariable Long number) {
+        return ResponseEntity.ok(service.get(number));
     }
 
     @PostMapping("")
@@ -75,5 +76,6 @@ public class BoardController {
         return ResponseEntity.ok(service.deleteAttachment(no));
 
     }
+    public String test;
 
 }
