@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.engine.mapper.EngineMapper">
+
+    <!-- 사용자 프로필 조회 -->
+    <select id="findUserProfile"
+            resultType="org.scoula.engine.dto.UserProfileResDto">
+        SELECT
+            member_no,
+            birth_date,
+            region_code,
+            income,
+            employ_status,
+            major,
+            education,
+            mrg_stts_cd
+        FROM member_profile
+        WHERE member_no = #{memberNo}
+    </select>
+
+    <!-- 이미 보유한 정책 번호 목록 -->
+    <select id="findAppliedBenefitNos"
+            resultType="int">
+        SELECT benefit_no
+        FROM applied_benefit
+        WHERE member_no = #{memberNo}
+    </select>
+
+    <!-- 자격조건 필터링 -->
+    <select id="findEligibleBenefits"
+            resultType="org.scoula.engine.dto.BenefitResDto">
+        SELECT
+            b.benefit_no,
+            b.plcy_nm,
+            b.category_code,
+            b.sprt_trgt_min_age,
+            b.sprt_trgt_max_age,
+            b.earn_min_amt,
+            b.earn_max_amt,
+            b.earn_cnd_se_cd,
+            b.earn_etc_cn,
+            b.mrg_stts_cd,
+            b.school_cd,
+            b.job_cd,
+            b.conflict_group_code,
+            b.is_active,
+            b.apply_end_date
+        FROM benefit b
+        WHERE b.is_active = 'Y'
+        AND (
+        b.sprt_trgt_min_age IS NULL
+        OR TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()) >= b.sprt_trgt_min_age
+        )
+        AND (
+            b.sprt_trgt_max_age IS NULL
+                OR b.sprt_trgt_max_age >= TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE())
+            )
+          AND (b.earn_cnd_se_cd = '0043001'
+            OR (b.earn_cnd_se_cd = '0043002'
+                AND #{income} BETWEEN b.earn_min_amt AND b.earn_max_amt))
+          AND (b.mrg_stts_cd IS NULL
+            OR b.mrg_stts_cd = '0055003'
+            OR b.mrg_stts_cd = #{mrgSttsCd})
+          AND (b.job_cd IS NULL
+            OR b.job_cd = '0013010'
+            OR b.job_cd = #{employStatus})
+          AND (b.school_cd IS NULL
+            OR b.school_cd = '0049010'
+            OR b.school_cd = #{education})
+          AND (NOT EXISTS (
+            SELECT 1 FROM benefit_major bm
+            WHERE bm.benefit_no = b.benefit_no
+        )
+            OR EXISTS (
+                SELECT 1 FROM benefit_major bm
+                WHERE bm.benefit_no = b.benefit_no
+                  AND bm.major_code = #{major}
+            )
+            OR EXISTS (
+                SELECT 1 FROM benefit_major bm
+                WHERE bm.benefit_no = b.benefit_no
+                  AND bm.major_code = '0011009'
+            ))
+          AND b.benefit_no NOT IN (
+            SELECT benefit_no
+            FROM applied_benefit
+            WHERE member_no = #{memberNo}
+        )
+    </select>
+
+</mapper>

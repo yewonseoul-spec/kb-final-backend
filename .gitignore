@@ -43,3 +43,6 @@ bin/
 .idea/material_theme_project_new.xml
 .idea/sqldialects.xml
 .idea/.name
+
+### Sensitive Config ###
+src/main/resources/application.properties

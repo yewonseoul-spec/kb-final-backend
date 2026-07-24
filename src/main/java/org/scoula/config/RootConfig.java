@@ -19,8 +19,8 @@ import javax.sql.DataSource;
 
 @Configuration
 @PropertySource({"classpath:/application.properties"})
-@MapperScan(basePackages = {"org.scoula.consumption.mapper", "org.scoula.member.mapper"})
-@ComponentScan(basePackages = {"org.scoula.consumption.service", "org.scoula.member.service"})
+@MapperScan(basePackages = {"org.scoula.consumption.mapper", "org.scoula.member.mapper","org.scoula.engine.mapper"})
+@ComponentScan(basePackages = {"org.scoula.consumption.service", "org.scoula.member.service","org.scoula.engine.service"})
 
 @EnableTransactionManagement
 public class RootConfig {

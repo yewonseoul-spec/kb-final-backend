@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="DataSourcePerFileMappings">
+    <file url="file://$PROJECT_DIR$/data_0_code.sql" value="e67526b0-7aa5-4051-ab94-1c5b41a250b8" />
+    <file url="file://$PROJECT_DIR$/data_1_base.sql" value="e67526b0-7aa5-4051-ab94-1c5b41a250b8" />
+    <file url="file://$PROJECT_DIR$/data_2_benefit.sql" value="e67526b0-7aa5-4051-ab94-1c5b41a250b8" />
+    <file url="file://$PROJECT_DIR$/schema.sql" value="e67526b0-7aa5-4051-ab94-1c5b41a250b8" />
+    <file url="file://$PROJECT_DIR$/src/main/resources/org/scoula/engine.mapper/EngineMapper.xml" value="e67526b0-7aa5-4051-ab94-1c5b41a250b8" />
+  </component>
+</project>
