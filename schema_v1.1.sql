@@ -243,17 +243,20 @@ CREATE TABLE benefit (
     first_reg_dt        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
     last_mdfcn_dt       DATETIME     NULL     DEFAULT NULL         COMMENT '최종수정일시(lastMdfcnDt)',
     plcy_expln_cn       VARCHAR(300) NULL                          COMMENT '정책설명내용(plcyExplnCn)',
+    aply_prd_se_cd      CHAR(7)      NULL                          COMMENT '신청기간구분코드(0057 계열)',
     PRIMARY KEY (benefit_no),
     CONSTRAINT uk_benefit_plcy_no UNIQUE (plcy_no),
     CONSTRAINT fk_benefit_category FOREIGN KEY (category_code)
         REFERENCES benefit_category (category_code),
     CONSTRAINT fk_benefit_mrg      FOREIGN KEY (mrg_stts_cd)    REFERENCES common_code (code),
     CONSTRAINT fk_benefit_earn_cnd FOREIGN KEY (earn_cnd_se_cd) REFERENCES common_code (code),
+    CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
     -- FK는 코드 존재만 검증하므로 코드군까지 CHECK로 강제 (NULL은 UNKNOWN이라 통과)
     -- 혜택 측은 '제한없음'이 정상 조건값이므로 별도 차단하지 않는다
     CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd    LIKE '0055%'),
     CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd LIKE '0043%'),
     CONSTRAINT chk_benefit_is_active CHECK (is_active IN ('Y','N')),
+    CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd LIKE '0057%'),
     INDEX idx_benefit_apply_end (apply_end_date),
     INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
