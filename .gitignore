@@ -47,3 +47,9 @@ src/main/resources/application.properties
 # IntelliJ local database config
 .idea/dataSources.xml
 .idea/dataSources.local.xml
+.idea/material_theme_project_new.xml
+.idea/sqldialects.xml
+.idea/.name
+
+
+.idea/dataSources.xml
