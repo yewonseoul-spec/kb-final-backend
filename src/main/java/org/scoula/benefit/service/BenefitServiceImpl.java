@@ -110,7 +110,8 @@ public class BenefitServiceImpl implements BenefitService {
         vo.setAplyYmd(item.getAplyYmd());
         vo.setApplyStartDate(parseApplyStartDate(item.getAplyYmd()));
         vo.setApplyEndDate(parseApplyEndDate(item.getAplyYmd()));
-
+        vo.setApplyEndDate(parseApplyEndDate(item.getAplyYmd()));
+        vo.setAplyPrdSeCd(item.getAplyPrdSeCd());
         vo.setAplyUrlAddr(item.getAplyUrlAddr());
 
         vo.setSprtTrgtMinAge(toInteger(item.getSprtTrgtMinAge()));
@@ -122,9 +123,6 @@ public class BenefitServiceImpl implements BenefitService {
         vo.setEarnEtcCn(item.getEarnEtcCn());
 
         vo.setMrgSttsCd(item.getMrgSttsCd());
-        vo.setPlcyMajorCd(item.getPlcyMajorCd());
-        vo.setSchoolCd(item.getSchoolCd());
-        vo.setJobCd(item.getJobCd());
 
         vo.setConflictGroupCode(null);
         vo.setInqCnt(toInteger(item.getInqCnt()));

@@ -20,6 +20,7 @@ public class YouthPolicyApiItemDTO {
     private String sbmsnDcmntCn;
 
     private String aplyYmd;
+    private String aplyPrdSeCd;
     private String aplyUrlAddr;
 
     private String sprtTrgtMinAge;
