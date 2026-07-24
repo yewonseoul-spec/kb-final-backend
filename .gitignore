@@ -35,7 +35,6 @@ build/
 .idea/httpRequests
 .idea/dataSources.xml
 
-# .idea/dataSources.local.xml
 
 # Markdown Navigator plugin
 # https://plugins.jetbrains.com/plugin/7896-markdown-navigator-enhanced
@@ -52,7 +51,6 @@ build/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
-# .idea/libraries/
 *.iws
 *.iml
 *.ipr
@@ -96,11 +94,6 @@ src/test
 src/main/resources/application.properties
 
 # IntelliJ local database config
-.idea/dataSources.xml
-.idea/dataSources.local.xml
 .idea/material_theme_project_new.xml
 .idea/sqldialects.xml
 .idea/.name
-
-
-.idea/dataSources.xml
