@@ -40,3 +40,10 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+# local config
+src/main/resources/application.properties
+
+# IntelliJ local database config
+.idea/dataSources.xml
+.idea/dataSources.local.xml
