@@ -100,4 +100,39 @@
         )
     </select>
 
+<!--    IntelliJ가 MyBatis XML 안에서 list라는 이름을 Java 코드로
+        인식 못 하는 거라서 빨간줄이 뜨는 거여서 실제 실행에는 전혀 영향 없다.-->
+    <select id="findConflictWarnings"
+            resultType="org.scoula.engine.dto.ConflictWarningDto">
+        SELECT
+        b.benefit_no,
+        b.plcy_nm,
+        r.conflict_type,
+        r.rule_text
+        FROM benefit_conflict_rule r
+        JOIN benefit b ON (
+        CASE
+        WHEN r.trigger_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        THEN b.benefit_no = r.target_benefit_no
+        ELSE b.benefit_no = r.trigger_benefit_no
+        END
+        )
+        WHERE r.confirm_status = '확정'
+        AND r.is_active = 'Y'
+        AND r.trigger_benefit_no IS NOT NULL
+        AND (
+        r.trigger_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        OR r.target_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        )
+        AND r.conflict_type IN ('일부제한', '확인필요')
+    </select>
 </mapper>
