@@ -12,16 +12,25 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 
 @Configuration
-@PropertySource({"classpath:/application.properties"})
-@MapperScan(basePackages = {"org.scoula.consumption.mapper", "org.scoula.member.mapper","org.scoula.engine.mapper"})
-@ComponentScan(basePackages = {"org.scoula.consumption.service", "org.scoula.member.service","org.scoula.engine.service"})
-
+@PropertySource("classpath:/application.properties")
+@MapperScan(basePackages = {
+        "org.scoula.benefit.mapper",
+        "org.scoula.member.mapper"
+        "org.scoula.engine.mapper"
+})
+@ComponentScan(basePackages = {
+        "org.scoula.benefit.service",
+        "org.scoula.benefit.client",
+        "org.scoula.member.service"
+        "org.scoula.engine.service"
+})
 @EnableTransactionManagement
 public class RootConfig {
     @Value("${jdbc.driver}")
@@ -32,8 +41,14 @@ public class RootConfig {
     String username;
     @Value("${jdbc.password}")
     String password;
+
     @Autowired
     ApplicationContext applicationContext;
+
+    @Bean
+    public static PropertySourcesPlaceholderConfigurer propertySourcesPlaceholderConfigurer() {
+        return new PropertySourcesPlaceholderConfigurer();
+    }
 
     @Bean
     public DataSource dataSource() {
@@ -44,24 +59,24 @@ public class RootConfig {
         config.setUsername(username);
         config.setPassword(password);
 
-        HikariDataSource dataSource = new HikariDataSource(config);
-        return dataSource;
+        return new HikariDataSource(config);
     }
 
     @Bean
     public SqlSessionFactory sqlSessionFactory() throws Exception {
         SqlSessionFactoryBean sqlSessionFactory = new SqlSessionFactoryBean();
-        sqlSessionFactory.setConfigLocation(applicationContext.getResource("classpath:/mybatis-config.xml"));
+
         sqlSessionFactory.setDataSource(dataSource());
+
+        sqlSessionFactory.setMapperLocations(
+                applicationContext.getResources("classpath*:/org/scoula/benefit/mapper/**/*.xml")
+        );
 
         return sqlSessionFactory.getObject();
     }
 
     @Bean
     public DataSourceTransactionManager transactionManager() {
-        DataSourceTransactionManager manager = new DataSourceTransactionManager(dataSource());
-
-        return manager;
+        return new DataSourceTransactionManager(dataSource());
     }
-
 }

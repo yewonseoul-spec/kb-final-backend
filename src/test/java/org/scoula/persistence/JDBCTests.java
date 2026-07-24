@@ -4,6 +4,7 @@ import lombok.extern.log4j.Log4j2;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -24,6 +25,7 @@ public class JDBCTests {
     @Test
     @DisplayName("JDBC 드라이버 연결이 된다.")
     public void testConnection() {
+        String apiKey = null;
         String url = "jdbc:mysql://localhost:3306/scoula_db";
         try(Connection con = DriverManager.getConnection(url, "scoula", "1234")) {
             log.info(con);
@@ -31,5 +33,4 @@ public class JDBCTests {
             fail(e.getMessage());
         }
     }
-
 }
