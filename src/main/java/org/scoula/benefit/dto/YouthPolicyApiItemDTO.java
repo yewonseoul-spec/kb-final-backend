@@ -11,6 +11,7 @@ public class YouthPolicyApiItemDTO {
     private String plcyKywdNm;
     private String plcyExplnCn;
 
+    private String zipCd;
     private String lclsfNm;
     private String mclsfNm;
 

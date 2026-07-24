@@ -12,11 +12,70 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BenefitServiceImpl implements BenefitService {
+
+    private void saveBenefitMappings(Integer benefitNo, YouthPolicyApiItemDTO item) {
+
+
+        // 기존 매핑 데이터 삭제
+        benefitMapper.deleteBenefitRegions(benefitNo);
+        benefitMapper.deleteBenefitMajors(benefitNo);
+        benefitMapper.deleteBenefitSchools(benefitNo);
+        benefitMapper.deleteBenefitJobs(benefitNo);
+
+        // 새 매핑 데이터 저장
+        saveRegionMappings(benefitNo, item.getZipCd());
+        saveMajorMappings(benefitNo, item.getPlcyMajorCd());
+        saveSchoolMappings(benefitNo, item.getSchoolCd());
+        saveJobMappings(benefitNo, item.getJobCd());
+    }
+
+    private void saveRegionMappings(Integer benefitNo, String zipCd) {
+        for (String code : splitCodes(zipCd)) {
+            int inserted = benefitMapper.insertBenefitRegion(benefitNo, code);
+
+            if (inserted == 0) {
+                System.out.println("region 테이블에 없어서 저장 안 된 zipCd = " + code);
+            }
+        }
+    }
+
+    private void saveMajorMappings(Integer benefitNo, String plcyMajorCd) {
+        for (String code : splitCodes(plcyMajorCd)) {
+            benefitMapper.insertBenefitMajor(benefitNo, code);
+        }
+    }
+
+    private void saveSchoolMappings(Integer benefitNo, String schoolCd) {
+        for (String code : splitCodes(schoolCd)) {
+            benefitMapper.insertBenefitSchool(benefitNo, code);
+        }
+    }
+
+    private void saveJobMappings(Integer benefitNo, String jobCd) {
+        for (String code : splitCodes(jobCd)) {
+            benefitMapper.insertBenefitJob(benefitNo, code);
+        }
+    }
+
+    private List<String> splitCodes(String codes) {
+        if (codes == null || codes.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.stream(codes.split(","))
+                .map(String::trim)
+                .filter(code -> !code.isEmpty())
+                .distinct()
+                .collect(Collectors.toList());
+    }
 
     private final YouthPolicyApiClient youthPolicyApiClient;
     private final BenefitMapper benefitMapper;
@@ -39,12 +98,23 @@ public class BenefitServiceImpl implements BenefitService {
 
         for (YouthPolicyApiItemDTO item : policyList) {
             BenefitVO benefit = convertToBenefitVO(item);
-            count += benefitMapper.upsertBenefit(benefit);
+
+            // 1. benefit 기본 정보 저장
+            benefitMapper.upsertBenefit(benefit);
+
+            // 2. 방금 저장/수정된 benefit_no 조회
+            Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+
+            // 3. 매핑 테이블 저장
+            if (benefitNo != null) {
+                saveBenefitMappings(benefitNo, item);
+            }
+
+            count++;
         }
 
         return count;
     }
-
     private List<YouthPolicyApiItemDTO> parsePolicyList(String json) {
         try {
             JsonNode root = objectMapper.readTree(json);

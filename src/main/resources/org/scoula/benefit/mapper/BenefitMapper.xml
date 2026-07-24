@@ -89,5 +89,81 @@
         last_mdfcn_dt = NOW(),
         plcy_expln_cn = VALUES(plcy_expln_cn)
     </insert>
+    <select id="findBenefitNoByPlcyNo" parameterType="string" resultType="int">
+        SELECT benefit_no
+        FROM benefit
+        WHERE plcy_no = #{plcyNo}
+    </select>
 
+    <delete id="deleteBenefitRegions" parameterType="int">
+        DELETE FROM benefit_region
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitMajors" parameterType="int">
+        DELETE FROM benefit_major
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitSchools" parameterType="int">
+        DELETE FROM benefit_school
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitJobs" parameterType="int">
+        DELETE FROM benefit_job
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <insert id="insertBenefitRegion">
+        INSERT IGNORE INTO benefit_region (
+        benefit_no,
+        zip_cd
+        )
+        SELECT
+        #{benefitNo},
+        #{zipCd}
+        FROM DUAL
+        WHERE EXISTS (
+        SELECT 1
+        FROM region
+        WHERE zip_cd = #{zipCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitMajor">
+        INSERT INTO benefit_major (
+        benefit_no,
+        plcy_major_cd
+        ) VALUES (
+        #{benefitNo},
+        #{plcyMajorCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitSchool">
+        INSERT INTO benefit_school (
+        benefit_no,
+        school_cd
+        ) VALUES (
+        #{benefitNo},
+        #{schoolCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitJob">
+        INSERT INTO benefit_job (
+        benefit_no,
+        job_cd
+        ) VALUES (
+        #{benefitNo},
+        #{jobCd}
+        )
+    </insert>
+
+    <select id="existsRegion" parameterType="string" resultType="int">
+        SELECT COUNT(*)
+        FROM region
+        WHERE zip_cd = #{zipCd}
+    </select>
 </mapper>
