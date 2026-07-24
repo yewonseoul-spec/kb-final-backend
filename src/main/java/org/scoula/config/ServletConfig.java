@@ -14,9 +14,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @ComponentScan(basePackages = {
         "org.scoula.exception",
         "org.scoula.controller",
+        "org.scoula.benefit.controller",
         "org.scoula.member.controller",
         "org.scoula.consumption.controller",
 })
+
 public class ServletConfig implements WebMvcConfigurer {
 
     @Override

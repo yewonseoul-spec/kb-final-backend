@@ -23,7 +23,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
     @Override
     public ConsumptionCalendarDTO getCal(Long memberNo, String yearMonth) {
 
-        // 1. DB에서 이번 달 지출/예상 소비 목록 조회
+        // 1. DB에서 이번 달 소비 내역 / 예상 소비 목록 조회
         List<SpendingVO> spendings =
                 consumptionMapper.selectSpendingByMonth(memberNo, yearMonth);
         System.out.println(" ======== spendings ========= ");
@@ -32,7 +32,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         List<ExpectedSpendingVO> expectedList =
                 consumptionMapper.selectExpectedByMonth(memberNo, yearMonth);
 
-        // 2. 총 지출/예상 소비 합계 계산
+        // 2. 총 지출 / 예상 소비 합계 계산
         long totalSpend = spendings.stream()
                 .mapToLong(SpendingVO::getAmount)
                 .sum();
@@ -52,7 +52,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         }
 
 
-        // 4. 날짜별 지출/예상 소비 그룹화
+        // 4. 날짜별 소비 내역 / 예상 소비 그룹화
         Map<String, List<SpendingVO>> spendingsByDate =
                 spendings.stream()
                         .collect(Collectors.groupingBy(
@@ -70,12 +70,12 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         allDates.addAll(expectedByDate.keySet());
 
 
-        List<DayDTO> days = new ArrayList<>(); // 모든 날짜별 지출 내역을 모을 리스트
+        List<DayDTO> days = new ArrayList<>();
 
 
-        for (String date : allDates) { // 날짜만 하나씩 꺼내서
-            DayDTO dayDto = new DayDTO(); // 날짜별 넣은 dto를 만들고
-            dayDto.setDate(date); // dto에 for문에서 꺼낸 date를 넣음.
+        for (String date : allDates) {
+            DayDTO dayDto = new DayDTO();
+            dayDto.setDate(date);
 
             List<SpendingItemDTO> spendingItems = new ArrayList<>();
 
@@ -94,7 +94,6 @@ public class ConsumptionServiceImpl implements ConsumptionService {
             }
 
 
-            // 날짜별 예상 소비 목록을 모을 list
             List<ExpectedItemDTO> expectedItems = new ArrayList<>();
 
             for (ExpectedSpendingVO v :
@@ -110,12 +109,9 @@ public class ConsumptionServiceImpl implements ConsumptionService {
                 expectedItems.add(item);
             }
 
-            // 일별 dto에 위에서 모은 "일별 소비 목록(spendingItems)"과 "예상 소비 목록(expectedItems)"을 넣음.
             dayDto.setSpendings(spendingItems);
             dayDto.setExpectedSpendings(expectedItems);
 
-            // days -> 5월의 모든 소비 내역(실제 + 예상)
-            // days(dayDTO list)
             days.add(dayDto);
         }
 

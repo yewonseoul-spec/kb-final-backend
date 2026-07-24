@@ -4,7 +4,7 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
-### gitignore site참고
+### gitignore site 참고
 # User-specific stuff
 .idea/**/workspace.xml
 .idea/**/tasks.xml
@@ -35,6 +35,8 @@ build/
 .idea/httpRequests
 .idea/dataSources.xml
 
+# .idea/dataSources.local.xml
+
 # Markdown Navigator plugin
 # https://plugins.jetbrains.com/plugin/7896-markdown-navigator-enhanced
 .idea/**/markdown-navigator.xml
@@ -50,7 +52,7 @@ build/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
-.idea/libraries/
+# .idea/libraries/
 *.iws
 *.iml
 *.ipr
@@ -89,6 +91,6 @@ bin/
 ## test file ignore
 src/test
 
-.gitignore
 
+# local config
 src/main/resources/application.properties
