@@ -1,28 +1,28 @@
 -- =====================================================================
 --  청년타파 (Youth-Tapa) - schema.sql
 --  DBMS      : MySQL 8.0+ (InnoDB / utf8mb4)
---  기준      : DB 설계서(7/22 수정본) 테이블정의서 + ERD
---              + 7/23 1:00 PM 데이터 패치 (API 코드 테이블화)
+--  기준      : 청년타파_DB설계서_v1 최신 테이블정의서
+--              + 7/23 패치 반영 (API 코드 테이블화 및 다중값 매핑 분리)
 --  컨벤션    : snake_case·단수형, 무접두사 / 제약 fk_·uk_·idx_ / ENUM 대문자
 --  공통      : PK = PRIMARY KEY(고정) · created_at/updated_at/status(is_active)
 --  참고      : 조건부 업무규칙(관리자 ROLE 검증, 시나리오별 필수값 등)은
 --              서비스 계층에서 처리. 여기서는 정적·단순 규칙만 CHECK로 강제.
 --  Soft Delete 설계이므로 FK는 CASCADE 없이 기본(RESTRICT) 유지.
 --  ---------------------------------------------------------------------
---  [7/23 패치 요약] 총 24개 테이블 (기존 22 + common_code 1 + benefit_major 1)
+--  [최신 반영 요약] 총 26개 테이블 (기존 22 + common_code + benefit_major/school/job)
 --   · API 출처 코드(코드정보 탭 11개군 69건)를 ENUM -> common_code 통합
 --     테이블 + FK로 전환. 코드군 검증은 CHECK (컬럼 LIKE '00NN%') 로 보완
 --   · benefit : created_at->first_reg_dt, updated_at->last_mdfcn_dt(API 필드명),
---               earn_cnd_se_cd·earn_etc_cn 추가, plcy_major_cd 제거(다중값 분리)
---   · benefit_major 신규 : 전공요건 다중값("0011005,0011008") 정규화
+--               earn_cnd_se_cd·earn_etc_cn 추가, 전공/학력/취업 다중값 컬럼 제거
+--   · benefit_major / benefit_school / benefit_job 신규 : 다중값 정규화
 --   · benefit_category : API 대분류(lclsfNm) 5종과 1:1, lclsf_nm 매칭키 추가
 --     (대분류는 7자리 코드가 없어 common_code 에 포함하지 않고 별도 유지)
 --   · goal_type/noti_type/role 등 자체 정의 고정값은 ENUM 유지(외부 코드 아님)
 -- =====================================================================
 
--- CREATE DATABASE IF NOT EXISTS youthtapa
---   DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
--- USE youthtapa;
+CREATE DATABASE IF NOT EXISTS youthtapa
+DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+USE youthtapa;
 
 SET NAMES utf8mb4;
 
@@ -33,6 +33,8 @@ SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS sync_log;
 DROP TABLE IF EXISTS benefit_conflict_rule;
 DROP TABLE IF EXISTS applied_benefit;
+DROP TABLE IF EXISTS benefit_job;
+DROP TABLE IF EXISTS benefit_school;
 DROP TABLE IF EXISTS benefit_major;
 DROP TABLE IF EXISTS benefit_region;
 DROP TABLE IF EXISTS favorite_benefit;
@@ -69,17 +71,20 @@ SET FOREIGN_KEY_CHECKS = 1;
 --   · 단, FK는 "코드의 존재"만 검증하고 "올바른 코드군"인지는 보지 못하므로
 --     (예: employ_status 에 학력코드 0049001 이 들어가도 FK 통과)
 --     참조하는 컬럼마다 CHECK (컬럼 LIKE '00NN%') 로 코드군을 함께 강제한다.
---   · 정렬은 code 자체가 zero-padded 고정폭이라 ORDER BY code 로 충분해
---     display_order 는 두지 않는다.
+--   · 최신 설계서에 따라 display_order와 is_active를 두어
+--     필터 노출 순서와 코드 사용 여부를 관리한다.
 -- =====================================================================
 CREATE TABLE common_code (
-    code       CHAR(7)     NOT NULL                                COMMENT '코드(전역 유일, 예: 0013004)',
-    group_code CHAR(4)     NOT NULL                                COMMENT '코드군(예: 0013)',
-    api_field  VARCHAR(30) NOT NULL                                COMMENT 'API 필드명(예: jobCd) - 동기화 매핑용',
-    group_name VARCHAR(30) NOT NULL                                COMMENT '코드군명(예: 정책취업 요건코드)',
-    code_name  VARCHAR(30) NOT NULL                                COMMENT '코드명(예: 프리랜서)',
+    code          CHAR(7)     NOT NULL                            COMMENT '코드(전역 유일, 예: 0013004)',
+    group_code    CHAR(4)     NOT NULL                            COMMENT '코드군(예: 0013)',
+    api_field     VARCHAR(30) NOT NULL                            COMMENT 'API 필드명(예: jobCd) - 동기화 매핑용',
+    group_name    VARCHAR(50) NOT NULL                            COMMENT '코드군명(예: 정책취업요건코드)',
+    code_name     VARCHAR(50) NOT NULL                            COMMENT '코드명(예: 재직자)',
+    display_order INT         NULL                                COMMENT '필터 화면 노출 순서',
+    is_active     CHAR(1)     NOT NULL DEFAULT 'Y'                COMMENT '사용여부 Y/N',
     PRIMARY KEY (code),
     CONSTRAINT chk_common_code_group CHECK (code LIKE CONCAT(group_code, '%')),
+    CONSTRAINT chk_common_code_active CHECK (is_active IN ('Y','N')),
     INDEX idx_common_code_group (group_code),
     INDEX idx_common_code_api_field (api_field)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='공통코드(온통청년 API 코드정보)';
@@ -122,12 +127,12 @@ CREATE TABLE terms (
 --  3. region : 지역 (법정시군구코드, 자기참조)
 -- =====================================================================
 CREATE TABLE region (
-    region_code        CHAR(5)     NOT NULL                        COMMENT '지역코드(법정시군구코드)',
+    zip_cd           CHAR(5)     NOT NULL                        COMMENT '지역코드(법정시군구코드)',
     region_name        VARCHAR(50) NOT NULL                        COMMENT '지역명',
     parent_region_code CHAR(5)     NULL                            COMMENT '상위지역코드(시/도·전국은 NULL)',
-    PRIMARY KEY (region_code),
+    PRIMARY KEY (zip_cd),
     CONSTRAINT fk_region_parent FOREIGN KEY (parent_region_code)
-        REFERENCES region (region_code)
+        REFERENCES region (zip_cd)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='지역';
 
 
@@ -213,18 +218,19 @@ CREATE TABLE stress_scenario (
 CREATE TABLE benefit (
     benefit_no          INT          NOT NULL AUTO_INCREMENT       COMMENT '혜택번호(내부 PK)',
     plcy_no             VARCHAR(30)  NULL                          COMMENT '외부정책ID(plcyNo, 동기화 매칭키)',
-    plcy_nm             VARCHAR(100) NOT NULL                      COMMENT '혜택명(plcyNm)',
+    plcy_nm             TEXT         NOT NULL                      COMMENT '혜택명(plcyNm)',
     category_code       CHAR(2)      NOT NULL                      COMMENT '카테고리코드',
     sprvsn_inst_cd_nm   VARCHAR(100) NULL                          COMMENT '주관기관명(sprvsnInstCdNm)',
     target_desc         TEXT         NULL                          COMMENT '지원대상',
     plcy_sprt_cn        TEXT         NULL                          COMMENT '지원내용(plcySprtCn)',
     support_amount      INT          NULL                          COMMENT '지원금액(파싱)',
-    plcy_aply_mthd_cn   VARCHAR(500) NULL                          COMMENT '신청방법(plcyAplyMthdCn)',
-    sbmsn_dcmnt_cn      VARCHAR(500) NULL                          COMMENT '제출서류(sbmsnDcmntCn)',
+    plcy_aply_mthd_cn   TEXT         NULL                          COMMENT '신청방법(plcyAplyMthdCn)',
+    sbmsn_dcmnt_cn      TEXT         NULL                          COMMENT '제출서류(sbmsnDcmntCn)',
     apply_start_date    DATE         NULL                          COMMENT '신청시작일',
     apply_end_date      DATE         NULL                          COMMENT '신청종료일(D-Day 기준)',
     aply_ymd            VARCHAR(200) NULL                          COMMENT '신청기간원문(aplyYmd)',
-    aply_url_addr       VARCHAR(255) NULL                          COMMENT '신청URL(aplyUrlAddr)',
+    aply_prd_se_cd      CHAR(7)      NULL                          COMMENT '신청기간구분코드(0057 계열)',
+    aply_url_addr       TEXT          NULL                          COMMENT '신청URL(aplyUrlAddr)',
     sprt_trgt_min_age   INT          NULL                          COMMENT '최소연령(sprtTrgtMinAge)',
     sprt_trgt_max_age   INT          NULL                          COMMENT '최대연령(sprtTrgtMaxAge)',
     earn_cnd_se_cd      CHAR(7)      NULL                          COMMENT '소득조건구분코드(earnCndSeCd) 0043',
@@ -232,29 +238,26 @@ CREATE TABLE benefit (
     earn_max_amt        INT          NULL                          COMMENT '최대소득(earnMaxAmt)',
     earn_etc_cn         TEXT         NULL                          COMMENT '소득기타내용(earnEtcCn, 0043003일 때 조건 원문)',
     mrg_stts_cd         CHAR(7)      NULL                          COMMENT '결혼상태코드(mrgSttsCd) 0055',
-    school_cd           CHAR(7)      NULL                          COMMENT '학력요건코드(schoolCd) 0049',
-    job_cd              CHAR(7)      NULL                          COMMENT '취업요건코드(jobCd) 0013',
     conflict_group_code VARCHAR(50)  NULL                          COMMENT '중복수혜그룹코드',
     inq_cnt             INT          NOT NULL DEFAULT 0            COMMENT '조회수(초기값; 실시간은 Redis)',
     is_active           CHAR(1)      NOT NULL DEFAULT 'Y'          COMMENT '활성화여부 Y/N(마감 경과 시 N)',
-    first_reg_dt        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
+    frst_reg_dt        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
     last_mdfcn_dt       DATETIME     NULL     DEFAULT NULL         COMMENT '최종수정일시(lastMdfcnDt)',
-    plcy_expln_cn       VARCHAR(300) NULL                          COMMENT '정책설명내용(plcyExplnCn)',
+    plcy_expln_cn       TEXT         NULL                          COMMENT '정책설명내용(plcyExplnCn)',
+
     PRIMARY KEY (benefit_no),
     CONSTRAINT uk_benefit_plcy_no UNIQUE (plcy_no),
     CONSTRAINT fk_benefit_category FOREIGN KEY (category_code)
         REFERENCES benefit_category (category_code),
-    CONSTRAINT fk_benefit_job      FOREIGN KEY (job_cd)         REFERENCES common_code (code),
-    CONSTRAINT fk_benefit_school   FOREIGN KEY (school_cd)      REFERENCES common_code (code),
     CONSTRAINT fk_benefit_mrg      FOREIGN KEY (mrg_stts_cd)    REFERENCES common_code (code),
     CONSTRAINT fk_benefit_earn_cnd FOREIGN KEY (earn_cnd_se_cd) REFERENCES common_code (code),
+    CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
     -- FK는 코드 존재만 검증하므로 코드군까지 CHECK로 강제 (NULL은 UNKNOWN이라 통과)
     -- 혜택 측은 '제한없음'이 정상 조건값이므로 별도 차단하지 않는다
-    CONSTRAINT chk_benefit_job      CHECK (job_cd         LIKE '0013%'),
-    CONSTRAINT chk_benefit_school   CHECK (school_cd      LIKE '0049%'),
     CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd    LIKE '0055%'),
     CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd LIKE '0043%'),
     CONSTRAINT chk_benefit_is_active CHECK (is_active IN ('Y','N')),
+    CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd LIKE '0057%'),
     INDEX idx_benefit_apply_end (apply_end_date),
     INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
@@ -279,7 +282,7 @@ CREATE TABLE member_profile (
     CONSTRAINT fk_member_profile_member FOREIGN KEY (member_no)
         REFERENCES member (member_no),
     CONSTRAINT fk_member_profile_region FOREIGN KEY (region_code)
-        REFERENCES region (region_code),
+        REFERENCES region (zip_cd),
     CONSTRAINT fk_member_profile_job    FOREIGN KEY (employ_status) REFERENCES common_code (code),
     CONSTRAINT fk_member_profile_major  FOREIGN KEY (major)         REFERENCES common_code (code),
     CONSTRAINT fk_member_profile_school FOREIGN KEY (education)     REFERENCES common_code (code),
@@ -449,31 +452,59 @@ CREATE TABLE favorite_benefit (
 --  19. benefit_region : 혜택지역 매핑 (복합 PK)
 -- =====================================================================
 CREATE TABLE benefit_region (
-    benefit_no  INT     NOT NULL                                  COMMENT '혜택번호',
-    region_code CHAR(5) NOT NULL                                  COMMENT '지역코드',
-    PRIMARY KEY (benefit_no, region_code),
+    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+    zip_cd   CHAR(5) NOT NULL                                  COMMENT '지역코드',
+    PRIMARY KEY (benefit_no, zip_cd),
     CONSTRAINT fk_benefit_region_benefit FOREIGN KEY (benefit_no)
         REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_region_region  FOREIGN KEY (region_code)
-        REFERENCES region (region_code)
+    CONSTRAINT fk_benefit_region_region  FOREIGN KEY (zip_cd)
+        REFERENCES region (zip_cd)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택지역 매핑';
 
 
 -- =====================================================================
 --  19-2. benefit_major : 혜택 전공요건 매핑 (복합 PK)
---   · API가 plcyMajorCd를 "0011005,0011008" 처럼 다중값으로 응답하므로
---     한 컬럼에 담지 않고 benefit_region 과 동일한 패턴으로 정규화
 -- =====================================================================
 CREATE TABLE benefit_major (
-    benefit_no INT     NOT NULL                                    COMMENT '혜택번호',
-    major_code CHAR(7) NOT NULL                                    COMMENT '전공요건코드(0011)',
-    PRIMARY KEY (benefit_no, major_code),
+    benefit_no   INT     NOT NULL                                COMMENT '혜택번호',
+    plcy_major_cd CHAR(7) NOT NULL                               COMMENT '전공요건코드(0011 계열)',
+    PRIMARY KEY (benefit_no, plcy_major_cd),
     CONSTRAINT fk_benefit_major_benefit FOREIGN KEY (benefit_no)
         REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_major_major   FOREIGN KEY (major_code)
+    CONSTRAINT fk_benefit_major_code FOREIGN KEY (plcy_major_cd)
         REFERENCES common_code (code),
-    CONSTRAINT chk_benefit_major_group CHECK (major_code LIKE '0011%')
+    CONSTRAINT chk_benefit_major_group CHECK (plcy_major_cd LIKE '0011%')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 전공요건 매핑';
+
+
+-- =====================================================================
+--  19-3. benefit_school : 혜택 학력요건 매핑 (복합 PK)
+-- =====================================================================
+CREATE TABLE benefit_school (
+    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+    school_cd  CHAR(7) NOT NULL                                  COMMENT '학력요건코드(0049 계열)',
+    PRIMARY KEY (benefit_no, school_cd),
+    CONSTRAINT fk_benefit_school_benefit FOREIGN KEY (benefit_no)
+        REFERENCES benefit (benefit_no),
+    CONSTRAINT fk_benefit_school_code FOREIGN KEY (school_cd)
+        REFERENCES common_code (code),
+    CONSTRAINT chk_benefit_school_group CHECK (school_cd LIKE '0049%')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 학력요건 매핑';
+
+
+-- =====================================================================
+--  19-4. benefit_job : 혜택 취업요건 매핑 (복합 PK)
+-- =====================================================================
+CREATE TABLE benefit_job (
+    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+    job_cd     CHAR(7) NOT NULL                                  COMMENT '취업요건코드(0013 계열)',
+    PRIMARY KEY (benefit_no, job_cd),
+    CONSTRAINT fk_benefit_job_benefit FOREIGN KEY (benefit_no)
+        REFERENCES benefit (benefit_no),
+    CONSTRAINT fk_benefit_job_code FOREIGN KEY (job_cd)
+        REFERENCES common_code (code),
+    CONSTRAINT chk_benefit_job_group CHECK (job_cd LIKE '0013%')
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 취업요건 매핑';
 
 
 -- =====================================================================

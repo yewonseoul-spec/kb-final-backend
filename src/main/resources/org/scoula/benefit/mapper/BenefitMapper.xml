@@ -19,6 +19,7 @@
         apply_start_date,
         apply_end_date,
         aply_ymd,
+        aply_prd_se_cd,
         aply_url_addr,
         sprt_trgt_min_age,
         sprt_trgt_max_age,
@@ -27,9 +28,6 @@
         earn_max_amt,
         earn_etc_cn,
         mrg_stts_cd,
-        plcy_major_cd,
-        school_cd,
-        job_cd,
         conflict_group_code,
         inq_cnt,
         is_active,
@@ -49,6 +47,7 @@
         #{applyStartDate},
         #{applyEndDate},
         #{aplyYmd},
+        #{aplyPrdSeCd},
         #{aplyUrlAddr},
         #{sprtTrgtMinAge},
         #{sprtTrgtMaxAge},
@@ -57,9 +56,6 @@
         #{earnMaxAmt},
         #{earnEtcCn},
         #{mrgSttsCd},
-        #{plcyMajorCd},
-        #{schoolCd},
-        #{jobCd},
         #{conflictGroupCode},
         IFNULL(#{inqCnt}, 0),
         IFNULL(#{isActive}, 'Y'),
@@ -79,6 +75,7 @@
         apply_start_date = VALUES(apply_start_date),
         apply_end_date = VALUES(apply_end_date),
         aply_ymd = VALUES(aply_ymd),
+        aply_prd_se_cd = VALUES(aply_prd_se_cd),
         aply_url_addr = VALUES(aply_url_addr),
         sprt_trgt_min_age = VALUES(sprt_trgt_min_age),
         sprt_trgt_max_age = VALUES(sprt_trgt_max_age),
@@ -87,13 +84,86 @@
         earn_max_amt = VALUES(earn_max_amt),
         earn_etc_cn = VALUES(earn_etc_cn),
         mrg_stts_cd = VALUES(mrg_stts_cd),
-        plcy_major_cd = VALUES(plcy_major_cd),
-        school_cd = VALUES(school_cd),
-        job_cd = VALUES(job_cd),
         inq_cnt = VALUES(inq_cnt),
         is_active = VALUES(is_active),
         last_mdfcn_dt = NOW(),
         plcy_expln_cn = VALUES(plcy_expln_cn)
     </insert>
+    <select id="findBenefitNoByPlcyNo" parameterType="string" resultType="int">
+        SELECT benefit_no
+        FROM benefit
+        WHERE plcy_no = #{plcyNo}
+    </select>
 
+    <delete id="deleteBenefitRegions" parameterType="int">
+        DELETE FROM benefit_region
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitMajors" parameterType="int">
+        DELETE FROM benefit_major
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitSchools" parameterType="int">
+        DELETE FROM benefit_school
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitJobs" parameterType="int">
+        DELETE FROM benefit_job
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <insert id="insertBenefitRegion">
+        INSERT IGNORE INTO benefit_region (
+        benefit_no,
+        zip_cd
+        )
+        SELECT
+        #{benefitNo},
+        #{zipCd}
+        FROM DUAL
+        WHERE EXISTS (
+        SELECT 1
+        FROM region
+        WHERE zip_cd = #{zipCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitMajor">
+        INSERT INTO benefit_major (
+        benefit_no,
+        plcy_major_cd
+        ) VALUES (
+        #{benefitNo},
+        #{plcyMajorCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitSchool">
+        INSERT INTO benefit_school (
+        benefit_no,
+        school_cd
+        ) VALUES (
+        #{benefitNo},
+        #{schoolCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitJob">
+        INSERT INTO benefit_job (
+        benefit_no,
+        job_cd
+        ) VALUES (
+        #{benefitNo},
+        #{jobCd}
+        )
+    </insert>
+
+    <select id="existsRegion" parameterType="string" resultType="int">
+        SELECT COUNT(*)
+        FROM region
+        WHERE zip_cd = #{zipCd}
+    </select>
 </mapper>
