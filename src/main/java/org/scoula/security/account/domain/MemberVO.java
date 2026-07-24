@@ -13,12 +13,14 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class MemberVO {
-    private String username;
+    private int memberNo;
+    private String loginId;
     private String password;
     private String email;
-    private Date regDate;
-    private Date updateDate;
-
-    private List<AuthVO> authList;        // 권한 목록, join 처리 필요
+    private String role;
+    private String realName;
+    private String status;
+    private Date createdAt;
+    private Date updatedAt;
 
 }

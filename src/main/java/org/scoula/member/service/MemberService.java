@@ -6,9 +6,9 @@ import org.scoula.member.dto.MemberJoinDTO;
 import org.scoula.member.dto.MemberUpdateDTO;
 
 public interface MemberService {
-    boolean checkDuplicate(String username);
+    boolean checkDuplicate(String loginId);
 
-    MemberDTO get(String username);
+    MemberDTO get(String loginId);
 
     MemberDTO join(MemberJoinDTO member);
 
