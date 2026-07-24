@@ -88,3 +88,7 @@ bin/
 
 ## test file ignore
 src/test
+
+.gitignore
+
+src/main/resources/application.properties
