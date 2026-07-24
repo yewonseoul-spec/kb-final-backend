@@ -89,6 +89,15 @@
             FROM applied_benefit
             WHERE member_no = #{memberNo}
         )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM applied_benefit ab
+                     JOIN benefit ob ON ob.benefit_no = ab.benefit_no
+            WHERE ab.member_no = #{memberNo}
+              AND ob.conflict_group_code IS NOT NULL
+              AND b.conflict_group_code IS NOT NULL
+              AND ob.conflict_group_code = b.conflict_group_code
+        )
     </select>
 
 </mapper>
