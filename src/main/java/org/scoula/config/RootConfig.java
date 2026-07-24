@@ -13,22 +13,26 @@ import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @PropertySource("classpath:/application.properties")
 @MapperScan(basePackages = {
         "org.scoula.benefit.mapper",
-        "org.scoula.member.mapper"
+        "org.scoula.member.mapper",
         "org.scoula.engine.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
         "org.scoula.benefit.client",
-        "org.scoula.member.service"
+        "org.scoula.member.service",
         "org.scoula.engine.service"
 })
 @EnableTransactionManagement
@@ -65,12 +69,20 @@ public class RootConfig {
     @Bean
     public SqlSessionFactory sqlSessionFactory() throws Exception {
         SqlSessionFactoryBean sqlSessionFactory = new SqlSessionFactoryBean();
-
         sqlSessionFactory.setDataSource(dataSource());
-
-        sqlSessionFactory.setMapperLocations(
-                applicationContext.getResources("classpath*:/org/scoula/benefit/mapper/**/*.xml")
+        sqlSessionFactory.setConfigLocation(
+                applicationContext.getResource("classpath:/mybatis-config.xml")
         );
+
+        List<Resource> resources = new ArrayList<>();
+        resources.addAll(Arrays.asList(
+                applicationContext.getResources("classpath*:/org/scoula/benefit/mapper/**/*.xml")
+        ));
+        resources.addAll(Arrays.asList(
+                applicationContext.getResources("classpath*:/org/scoula/engine.mapper/**/*.xml")
+        ));
+
+        sqlSessionFactory.setMapperLocations(resources.toArray(new Resource[0]));
 
         return sqlSessionFactory.getObject();
     }
