@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.consumption.mapper.ConsumptionMapper">
+
+    <select id="selectSpendingByMonth" resultType="org.scoula.consumption.domain.SpendingVO">
+        SELECT s.spending_no, s.member_no, s.category_no, c.category_name, s.amount, s.merchant, s.spending_date
+        FROM spending s
+                 INNER JOIN spending_category c
+                            ON s.category_no = c.category_no
+        WHERE s.member_no = #{memberNo}
+          AND DATE_FORMAT(s.spending_date, '%Y-%m') = #{yearMonth}
+        ORDER BY s.spending_date
+    </select>
+    <select id="selectExpectedByMonth" resultType="org.scoula.consumption.domain.ExpectedSpendingVO">
+        SELECT e.expected_no,
+               e.member_no,
+               e.category_no,
+               c.category_name,
+               e.expected_amount,
+               e.merchant,
+               e.expected_date
+        FROM expected_spending e
+                 INNER JOIN spending_category c
+                            ON e.category_no = c.category_no
+        WHERE e.member_no = #{memberNo}
+          AND DATE_FORMAT(e.expected_date, '%Y-%m') = #{yearMonth}
+        ORDER BY e.expected_date
+
+    </select>
+</mapper>
