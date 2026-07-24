@@ -33,7 +33,7 @@ build/
 
 # Editor-based Rest Client
 .idea/httpRequests
-
+.idea/dataSources.xml
 
 # Markdown Navigator plugin
 # https://plugins.jetbrains.com/plugin/7896-markdown-navigator-enhanced
