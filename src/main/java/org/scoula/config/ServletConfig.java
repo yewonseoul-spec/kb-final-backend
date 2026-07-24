@@ -16,8 +16,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
         "org.scoula.controller",
         "org.scoula.benefit.controller",
         "org.scoula.member.controller",
-        "org.scoula.engine.controller"
+        "org.scoula.consumption.controller",
+        "org.scoula.engine.controller",
 })
+
 public class ServletConfig implements WebMvcConfigurer {
 
     @Override
