@@ -27,13 +27,15 @@ import java.util.List;
 @MapperScan(basePackages = {
         "org.scoula.benefit.mapper",
         "org.scoula.member.mapper",
-        "org.scoula.engine.mapper"
+        "org.scoula.engine.mapper",
+        "org.scoula.consumption.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
         "org.scoula.benefit.client",
         "org.scoula.member.service",
-        "org.scoula.engine.service"
+        "org.scoula.engine.service",
+        "org.scoula.consumption.service"
 })
 @EnableTransactionManagement
 public class RootConfig {
