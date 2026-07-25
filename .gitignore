@@ -44,11 +44,12 @@ bin/
 ## test file ignore
 src/test
 
-
 # local config
-# src/main/resources/application.properties
+src/main/resources/application.properties
 
 # IntelliJ local database config
 .idea/material_theme_project_new.xml
 .idea/sqldialects.xml
 .idea/.name
+
+api.http
