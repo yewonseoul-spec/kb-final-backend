@@ -12,7 +12,7 @@ import java.util.Map;
 import static io.jsonwebtoken.Jwts.header;
 
 @RestController
-@RequestMapping("/api/benefits")
+@RequestMapping("/api/benefit")
 @RequiredArgsConstructor
 public class BenefitController {
 

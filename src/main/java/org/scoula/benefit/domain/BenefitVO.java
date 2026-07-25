@@ -21,10 +21,13 @@ public class BenefitVO {
     private String applyStartDate;
     private String applyEndDate;
     private String aplyYmd;
+    private String aplyPrdSeCd;
     private String aplyUrlAddr;
+
 
     private Integer sprtTrgtMinAge;
     private Integer sprtTrgtMaxAge;
+
 
     private String earnCndSeCd;
     private Integer earnMinAmt;
@@ -32,9 +35,6 @@ public class BenefitVO {
     private String earnEtcCn;
 
     private String mrgSttsCd;
-    private String plcyMajorCd;
-    private String schoolCd;
-    private String jobCd;
 
     private String conflictGroupCode;
     private Integer inqCnt;
