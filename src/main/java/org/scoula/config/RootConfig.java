@@ -37,7 +37,8 @@ import java.util.List;
         "org.scoula.benefit.client",
         "org.scoula.member.service",
         "org.scoula.engine.service",
-        "org.scoula.consumption.service"
+        "org.scoula.consumption.service",
+        "org.scoula.terms.service"
 })
 @EnableTransactionManagement
 public class RootConfig {
