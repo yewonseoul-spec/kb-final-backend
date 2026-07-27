@@ -8,6 +8,8 @@ public interface MemberMapper {
 
     MemberVO findByLoginId(String loginId);    // id 중복 체크시 사용
 
+    int countByEmail(String email);
+
     int insert(MemberVO member);  // 회원 정보 추가
 
     int update(MemberVO member);

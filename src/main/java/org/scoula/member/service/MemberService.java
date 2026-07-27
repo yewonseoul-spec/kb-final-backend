@@ -8,6 +8,8 @@ import org.scoula.member.dto.MemberUpdateDTO;
 public interface MemberService {
     boolean checkDuplicate(String loginId);
 
+    boolean checkDuplicateEmail(String email);
+
     MemberDTO get(String loginId);
 
     MemberDTO join(MemberJoinDTO member);

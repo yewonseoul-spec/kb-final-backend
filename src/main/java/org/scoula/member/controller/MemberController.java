@@ -25,6 +25,11 @@ public class MemberController {
         return ResponseEntity.ok().body(service.checkDuplicate(loginId));
     }
 
+    @GetMapping("/check-email")
+    public ResponseEntity<Boolean> checkEmail(@RequestParam("email") String email) {
+        return ResponseEntity.ok().body(service.checkDuplicateEmail(email));
+    }
+
 
 
 

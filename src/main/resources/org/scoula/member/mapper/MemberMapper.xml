@@ -30,6 +30,11 @@
         FROM member
         WHERE login_id = #{loginId}
     </select>
+    <select id="countByEmail" resultType="int">
+        SELECT COUNT(*)
+        FROM member
+        WHERE email = #{email}
+    </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="memberNo">
         INSERT INTO member (login_id, password, email, real_name)

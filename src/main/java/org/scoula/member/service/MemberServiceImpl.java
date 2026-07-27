@@ -34,6 +34,11 @@ public class MemberServiceImpl implements MemberService {
     }
 
     @Override
+    public boolean checkDuplicateEmail(String email) {
+        return mapper.countByEmail(email) > 0;
+    }
+
+    @Override
     public MemberDTO get(String loginId) {
         MemberVO member = Optional.ofNullable(mapper.get(loginId))
                 .orElseThrow(NoSuchElementException::new);
