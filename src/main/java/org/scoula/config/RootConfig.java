@@ -28,6 +28,7 @@ import java.util.List;
         "org.scoula.benefit.mapper",
         "org.scoula.member.mapper",
         "org.scoula.engine.mapper",
+        "org.scoula.consumption.mapper",
         "org.scoula.terms.mapper"
 
 })
@@ -35,7 +36,8 @@ import java.util.List;
         "org.scoula.benefit.service",
         "org.scoula.benefit.client",
         "org.scoula.member.service",
-        "org.scoula.engine.service"
+        "org.scoula.engine.service",
+        "org.scoula.consumption.service"
 })
 @EnableTransactionManagement
 public class RootConfig {
@@ -45,7 +47,6 @@ public class RootConfig {
     String url;
     @Value("${jdbc.username}")
     String username;
-
     @Value("${jdbc.password}")
     String password;
 
