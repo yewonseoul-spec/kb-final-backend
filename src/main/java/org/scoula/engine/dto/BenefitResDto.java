@@ -2,6 +2,7 @@ package org.scoula.engine.dto;
 
 import lombok.Data;
 import java.util.Date;
+import java.util.List;
 
 //engine-01
 @Data
@@ -21,4 +22,8 @@ public class BenefitResDto {
     private String conflictGroupCode;
     private String isActive;
     private Date applyEndDate;
+    private String plcyNo;              // 온통청년 정책 고유번호
+    private Integer inqCnt;             // 조회수 (engine-05 인기도 점수)
+    private int score;                  // engine-05: 추천 점수 (0~100)
+    private List<String> scoreDetail;   // engine-05: 매칭 근거 (항목별 표시용)
 }

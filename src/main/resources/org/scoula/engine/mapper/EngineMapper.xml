@@ -21,7 +21,9 @@
         WHERE member_no = #{memberNo}
     </select>
 
-    <!-- 이미 보유한 정책 번호 목록 -->
+    <!-- 이미 보유한 정책 번호 목록
+         룰북 2번: 보유 정책 조회에는 is_active 필터를 적용하지 않는다.
+         (신규 신청기간이 끝났어도 사용자가 수혜 중일 수 있으므로 검사 대상) -->
     <select id="findAppliedBenefitNos"
             resultType="int">
         SELECT benefit_no
@@ -29,37 +31,39 @@
         WHERE member_no = #{memberNo}
     </select>
 
-    <!-- 자격조건 필터링 -->
+    <!-- engine-01·02 + 룰북 6번: 자격조건 필터링 + 그룹충돌 + 개별쌍 중복불가 -->
     <select id="findEligibleBenefits"
             resultType="org.scoula.engine.dto.BenefitResDto">
         SELECT
-            b.benefit_no,
-            b.plcy_nm,
-            b.category_code,
-            b.sprt_trgt_min_age,
-            b.sprt_trgt_max_age,
-            b.earn_min_amt,
-            b.earn_max_amt,
-            b.earn_cnd_se_cd,
-            b.earn_etc_cn,
-            b.mrg_stts_cd,
-            b.conflict_group_code,
-            b.is_active,
-            b.apply_end_date
+        b.benefit_no,
+        b.plcy_no,
+        b.inq_cnt,
+        b.plcy_nm,
+        b.category_code,
+        b.sprt_trgt_min_age,
+        b.sprt_trgt_max_age,
+        b.earn_min_amt,
+        b.earn_max_amt,
+        b.earn_cnd_se_cd,
+        b.earn_etc_cn,
+        b.mrg_stts_cd,
+        b.conflict_group_code,
+        b.is_active,
+        b.apply_end_date
         FROM benefit b
         WHERE b.is_active = 'Y'
-        AND (
-        b.sprt_trgt_min_age IS NULL
-        OR TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()) >= b.sprt_trgt_min_age
-        )
-        AND (
-            b.sprt_trgt_max_age IS NULL
-                OR b.sprt_trgt_max_age >= TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE())
-            )
+        <!-- 마감일이 지난 정책은 신규 추천 후보에서 제외
+             (동기화가 마감 시 is_active를 N으로 갱신하지 않아 직접 걸러낸다) -->
+        AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
+        <!-- 나이 조건 (최소·최대 분리, NULL이면 제한 없음) -->
+        AND (b.sprt_trgt_min_age IS NULL
+        OR TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()) >= b.sprt_trgt_min_age)
+        AND (b.sprt_trgt_max_age IS NULL
+        OR b.sprt_trgt_max_age >= TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()))
         <!-- 소득 조건
              0043001 제한없음 → 통과
-             0043003 기타     → 통과. 조건이 earn_etc_cn에 문장으로만 들어있어 SQL 판정 불가.
-                                프론트에서 '소득조건 확인 필요' 표시 (ENGINE-05 review-required 연계)
+             0043003 기타     → 통과. 조건이 earn_etc_cn에 문장으로만 있어 SQL 판정 불가.
+                                프론트에서 '소득조건 확인 필요' 표시
              0043002 연소득   → member_profile.income(원/월)을 연소득(만원)으로 환산 후 비교 -->
         AND (
         b.earn_cnd_se_cd = '0043001'
@@ -70,51 +74,61 @@
         AND (b.earn_max_amt IS NULL OR b.earn_max_amt >= (#{income} * 12 / 10000))
         )
         )
-          AND (b.mrg_stts_cd IS NULL
-            OR b.mrg_stts_cd = '0055003'
-            OR b.mrg_stts_cd = #{mrgSttsCd})
-          AND (
-            NOT EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no)
-                OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = #{employStatus})
-                OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = '0013010')
-            )
-          AND (
-            NOT EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no)
-                OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = #{education})
-                OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = '0049010')
-            )
-          AND (NOT EXISTS (
-            SELECT 1 FROM benefit_major bm
-            WHERE bm.benefit_no = b.benefit_no
+        <!-- 혼인 조건 (0055003 = 제한없음) -->
+        AND (b.mrg_stts_cd IS NULL
+        OR b.mrg_stts_cd = '0055003'
+        OR b.mrg_stts_cd = #{mrgSttsCd})
+        <!-- 취업 조건: 매핑 행이 없으면 제한 없음, 0013010 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = #{employStatus})
+        OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = '0013010')
         )
-            OR EXISTS (
-                SELECT 1 FROM benefit_major bm
-                WHERE bm.benefit_no = b.benefit_no
-                  AND bm.plcy_major_cd = #{major}
-            )
-            OR EXISTS (
-                SELECT 1 FROM benefit_major bm
-                WHERE bm.benefit_no = b.benefit_no
-                  AND bm.plcy_major_cd = '0011009'
-            ))
-          AND b.benefit_no NOT IN (
-            SELECT benefit_no
-            FROM applied_benefit
-            WHERE member_no = #{memberNo}
+        <!-- 학력 조건: 0049010 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = #{education})
+        OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = '0049010')
         )
-          AND NOT EXISTS (
-            SELECT 1
-            FROM applied_benefit ab
-                     JOIN benefit ob ON ob.benefit_no = ab.benefit_no
-            WHERE ab.member_no = #{memberNo}
-              AND ob.conflict_group_code IS NOT NULL
-              AND b.conflict_group_code IS NOT NULL
-              AND ob.conflict_group_code = b.conflict_group_code
+        <!-- 전공 조건: 0011009 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no AND bm.plcy_major_cd = #{major})
+        OR EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no AND bm.plcy_major_cd = '0011009')
+        )
+        <!-- 룰북 3번: 이미 보유 등록한 동일 정책은 다시 추천하지 않는다 -->
+        AND b.benefit_no NOT IN (
+        SELECT benefit_no
+        FROM applied_benefit
+        WHERE member_no = #{memberNo}
+        )
+        <!-- 룰북 4번: 그룹형 충돌 (보유 vs 후보) — 같은 conflict_group_code면 제거 -->
+        AND NOT EXISTS (
+        SELECT 1
+        FROM applied_benefit ab
+        JOIN benefit ob ON ob.benefit_no = ab.benefit_no
+        WHERE ab.member_no = #{memberNo}
+        AND ob.conflict_group_code IS NOT NULL
+        AND b.conflict_group_code IS NOT NULL
+        AND ob.conflict_group_code = b.conflict_group_code
+        )
+        <!-- 룰북 6번: 개별쌍 중복불가 (보유 vs 후보)
+             내부 정책쌍은 순서 없는 관계이므로 양방향 모두 검사한다 -->
+        AND NOT EXISTS (
+        SELECT 1
+        FROM benefit_conflict_rule r
+        JOIN applied_benefit ab ON ab.member_no = #{memberNo}
+        WHERE r.confirm_status = '확정'
+        AND r.is_active = 'Y'
+        AND r.conflict_type = '중복불가'
+        AND r.trigger_benefit_no IS NOT NULL
+        AND ((r.trigger_benefit_no = ab.benefit_no AND r.target_benefit_no = b.benefit_no)
+        OR (r.target_benefit_no  = ab.benefit_no AND r.trigger_benefit_no = b.benefit_no))
         )
     </select>
 
-<!--    IntelliJ가 MyBatis XML 안에서 list라는 이름을 Java 코드로
-        인식 못 하는 거라서 빨간줄이 뜨는 거여서 실제 실행에는 전혀 영향 없다.-->
+    <!-- engine-03 / 룰북 7번: 경고 (보유 vs 후보) — 일부제한·확인필요는 제거하지 않고 경고만
+         IntelliJ가 list를 Java 코드로 인식 못 해 빨간 줄이 뜨지만 실행에는 영향 없다 -->
     <select id="findConflictWarnings"
             resultType="org.scoula.engine.dto.ConflictWarningDto">
         SELECT
@@ -148,8 +162,10 @@
         )
         AND r.conflict_type IN ('일부제한', '확인필요')
     </select>
-    <!-- engine-04: 외부 제도(실업급여 등) 충돌 경고
-         trigger_benefit_no가 NULL = 우리 benefit 테이블에 없는 외부 제도가 주체 -->
+
+    <!-- engine-04 / 룰북 13번: 외부 제도(실업급여 등) 충돌 경고
+         trigger_benefit_no가 NULL = 우리 benefit 테이블에 없는 외부 제도가 주체
+         룰북 절대규칙 25번: 외부 경고는 conflict_type이 '확인필요'인 것만 노출한다 -->
     <select id="findExternalWarnings"
             resultType="org.scoula.engine.dto.ConflictWarningDto">
         SELECT
@@ -160,6 +176,7 @@
         FROM benefit_conflict_rule r
                  JOIN benefit b ON b.benefit_no = r.target_benefit_no
         WHERE r.trigger_benefit_no IS NULL
+          AND r.conflict_type = '확인필요'
           AND r.confirm_status = '확정'
           AND r.is_active = 'Y'
     </select>
