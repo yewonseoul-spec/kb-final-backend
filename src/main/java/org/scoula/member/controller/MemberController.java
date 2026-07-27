@@ -30,6 +30,13 @@ public class MemberController {
         return ResponseEntity.ok().body(service.checkDuplicateEmail(email));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<String> logout() {
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("로그아웃 되었습니다.");
+    }
+
 
 
 

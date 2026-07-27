@@ -23,7 +23,7 @@ public class LoginDTO {
             return om.readValue(request.getInputStream(), LoginDTO.class);
         } catch (Exception e) {
             log.warn("로그인 요청 본문 파싱 실패", e);
-            throw new BadCredentialsException("username 또는 password가 없습니다.");
+            throw new BadCredentialsException("loginId 또는 password가 없습니다.");
         }
     }
 }
