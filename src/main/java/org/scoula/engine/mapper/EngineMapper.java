@@ -1,6 +1,7 @@
 package org.scoula.engine.mapper;
 
 import org.scoula.engine.dto.BenefitResDto;
+import org.scoula.engine.dto.ConflictRuleDto;
 import org.scoula.engine.dto.ConflictWarningDto;
 import org.scoula.engine.dto.UserProfileResDto;
 
@@ -22,4 +23,7 @@ public interface EngineMapper {
 
     // engine-04: 외부 제도(실업급여 등) 충돌 경고 조회
     List<ConflictWarningDto> findExternalWarnings();
+
+    // engine-06: 조합 내부 검사용 확정·활성 내부 규칙 전체 조회
+    List<ConflictRuleDto> findConfirmedInternalRules();
 }

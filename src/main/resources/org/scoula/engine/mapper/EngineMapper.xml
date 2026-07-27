@@ -52,6 +52,10 @@
         b.apply_end_date
         FROM benefit b
         WHERE b.is_active = 'Y'
+        <!-- 신청기간 구분이 '마감'(0057003)이면 후보에서 제외
+           상시(0057002)는 apply_end_date가 NULL이므로 아래 조건에서 통과된다 -->
+        AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd &lt;&gt; '0057003')
+        AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
         <!-- 마감일이 지난 정책은 신규 추천 후보에서 제외
              (동기화가 마감 시 is_active를 N으로 갱신하지 않아 직접 걸러낸다) -->
         AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
@@ -179,5 +183,20 @@
           AND r.conflict_type = '확인필요'
           AND r.confirm_status = '확정'
           AND r.is_active = 'Y'
+    </select>
+    <!-- engine-06: 조합 내부 충돌 검사용 내부 규칙 전체 조회
+         조합마다 SQL을 부르지 않도록 한 번에 가져와 Java에서 검사한다 -->
+    <select id="findConfirmedInternalRules"
+            resultType="org.scoula.engine.dto.ConflictRuleDto">
+        SELECT
+            r.trigger_benefit_no,
+            r.target_benefit_no,
+            r.conflict_type,
+            r.rule_text
+        FROM benefit_conflict_rule r
+        WHERE r.trigger_benefit_no IS NOT NULL
+          AND r.confirm_status = '확정'
+          AND r.is_active = 'Y'
+          AND r.conflict_type IN ('중복불가', '일부제한', '확인필요')
     </select>
 </mapper>
