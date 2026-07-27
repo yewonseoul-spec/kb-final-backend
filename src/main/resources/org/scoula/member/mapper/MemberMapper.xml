@@ -31,7 +31,7 @@
         WHERE login_id = #{loginId}
     </select>
 
-    <insert id="insert">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="memberNo">
         INSERT INTO member (login_id, password, email, real_name)
         VALUES (#{loginId}, #{password}, #{email}, #{realName})
     </insert>

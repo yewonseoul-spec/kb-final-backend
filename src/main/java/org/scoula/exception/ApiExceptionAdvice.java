@@ -1,6 +1,7 @@
 package org.scoula.exception;
 
 import lombok.extern.log4j.Log4j2;
+import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +30,15 @@ public class ApiExceptionAdvice {
                 .status(HttpStatus.NOT_FOUND)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("해당 URL이 없습니다.");
+    }
+
+    // 400 에러 - 필수 약관 미동의
+    @ExceptionHandler(RequiredTermsNotAgreedException.class)
+    protected ResponseEntity<String> handleRequiredTermsNotAgreed(RequiredTermsNotAgreedException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body(e.getMessage());
     }
 
 

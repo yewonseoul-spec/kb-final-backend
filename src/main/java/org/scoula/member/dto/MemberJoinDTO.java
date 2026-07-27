@@ -5,6 +5,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.scoula.security.account.domain.MemberVO;
+import org.scoula.terms.dto.TermsAgreeReqDto;
+
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -15,6 +18,7 @@ public class MemberJoinDTO {
     private String password;
     private String email;
     private String realName;
+    private List<TermsAgreeReqDto> terms;
 
     public MemberVO toVO() {
         return MemberVO.builder()

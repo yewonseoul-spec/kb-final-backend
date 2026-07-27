@@ -7,14 +7,17 @@ import org.scoula.member.dto.MemberDTO;
 import org.scoula.member.dto.MemberJoinDTO;
 import org.scoula.member.dto.MemberUpdateDTO;
 import org.scoula.member.exception.PasswordMissmatchException;
+import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.scoula.member.mapper.MemberMapper;
 import org.scoula.security.account.domain.MemberVO;
+import org.scoula.terms.domain.TermsVO;
+import org.scoula.terms.dto.TermsAgreeReqDto;
+import org.scoula.terms.mapper.TermsMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
 
 @Log4j2
 @Service
@@ -22,6 +25,7 @@ import java.util.Optional;
 public class MemberServiceImpl implements MemberService {
     final PasswordEncoder passwordEncoder;
     final MemberMapper mapper;
+    final TermsMapper termsMapper;
 
     @Override
     public boolean checkDuplicate(String loginId) {
@@ -39,10 +43,39 @@ public class MemberServiceImpl implements MemberService {
     @Transactional
     @Override
     public MemberDTO join(MemberJoinDTO dto) {
+        // SignUp 약관 목록
+        List<TermsVO> signupTerms = termsMapper.getSignupTerms();
+
+        // 사용자가 동의한 약관 번호 모으기
+        Set<Integer> agreedNos = new HashSet<>();
+        if (dto.getTerms() != null) {
+            for (TermsAgreeReqDto t : dto.getTerms()) {
+                if (t.isAgreed()) {
+                    agreedNos.add(t.getTermsNo());
+                }
+            }
+        }
+
+        // 필수 약관 검증 + 저장할 동의 목록 만들기
+        List<TermsAgreeReqDto> agreements = new ArrayList<>();
+        for (TermsVO terms : signupTerms) {
+            boolean agreed = agreedNos.contains(terms.getTermsNo());
+
+            if("Y".equals(terms.getIsRequired()) && !agreed) {
+                throw new RequiredTermsNotAgreedException();
+            }
+            agreements.add(new TermsAgreeReqDto(terms.getTermsNo(), agreed));
+        }
+
+        // 회원 저장
         MemberVO member = dto.toVO();
 
         member.setPassword(passwordEncoder.encode(member.getPassword())); // 비밀번호 암호화
         mapper.insert(member);
+
+        if (!agreements.isEmpty()) {
+            termsMapper.insertAgreements(member.getMemberNo(), agreements);
+        }
 
         return get(member.getLoginId());
     }

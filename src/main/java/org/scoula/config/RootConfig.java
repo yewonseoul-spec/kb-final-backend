@@ -27,7 +27,9 @@ import java.util.List;
 @MapperScan(basePackages = {
         "org.scoula.benefit.mapper",
         "org.scoula.member.mapper",
-        "org.scoula.engine.mapper"
+        "org.scoula.engine.mapper",
+        "org.scoula.terms.mapper"
+
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
@@ -43,6 +45,7 @@ public class RootConfig {
     String url;
     @Value("${jdbc.username}")
     String username;
+
     @Value("${jdbc.password}")
     String password;
 
