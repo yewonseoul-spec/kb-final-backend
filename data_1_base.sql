@@ -38,11 +38,11 @@ INSERT INTO member (member_no, login_id, password, email, role, real_name, statu
   (15, 'user15', '$2b$10$Mr0xNYvXvyD1R4rJZPqgGu2Je4I18d5ZtgbtoG2ia5tZ2V9vqKTsS', 'user15@test.com', 'USER', '권나윤', 'N', '2026-03-16 09:15:00');
 
 -- 2. 약관 (terms) : is_required Y/N 커버
-INSERT INTO terms (terms_no, content, is_required, version) VALUES
-  (1, '서비스 이용약관 전문 ...', 'Y', 'v10'),
-  (2, '개인정보 수집 및 이용 동의 전문 ...', 'Y', 'v10'),
-  (3, '혜택 알림 수신 동의 (선택) ...', 'N', 'v10'),
-  (4, 'AI 맞춤 설명을 위한 개인정보 제3자 제공 동의 (선택) ...', 'N', 'v10');
+INSERT INTO terms (terms_no, title, content, is_required, terms_type, version) VALUES
+  (1, '이용약관 동의', '서비스 이용약관 전문 ...', 'Y', 'SIGNUP', 'v10'),
+  (2, '개인정보 처리방침 동의', '개인정보 수집 및 이용 동의 전문 ...', 'Y', 'SIGNUP', 'v10'),
+  (3, '혜택 알림 수신', '혜택 알림 수신 동의 (선택) ...', 'N', 'SIGNUP', 'v10'),
+  (4, 'AI 맞춤 설명 개인정보 제3자 제공', 'AI 맞춤 설명을 위한 개인정보 제3자 제공 동의 (선택) ...', 'N', 'AI', 'v10');
 
 -- 3. 지역 (region) : 전국 + 17개 시도 + 대표 시군구(자기참조)
 INSERT INTO region (region_code, region_name, parent_region_code) VALUES
