@@ -81,7 +81,7 @@ public class RootConfig {
                 applicationContext.getResources("classpath*:/org/scoula/benefit/mapper/**/*.xml")
         ));
         resources.addAll(Arrays.asList(
-                applicationContext.getResources("classpath*:/org/scoula/engine.mapper/**/*.xml")
+                applicationContext.getResources("classpath*:/org/scoula/engine/mapper/**/*.xml")
         ));
 
         sqlSessionFactory.setMapperLocations(resources.toArray(new Resource[0]));

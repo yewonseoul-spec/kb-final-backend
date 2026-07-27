@@ -8,6 +8,8 @@ import org.scoula.engine.dto.UserProfileResDto;
 import org.scoula.engine.mapper.EngineMapper;
 import org.springframework.stereotype.Service;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,11 +31,20 @@ public class EngineServiceImpl implements EngineService {
         // 3. 보유 정책 번호 목록 조회 (engine-03)
         List<Integer> appliedNos = engineMapper.findAppliedBenefitNos(memberNo);
 
-        // 4. 경고 목록 조회 (engine-03)
+        // 4. 보유 정책과의 충돌 경고 조회 (engine-03)
         List<ConflictWarningDto> warnings = appliedNos.isEmpty()
                 ? List.of()
                 : engineMapper.findConflictWarnings(appliedNos);
 
-        return new EngineResultDto(benefits, warnings);
+        //5. 외부 제도 경고 조회 후, 후보 목록에 있는 정책만 남김 (engine-04)
+        Set<Integer> candidateNos = benefits.stream()
+                .map(BenefitResDto::getBenefitNo)
+                .collect(Collectors.toSet());
+
+        List<ConflictWarningDto> externalWarnings = engineMapper.findExternalWarnings().stream()
+                .filter(w -> candidateNos.contains(w.getBenefitNo()))
+                .collect(Collectors.toList());
+
+        return new EngineResultDto(benefits, warnings,externalWarnings);
     }
 }
