@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.benefit.mapper.BenefitMapper">
+
+    <insert id="upsertBenefit" parameterType="org.scoula.benefit.domain.BenefitVO">
+        INSERT INTO benefit (
+        plcy_no,
+        plcy_nm,
+        category_code,
+        sprvsn_inst_cd_nm,
+        target_desc,
+        plcy_sprt_cn,
+        support_amount,
+        plcy_aply_mthd_cn,
+        sbmsn_dcmnt_cn,
+        apply_start_date,
+        apply_end_date,
+        aply_ymd,
+        aply_prd_se_cd,
+        aply_url_addr,
+        sprt_trgt_min_age,
+        sprt_trgt_max_age,
+        earn_cnd_se_cd,
+        earn_min_amt,
+        earn_max_amt,
+        earn_etc_cn,
+        mrg_stts_cd,
+        conflict_group_code,
+        inq_cnt,
+        is_active,
+        frst_reg_dt,
+        last_mdfcn_dt,
+        plcy_expln_cn
+        ) VALUES (
+        #{plcyNo},
+        #{plcyNm},
+        #{categoryCode},
+        #{sprvsnInstCdNm},
+        #{targetDesc},
+        #{plcySprtCn},
+        #{supportAmount},
+        #{plcyAplyMthdCn},
+        #{sbmsnDcmntCn},
+        #{applyStartDate},
+        #{applyEndDate},
+        #{aplyYmd},
+        #{aplyPrdSeCd},
+        #{aplyUrlAddr},
+        #{sprtTrgtMinAge},
+        #{sprtTrgtMaxAge},
+        #{earnCndSeCd},
+        #{earnMinAmt},
+        #{earnMaxAmt},
+        #{earnEtcCn},
+        #{mrgSttsCd},
+        #{conflictGroupCode},
+        IFNULL(#{inqCnt}, 0),
+        IFNULL(#{isActive}, 'Y'),
+        IFNULL(#{frstRegDt}, NOW()),
+        NOW(),
+        #{plcyExplnCn}
+        )
+        ON DUPLICATE KEY UPDATE
+        plcy_nm = VALUES(plcy_nm),
+        category_code = VALUES(category_code),
+        sprvsn_inst_cd_nm = VALUES(sprvsn_inst_cd_nm),
+        target_desc = VALUES(target_desc),
+        plcy_sprt_cn = VALUES(plcy_sprt_cn),
+        support_amount = VALUES(support_amount),
+        plcy_aply_mthd_cn = VALUES(plcy_aply_mthd_cn),
+        sbmsn_dcmnt_cn = VALUES(sbmsn_dcmnt_cn),
+        apply_start_date = VALUES(apply_start_date),
+        apply_end_date = VALUES(apply_end_date),
+        aply_ymd = VALUES(aply_ymd),
+        aply_prd_se_cd = VALUES(aply_prd_se_cd),
+        aply_url_addr = VALUES(aply_url_addr),
+        sprt_trgt_min_age = VALUES(sprt_trgt_min_age),
+        sprt_trgt_max_age = VALUES(sprt_trgt_max_age),
+        earn_cnd_se_cd = VALUES(earn_cnd_se_cd),
+        earn_min_amt = VALUES(earn_min_amt),
+        earn_max_amt = VALUES(earn_max_amt),
+        earn_etc_cn = VALUES(earn_etc_cn),
+        mrg_stts_cd = VALUES(mrg_stts_cd),
+        inq_cnt = VALUES(inq_cnt),
+        is_active = VALUES(is_active),
+        last_mdfcn_dt = NOW(),
+        plcy_expln_cn = VALUES(plcy_expln_cn)
+    </insert>
+    <select id="findBenefitNoByPlcyNo" parameterType="string" resultType="int">
+        SELECT benefit_no
+        FROM benefit
+        WHERE plcy_no = #{plcyNo}
+    </select>
+
+    <delete id="deleteBenefitRegions" parameterType="int">
+        DELETE FROM benefit_region
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitMajors" parameterType="int">
+        DELETE FROM benefit_major
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitSchools" parameterType="int">
+        DELETE FROM benefit_school
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <delete id="deleteBenefitJobs" parameterType="int">
+        DELETE FROM benefit_job
+        WHERE benefit_no = #{benefitNo}
+    </delete>
+
+    <insert id="insertBenefitRegion">
+        INSERT IGNORE INTO benefit_region (
+        benefit_no,
+        zip_cd
+        )
+        SELECT
+        #{benefitNo},
+        #{zipCd}
+        FROM DUAL
+        WHERE EXISTS (
+        SELECT 1
+        FROM region
+        WHERE zip_cd = #{zipCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitMajor">
+        INSERT INTO benefit_major (
+        benefit_no,
+        plcy_major_cd
+        ) VALUES (
+        #{benefitNo},
+        #{plcyMajorCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitSchool">
+        INSERT INTO benefit_school (
+        benefit_no,
+        school_cd
+        ) VALUES (
+        #{benefitNo},
+        #{schoolCd}
+        )
+    </insert>
+
+    <insert id="insertBenefitJob">
+        INSERT INTO benefit_job (
+        benefit_no,
+        job_cd
+        ) VALUES (
+        #{benefitNo},
+        #{jobCd}
+        )
+    </insert>
+
+    <select id="existsRegion" parameterType="string" resultType="int">
+        SELECT COUNT(*)
+        FROM region
+        WHERE zip_cd = #{zipCd}
+    </select>
+</mapper>

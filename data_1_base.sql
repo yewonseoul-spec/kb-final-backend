@@ -1,12 +1,18 @@
 -- =====================================================================
---  청년타파 - data.sql  [파일 1 / 2]  base + 회원 · 자산
---  실행 전제 : schema.sql 로 22개 테이블 생성 완료
---  실행 순서 : (1) schema.sql  ->  (2) 이 파일  ->  (3) data_2_benefit.sql
+--  청년타파 - data_1_base.sql   base + 회원 · 자산
+--  실행 전제 : schema.sql(28개 테이블) + data_0_code.sql(코드 마스터) 완료
+--  실행 순서 : schema.sql -> data_0_code.sql -> ★이 파일★ -> data_2_benefit.sql
+--  ★ 코드 테이블이 FK 부모이므로 data_0_code.sql 을 먼저 실행해야 한다.
 --  ---------------------------------------------------------------------
 --  · 자산 테이블(account, finance_product, member_finance_product,
 --    spending, spending_category, expected_spending, stress_scenario)은
 --    기존 data.sql 값을 그대로 보존. 단 ENUM만 설계서 기준 영어로 통일
 --    (product_type 적금->SAVINGS 등, pay_method 체크카드->CHECK_CARD 등).
+--  · [7/23 패치] member_profile.is_married(Y/N) -> mrg_stts_cd(0055 코드) 전환.
+--    employ_status/major/education 과 함께 코드 테이블 FK 를 참조한다.
+--    '제한없음'(0013010/0011009/0049010/0055003)은 회원 측 CHECK 로 차단되므로 미사용.
+--  · [7/23 패치] benefit_category 를 API 대분류(lclsfNm) 5종과 1:1로 개편
+--    (교통·기타 폐지, lclsf_nm 매칭키 추가).
 --  · 그 외 테이블은 새 스키마(코드 ENUM)에 맞춰 재정비하고,
 --    ENUM/코드 값은 각 도메인 값이 최소 1회 이상 등장하도록 구성.
 --  · 시드 회원 공통 비밀번호(평문) : Test1234!  (BCrypt 해시 저장)
@@ -96,14 +102,13 @@ INSERT INTO region (region_code, region_name, parent_region_code) VALUES
   ('51110', '강원특별자치도 춘천시', '51000'),
   ('52110', '전북특별자치도 전주시', '52000');
 
--- 4. 혜택 카테고리 (benefit_category)
-INSERT INTO benefit_category (category_code, category_name, display_order) VALUES
-  ('01', '주거', 1),
-  ('02', '금융', 2),
-  ('03', '취업', 3),
-  ('04', '교육', 4),
-  ('05', '교통', 5),
-  ('99', '기타', 99);
+-- 4. 혜택 카테고리 (benefit_category) : API 대분류 1:1, lclsf_nm 은 응답 원문(반각 ･ 주의)
+INSERT INTO benefit_category (category_code, category_name, lclsf_nm, display_order) VALUES
+  ('01', '일자리',   '일자리',        1),
+  ('02', '주거',     '주거',          2),
+  ('03', '교육',     '교육･직업훈련', 3),
+  ('04', '복지문화', '금융･복지･문화', 4),
+  ('05', '참여권리', '참여권리',      5);
 
 -- 5. 추천검색어 (recommend_keyword) : is_active Y/N 커버
 INSERT INTO recommend_keyword (keyword_code, keyword_name, display_order, is_active) VALUES
@@ -142,7 +147,7 @@ INSERT INTO finance_product (product_no, product_name, product_type, org_name, i
   (5, '청년 실손의료보험', 'INSURANCE', 'KB손해보험', NULL),
   (6, 'KB 퇴직연금 DC', 'PENSION', 'KB국민은행', 2.60);
 
--- 8. 스트레스 시나리오 (stress_scenario) : (shock_level LOW/MID/HIGH)
+-- 8. 스트레스 시나리오 (stress_scenario) : 원본 보존 (shock_level LOW/MID/HIGH)
 INSERT INTO stress_scenario (scenario_no, scenario_code, scenario_name, description, shock_level, target_category, change_rate, fixed_amount) VALUES
   (1, 'INFLATION', '물가 상승', '물가 상승 시나리오 - 충격강도 낮음', 'LOW', '식비', 0.100, NULL),
   (2, 'INFLATION', '물가 상승', '물가 상승 시나리오 - 충격강도 보통', 'MID', '식비', 0.200, NULL),
@@ -160,21 +165,21 @@ INSERT INTO stress_scenario (scenario_no, scenario_code, scenario_name, descript
   (14, 'COMPLEX', '복합 위기', '복합 위기 시나리오 - 충격강도 보통', 'MID', 'ALL', NULL, NULL),
   (15, 'COMPLEX', '복합 위기', '복합 위기 시나리오 - 충격강도 높음', 'HIGH', 'ALL', NULL, NULL);
 
--- 9. 회원 프로필 (member_profile) : employ_status/major/education 전 코드 등장, is_married Y/N
-INSERT INTO member_profile (member_no, birth_date, region_code, income, employ_status, major, household_size, education, is_married, profile_img_path) VALUES
-  (2, '1998-03-03', '41000', 2074000, '0013001', '0011001', 3, '0049001', 'N', NULL),
-  (3, '1999-04-04', '26000', 2211000, '0013002', '0011002', 4, '0049002', 'Y', '/profile/user03.png'),
-  (4, '2000-05-05', '11110', 2348000, '0013003', '0011003', 1, '0049003', 'N', NULL),
-  (5, '2001-06-06', '11680', 2485000, '0013004', '0011004', 2, '0049004', 'Y', NULL),
-  (6, '2002-07-07', '41110', 2622000, '0013005', '0011005', 3, '0049005', 'N', '/profile/user06.png'),
-  (7, '2003-08-08', '41130', 2759000, '0013006', '0011006', 4, '0049006', 'N', NULL),
-  (8, '1996-09-09', '26350', 2896000, '0013007', '0011007', 1, '0049007', 'Y', NULL),
-  (9, '1997-01-10', '41110', 3033000, '0013008', '0011008', 2, '0049008', 'N', '/profile/user09.png'),
-  (10, '1998-02-11', '11000', 3170000, '0013009', '0011001', 3, '0049009', 'Y', NULL),
-  (11, '1999-03-12', '41000', 3307000, '0013001', '0011005', 4, '0049005', 'N', NULL),
-  (12, '2000-04-13', '26000', 3444000, '0013003', '0011003', 1, '0049004', 'N', '/profile/user12.png'),
-  (13, '2001-05-14', '11110', 3581000, '0013005', '0011002', 2, '0049007', 'Y', NULL),
-  (14, '2002-06-15', '11680', 3718000, '0013002', '0011006', 3, '0049006', 'N', NULL),
+-- 9. 회원 프로필 (member_profile) : employ_status/major/education/mrg_stts_cd 코드 FK, 전 코드 등장
+INSERT INTO member_profile (member_no, birth_date, region_code, income, employ_status, major, household_size, education, mrg_stts_cd, profile_img_path) VALUES
+  (2, '1998-03-03', '41000', 2074000, '0013001', '0011001', 3, '0049001', '0055002', NULL),
+  (3, '1999-04-04', '26000', 2211000, '0013002', '0011002', 4, '0049002', '0055001', '/profile/user03.png'),
+  (4, '2000-05-05', '11110', 2348000, '0013003', '0011003', 1, '0049003', '0055002', NULL),
+  (5, '2001-06-06', '11680', 2485000, '0013004', '0011004', 2, '0049004', '0055001', NULL),
+  (6, '2002-07-07', '41110', 2622000, '0013005', '0011005', 3, '0049005', '0055002', '/profile/user06.png'),
+  (7, '2003-08-08', '41130', 2759000, '0013006', '0011006', 4, '0049006', '0055002', NULL),
+  (8, '1996-09-09', '26350', 2896000, '0013007', '0011007', 1, '0049007', '0055001', NULL),
+  (9, '1997-01-10', '41110', 3033000, '0013008', '0011008', 2, '0049008', '0055002', '/profile/user09.png'),
+  (10, '1998-02-11', '11000', 3170000, '0013009', '0011001', 3, '0049009', '0055001', NULL),
+  (11, '1999-03-12', '41000', 3307000, '0013001', '0011005', 4, '0049005', '0055002', NULL),
+  (12, '2000-04-13', '26000', 3444000, '0013003', '0011003', 1, '0049004', '0055002', '/profile/user12.png'),
+  (13, '2001-05-14', '11110', 3581000, '0013005', '0011002', 2, '0049007', '0055001', NULL),
+  (14, '2002-06-15', '11680', 3718000, '0013002', '0011006', 3, '0049006', '0055002', NULL),
   (15, '2000-05-05', '26350', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 -- 10. 회원 약관동의 (member_terms_agree) : is_agreed Y/N 커버
