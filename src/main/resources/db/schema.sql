@@ -114,10 +114,12 @@ CREATE TABLE member (
 --  2. terms : 약관
 -- =====================================================================
 CREATE TABLE terms (
-    terms_no    INT          NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
-    content     TEXT         NOT NULL                              COMMENT '약관내용',
-    is_required CHAR(1)      NOT NULL                              COMMENT '필수여부 Y/N',
-    version     CHAR(3)      NOT NULL                              COMMENT '버전(예: v10)',
+    terms_no    INT                     NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
+    title       VARCHAR(100)            NOT NULL                              COMMENT '약관제목',
+    content     TEXT                    NOT NULL                              COMMENT '약관내용',
+    is_required CHAR(1)                 NOT NULL                              COMMENT '필수여부 Y/N',
+    terms_type  ENUM('SIGNUP', 'AI')    NOT NULL                              COMMENT '용도 구분',
+    version     CHAR(3)                 NOT NULL                              COMMENT '버전(예: v10)',
     PRIMARY KEY (terms_no),
     CONSTRAINT chk_terms_is_required CHECK (is_required IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='약관';
@@ -308,6 +310,7 @@ CREATE TABLE member_terms_agree (
     is_agreed  CHAR(1)  NOT NULL                                  COMMENT '동의여부 Y/N',
     agreed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '동의일시',
     PRIMARY KEY (agree_no),
+    CONSTRAINT uk_member_terms_agree UNIQUE (member_no, terms_no),
     CONSTRAINT fk_member_terms_agree_member FOREIGN KEY (member_no)
         REFERENCES member (member_no),
     CONSTRAINT fk_member_terms_agree_terms  FOREIGN KEY (terms_no)

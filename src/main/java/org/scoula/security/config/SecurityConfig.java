@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -91,16 +92,11 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .formLogin().disable()  // formLogin 비활성화  관련 필터 해제
                 .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS); // 세션 생성 모드 설정
 
-//        http
-//                .authorizeRequests() // 경로별 접근 권한 설정
-//                .antMatchers(HttpMethod.OPTIONS).permitAll()
-//                .antMatchers(HttpMethod.PUT, "/api/member", "/api/member/*/changepassword").authenticated()
-//                .antMatchers(HttpMethod.POST, "/api/board/**").authenticated()
-//                .antMatchers(HttpMethod.PUT, "/api/board/**").authenticated()
-//                .antMatchers(HttpMethod.DELETE, "/api/board/**").authenticated()
-//                .anyRequest().permitAll();  // 나머지는 로그인 된 경우 모두 허용
-//                .anyRequest().permitAll();
-
+        http
+                .authorizeRequests() // 경로별 접근 권한 설정
+                .antMatchers(HttpMethod.OPTIONS).permitAll() // 로그인, 회원가입, 중복확인, 약관은 비로그인 접근 필수
+                .antMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                .anyRequest().permitAll(); // 나머지는 전부 개방
     }
 
 
