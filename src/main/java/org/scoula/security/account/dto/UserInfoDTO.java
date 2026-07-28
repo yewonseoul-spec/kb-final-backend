@@ -13,12 +13,14 @@ import java.util.List;
 public class UserInfoDTO {
     String loginId;
     String email;
+    String realName;
     List<String> roles;
 
     public static UserInfoDTO of(MemberVO member) {
         return new UserInfoDTO(
                 member.getLoginId(),
                 member.getEmail(),
+                member.getRealName(),
                 List.of("ROLE_" + member.getRole())
         );
     }
