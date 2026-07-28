@@ -28,7 +28,7 @@ public class YouthPolicyApiClient {
 
         String url = buildUrl(requestDTO);
 
-        System.out.println("온통청년 API 요청 URL = " + url);
+        System.out.println("온통청년 API 요청");
 
         return restTemplate.getForObject(url, String.class);
     }
