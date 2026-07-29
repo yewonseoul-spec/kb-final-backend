@@ -27,6 +27,8 @@ public class ProfileDTO {
     private String education;
     private String mrgSttsCd;
 
+    private String profileImgPath; // 응답 전용 — toVo()에 포함 x
+
     public MemberProfileVO toVo(int memberNo) {
         return MemberProfileVO.builder()
                 .memberNo(memberNo)
@@ -38,6 +40,20 @@ public class ProfileDTO {
                 .householdSize(householdSize)
                 .education(education)
                 .mrgSttsCd(mrgSttsCd)
+                .build();
+    }
+
+    public static ProfileDTO of(MemberProfileVO vo) {
+        return ProfileDTO.builder()
+                .birthDate(vo.getBirthDate())
+                .regionCode(vo.getRegionCode())
+                .income(vo.getIncome())
+                .employStatus(vo.getEmployStatus())
+                .major(vo.getMajor())
+                .householdSize(vo.getHouseholdSize())
+                .education(vo.getEducation())
+                .mrgSttsCd(vo.getMrgSttsCd())
+                .profileImgPath(vo.getProfileImgPath())
                 .build();
     }
 }

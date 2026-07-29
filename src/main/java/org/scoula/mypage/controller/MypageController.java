@@ -7,10 +7,7 @@ import org.scoula.security.account.domain.CustomUser;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/mypage")
@@ -31,5 +28,11 @@ public class MypageController {
                 .status(HttpStatus.CREATED)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("프로필이 저장되었습니다.");
+    }
+
+    // 개인정보 조회
+    @GetMapping("/info")
+    public ResponseEntity<ProfileDTO> getProfile(@AuthenticationPrincipal CustomUser user) {
+        return ResponseEntity.ok(service.getProfile(user.getMember().getMemberNo()));
     }
 }

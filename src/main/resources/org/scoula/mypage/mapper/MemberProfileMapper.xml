@@ -12,4 +12,11 @@
             (#{memberNo}, #{birthDate}, #{regionCode}, #{income},
              #{employStatus}, #{major}, #{householdSize}, #{education}, #{mrgSttsCd})
     </insert>
+    <select id="get" resultType="org.scoula.mypage.domain.MemberProfileVO">
+        SELECT member_no, birth_date, region_code, income,
+               employ_status, major, household_size, education,
+               mrg_stts_cd, profile_img_path, updated_at
+        FROM member_profile
+        WHERE member_no = #{memberNo}
+    </select>
 </mapper>
