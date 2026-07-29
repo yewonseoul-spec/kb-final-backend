@@ -3,7 +3,6 @@ package org.scoula.security.account.dto;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.scoula.security.account.domain.AuthVO;
 import org.scoula.security.account.domain.MemberVO;
 
 import java.util.List;
@@ -12,18 +11,17 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserInfoDTO {
-    String username;
+    String loginId;
     String email;
+    String realName;
     List<String> roles;
 
     public static UserInfoDTO of(MemberVO member) {
         return new UserInfoDTO(
-                member.getUsername(),
+                member.getLoginId(),
                 member.getEmail(),
-                member.getAuthList().stream()
-                        //.map(a-> a.getAuth())
-                        .map(AuthVO::getAuth)
-                        .toList()
+                member.getRealName(),
+                List.of("ROLE_" + member.getRole())
         );
     }
 }

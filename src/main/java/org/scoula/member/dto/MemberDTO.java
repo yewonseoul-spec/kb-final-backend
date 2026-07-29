@@ -6,42 +6,43 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.scoula.security.account.domain.MemberVO;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class MemberDTO {
-    private String username;
+    private Integer memberNo;
+    private String loginId;
     private String email;
-    private Date regDate;
-    private Date updateDate;
-
-    private MultipartFile avatar;
-
-    private List<String> authList;        // 권한 목록, join 처리 필요
+    private String role;
+    private String realName;
+    private String status;
+    private Date createdAt;
+    private Date updatedAt;
 
     public static MemberDTO of(MemberVO m) {
         return MemberDTO.builder()
-                .username(m.getUsername())
+                .memberNo(m.getMemberNo())
+                .loginId(m.getLoginId())
                 .email(m.getEmail())
-                .regDate(m.getRegDate())
-                .updateDate(m.getUpdateDate())
-                .authList(m.getAuthList().stream().map(a -> a.getAuth()).toList())
+                .role(m.getRole())
+                .realName(m.getRealName())
+                .status(m.getStatus())
+                .createdAt(m.getCreatedAt())
+                .updatedAt(m.getUpdatedAt())
                 .build();
     }
 
-    public MemberVO toVO() {
-        return MemberVO.builder()
-                .username(username)
-                .email(email)
-                .regDate(regDate)
-                .updateDate(updateDate)
-                .build();
-    }
+//    public MemberVO toVO() {
+//        return MemberVO.builder()
+//                .username(username)
+//                .email(email)
+//                .regDate(regDate)
+//                .updateDate(updateDate)
+//                .build();
+//    }
 }
 

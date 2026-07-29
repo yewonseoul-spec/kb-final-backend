@@ -36,12 +36,12 @@ public class JwtUsernamePasswordAuthenticationFilter extends UsernamePasswordAut
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response)
             throws AuthenticationException {
 
-        // 요청 BODY의 JSON에서 username, password  LoginDTO
+        // 요청 BODY의 JSON에서 loginId, password  LoginDTO
         LoginDTO login = LoginDTO.of(request);
 
         // 인증 토큰(UsernamePasswordAuthenticationToken) 구성
         UsernamePasswordAuthenticationToken authenticationToken =
-                new UsernamePasswordAuthenticationToken(login.getUsername(), login.getPassword());
+                new UsernamePasswordAuthenticationToken(login.getLoginId(), login.getPassword());
 
         // AuthenticationManager에게 인증 요청
         return getAuthenticationManager().authenticate(authenticationToken);

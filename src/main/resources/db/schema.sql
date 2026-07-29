@@ -1,8 +1,8 @@
 -- =====================================================================
 --  청년타파 (Youth-Tapa) - schema.sql
 --  DBMS      : MySQL 8.0+ (InnoDB / utf8mb4)
---  기준      : 청년타파_DB설계서_v1 최신 테이블정의서
---              + 7/23 패치 반영 (API 코드 테이블화 및 다중값 매핑 분리)
+--  버전      : v 1.3    -------------------------------------------
+--  기준      : 청년타파_DB설계서_v1 최신 테이블정의서 ---------------------------------------
 --  컨벤션    : snake_case·단수형, 무접두사 / 제약 fk_·uk_·idx_ / ENUM 대문자
 --  공통      : PK = PRIMARY KEY(고정) · created_at/updated_at/status(is_active)
 --  참고      : 조건부 업무규칙(관리자 ROLE 검증, 시나리오별 필수값 등)은
@@ -114,10 +114,12 @@ CREATE TABLE member (
 --  2. terms : 약관
 -- =====================================================================
 CREATE TABLE terms (
-    terms_no    INT          NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
-    content     TEXT         NOT NULL                              COMMENT '약관내용',
-    is_required CHAR(1)      NOT NULL                              COMMENT '필수여부 Y/N',
-    version     CHAR(3)      NOT NULL                              COMMENT '버전(예: v10)',
+    terms_no    INT                     NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
+    title       VARCHAR(100)            NOT NULL                              COMMENT '약관제목',
+    content     TEXT                    NOT NULL                              COMMENT '약관내용',
+    is_required CHAR(1)                 NOT NULL                              COMMENT '필수여부 Y/N',
+    terms_type  ENUM('SIGNUP', 'AI')    NOT NULL                              COMMENT '용도 구분',
+    version     CHAR(3)                 NOT NULL                              COMMENT '버전(예: v10)',
     PRIMARY KEY (terms_no),
     CONSTRAINT chk_terms_is_required CHECK (is_required IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='약관';
@@ -254,10 +256,10 @@ CREATE TABLE benefit (
     CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
     -- FK는 코드 존재만 검증하므로 코드군까지 CHECK로 강제 (NULL은 UNKNOWN이라 통과)
     -- 혜택 측은 '제한없음'이 정상 조건값이므로 별도 차단하지 않는다
-    CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd    LIKE '0055%'),
-    CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd LIKE '0043%'),
+    CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd IS NULL OR mrg_stts_cd LIKE '0055%'),
+    CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd IS NULL OR earn_cnd_se_cd LIKE '0043%'),
     CONSTRAINT chk_benefit_is_active CHECK (is_active IN ('Y','N')),
-    CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd LIKE '0057%'),
+    CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd IS NULL OR aply_prd_se_cd LIKE '0057%'),
     INDEX idx_benefit_apply_end (apply_end_date),
     INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
@@ -308,6 +310,7 @@ CREATE TABLE member_terms_agree (
     is_agreed  CHAR(1)  NOT NULL                                  COMMENT '동의여부 Y/N',
     agreed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '동의일시',
     PRIMARY KEY (agree_no),
+    CONSTRAINT uk_member_terms_agree UNIQUE (member_no, terms_no),
     CONSTRAINT fk_member_terms_agree_member FOREIGN KEY (member_no)
         REFERENCES member (member_no),
     CONSTRAINT fk_member_terms_agree_terms  FOREIGN KEY (terms_no)

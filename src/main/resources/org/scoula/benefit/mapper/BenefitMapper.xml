@@ -34,7 +34,9 @@
         frst_reg_dt,
         last_mdfcn_dt,
         plcy_expln_cn
-        ) VALUES (
+        )
+
+        VALUES (
         #{plcyNo},
         #{plcyNm},
         #{categoryCode},
@@ -47,15 +49,15 @@
         #{applyStartDate},
         #{applyEndDate},
         #{aplyYmd},
-        #{aplyPrdSeCd},
+        NULLIF(TRIM(#{aplyPrdSeCd}), ''),
         #{aplyUrlAddr},
         #{sprtTrgtMinAge},
         #{sprtTrgtMaxAge},
-        #{earnCndSeCd},
+        NULLIF(TRIM(#{earnCndSeCd}), ''),
         #{earnMinAmt},
         #{earnMaxAmt},
         #{earnEtcCn},
-        #{mrgSttsCd},
+        NULLIF(TRIM(#{mrgSttsCd}), ''),
         #{conflictGroupCode},
         IFNULL(#{inqCnt}, 0),
         IFNULL(#{isActive}, 'Y'),
@@ -75,15 +77,15 @@
         apply_start_date = VALUES(apply_start_date),
         apply_end_date = VALUES(apply_end_date),
         aply_ymd = VALUES(aply_ymd),
-        aply_prd_se_cd = VALUES(aply_prd_se_cd),
+        aply_prd_se_cd = NULLIF(TRIM(VALUES(aply_prd_se_cd)), ''),
         aply_url_addr = VALUES(aply_url_addr),
         sprt_trgt_min_age = VALUES(sprt_trgt_min_age),
         sprt_trgt_max_age = VALUES(sprt_trgt_max_age),
-        earn_cnd_se_cd = VALUES(earn_cnd_se_cd),
+        earn_cnd_se_cd = NULLIF(TRIM(VALUES(earn_cnd_se_cd)), ''),
         earn_min_amt = VALUES(earn_min_amt),
         earn_max_amt = VALUES(earn_max_amt),
         earn_etc_cn = VALUES(earn_etc_cn),
-        mrg_stts_cd = VALUES(mrg_stts_cd),
+        mrg_stts_cd = NULLIF(TRIM(VALUES(mrg_stts_cd)), ''),
         inq_cnt = VALUES(inq_cnt),
         is_active = VALUES(is_active),
         last_mdfcn_dt = NOW(),
@@ -166,4 +168,21 @@
         FROM region
         WHERE zip_cd = #{zipCd}
     </select>
+
+    <select id="existsBenefitByPlcyNo" parameterType="string" resultType="int">
+        SELECT COUNT(*)
+        FROM benefit
+        WHERE plcy_no = #{plcyNo}
+    </select>
+
+
+<!--    테스트 설정시 last_mdfcn_dt = NOW()로 하고 10개제한     -->
+    <update id="updateBenefitStatusOnly">
+        UPDATE benefit
+        SET
+        inq_cnt = #{inqCnt},
+        is_active = #{isActive},
+        last_mdfcn_dt = NOW()
+        WHERE plcy_no = #{plcyNo}
+    </update>
 </mapper>
