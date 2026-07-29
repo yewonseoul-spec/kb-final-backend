@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
+import org.scoula.benefit.dto.BenefitCategoryResDto;
 import org.scoula.benefit.dto.YouthPolicyApiItemDTO;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.benefit.mapper.BenefitMapper;
@@ -638,5 +639,11 @@ public class BenefitServiceImpl implements BenefitService {
         }
 
         return count;
+    }
+
+    //필터
+    @Override
+    public List<BenefitCategoryResDto> findBenefitCategories() {
+        return benefitMapper.findBenefitCategories();
     }
 }

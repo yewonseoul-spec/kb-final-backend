@@ -185,4 +185,15 @@
         last_mdfcn_dt = NOW()
         WHERE plcy_no = #{plcyNo}
     </update>
+
+<!--필터 기능 -->
+    <select id="findBenefitCategories"
+            resultType="org.scoula.benefit.dto.BenefitCategoryResDto">
+        SELECT
+        category_code AS categoryCode,
+        category_name AS categoryName,
+        display_order AS displayOrder
+        FROM benefit_category
+        ORDER BY display_order ASC
+    </select>
 </mapper>

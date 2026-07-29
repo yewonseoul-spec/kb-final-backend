@@ -1,12 +1,14 @@
 package org.scoula.benefit.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.benefit.dto.BenefitCategoryResDto;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static io.jsonwebtoken.Jwts.header;
@@ -86,5 +88,13 @@ public class BenefitController {
     ) {
         int count = benefitService.syncYouthPoliciesByFrstRegDt(startDate, endDate);
         return ResponseEntity.ok(count);
+    }
+
+    //필터
+    @GetMapping("/categories")
+    public ResponseEntity<List<BenefitCategoryResDto>> getBenefitCategories() {
+        return ResponseEntity.ok(
+                benefitService.findBenefitCategories()
+        );
     }
 }
