@@ -1,16 +1,21 @@
 package org.scoula.exception;
 
 import lombok.extern.log4j.Log4j2;
+import org.apache.ibatis.exceptions.PersistenceException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.springframework.core.annotation.Order;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
+import java.sql.SQLException;
 import java.util.NoSuchElementException;
 
 @RestControllerAdvice
@@ -60,6 +65,46 @@ public class ApiExceptionAdvice {
                 .status(HttpStatus.CONFLICT)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("이미 사용 중인 아이디 또는 이메일입니다.");
+    }
+
+    // 400 에러 - 요청 본문 JSON 파싱 실패
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    protected ResponseEntity<String> handleNotReadable(HttpMessageNotReadableException e) {
+        log.warn("요청 본문 파싱 실패", e);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("요청 형식이 올바르지 않습니다.");
+    }
+
+    // 400 에러 - 제약조건 위반 (잘못된 코드값, CHECK/FK 위반 등)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    protected ResponseEntity<String> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        log.warn("제약조건 위반", e);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("입력값이 올바르지 않습니다.");
+    }
+
+    // 400 에러 - CHECK 제약 위반
+    // MySQL의 CHECK 위반(3819)은 SQLSTATE가 HY000이라 Spring이 DataAccessException으로
+    // 번역하지 못하고 MyBatis 원본 예외가 그대로 올라온다.
+    @ExceptionHandler(PersistenceException.class)
+    protected ResponseEntity<String> handlePersistence(PersistenceException e) {
+        Throwable cause = e.getCause();
+        if (cause instanceof SQLException && ((SQLException) cause).getErrorCode() == 3819) {
+            log.warn("CHECK 제약 위반", e);
+            return ResponseEntity
+                    .status(HttpStatus.BAD_REQUEST)
+                    .header("Content-Type", "text/plain;charset=UTF-8")
+                    .body("입력값이 올바르지 않습니다.");
+        }
+        log.error("처리되지 않은 DB 예외", e);
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("서버 오류가 발생했습니다.");
     }
 
     // 500 에러
