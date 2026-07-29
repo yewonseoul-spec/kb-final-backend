@@ -12,6 +12,19 @@
             (#{memberNo}, #{birthDate}, #{regionCode}, #{income},
              #{employStatus}, #{major}, #{householdSize}, #{education}, #{mrgSttsCd})
     </insert>
+    <update id="update">
+        UPDATE member_profile
+        SET birth_date = #{birthDate},
+        region_code    = #{regionCode},
+        income         = #{income},
+        employ_status  = #{employStatus},
+        major          = #{major},
+        household_size = #{householdSize},
+        education      = #{education},
+        mrg_stts_cd    = #{mrgSttsCd},
+        updated_at     = NOW()
+        WHERE member_no = #{memberNo}
+    </update>
     <select id="get" resultType="org.scoula.mypage.domain.MemberProfileVO">
         SELECT member_no, birth_date, region_code, income,
                employ_status, major, household_size, education,

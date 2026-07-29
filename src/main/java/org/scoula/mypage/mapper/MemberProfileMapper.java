@@ -6,4 +6,6 @@ public interface MemberProfileMapper {
     int insert(MemberProfileVO profile);
 
     MemberProfileVO get(int memberNo);
+
+    int update(MemberProfileVO profile);
 }

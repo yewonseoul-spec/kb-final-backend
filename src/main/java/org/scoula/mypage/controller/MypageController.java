@@ -35,4 +35,17 @@ public class MypageController {
     public ResponseEntity<ProfileDTO> getProfile(@AuthenticationPrincipal CustomUser user) {
         return ResponseEntity.ok(service.getProfile(user.getMember().getMemberNo()));
     }
+
+    // 개인정보 수정
+    @PutMapping("/info")
+    public ResponseEntity<String> updateProfile(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody ProfileDTO dto) {
+
+        service.updateProfile(user.getMember().getMemberNo(), dto);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("프로필이 수정되었습니다.");
+    }
 }

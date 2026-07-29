@@ -31,4 +31,12 @@ public class MypageServiceImpl implements MypageService {
                 .orElseThrow(NoSuchElementException::new);
         return ProfileDTO.of(vo);
     }
+
+    @Transactional
+    @Override
+    public void updateProfile(int memberNo, ProfileDTO dto) {
+        if (mapper.update(dto.toVo(memberNo)) == 0) {
+            throw new NoSuchElementException();
+        }
+    }
 }
