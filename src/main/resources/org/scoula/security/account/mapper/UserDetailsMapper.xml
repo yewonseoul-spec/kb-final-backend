@@ -5,28 +5,24 @@
 
 <mapper namespace="org.scoula.security.account.mapper.UserDetailsMapper">
 
-    <resultMap id="authMap" type="org.scoula.security.account.domain.AuthVO">
-        <result property="username" column="username"/>
-        <result property="auth" column="auth"/>
-    </resultMap>
-
     <resultMap id="memberMap" type="org.scoula.security.account.domain.MemberVO">
-        <id property="username" column="username"/>
-        <result property="username" column="username"/>
+        <id property="memberNo" column="member_no"/>
+        <result property="loginId" column="login_id"/>
         <result property="password" column="password"/>
         <result property="email" column="email"/>
-        <result property="regDate" column="reg_date"/>
-        <result property="updateDate" column="update_date"/>
+        <result property="role" column="role"/>
+        <result property="realName" column="real_name"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
 
-        <collection property="authList" resultMap="authMap"/>
     </resultMap>
 
     <select id="get" resultMap="memberMap">
-        select m.username, password, email, reg_date, update_date, auth
-        from tbl_member m
-                 left outer join tbl_member_auth a
-                                 on m.username = a.username
-        where m.username = #{username}
+        select member_no, login_id, password, email, role,
+               real_name, status, created_at, updated_at
+        from member
+        where login_id = #{loginId} AND status = 'Y'
     </select>
 
 </mapper>

@@ -16,6 +16,7 @@ import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -29,16 +30,21 @@ import java.util.List;
         "org.scoula.member.mapper",
         "org.scoula.engine.mapper",
         "org.scoula.consumption.mapper",
+        "org.scoula.terms.mapper",
         "org.scoula.admin.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
         "org.scoula.benefit.client",
+        "org.scoula.benefit.scheduler",
         "org.scoula.member.service",
         "org.scoula.engine.service",
         "org.scoula.consumption.service",
+        "org.scoula.terms.service",
         "org.scoula.admin.service"
 })
+
+@EnableScheduling
 @EnableTransactionManagement
 public class RootConfig {
     @Value("${jdbc.driver}")

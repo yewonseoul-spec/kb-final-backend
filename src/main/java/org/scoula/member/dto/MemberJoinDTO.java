@@ -5,24 +5,27 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.scoula.security.account.domain.MemberVO;
-import org.springframework.web.multipart.MultipartFile;
+import org.scoula.terms.dto.TermsAgreeReqDto;
+
+import java.util.List;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
 public class MemberJoinDTO {
-    private String username;
+    private String loginId;
     private String password;
     private String email;
-
-    private MultipartFile avatar;
+    private String realName;
+    private List<TermsAgreeReqDto> terms;
 
     public MemberVO toVO() {
         return MemberVO.builder()
-                .username(username)
+                .loginId(loginId)
                 .password(password)
                 .email(email)
+                .realName(realName)
                 .build();
     }
 

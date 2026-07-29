@@ -5,4 +5,6 @@ import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 public interface BenefitService {
     String getYouthPolicyRaw(YouthPolicyRequestDTO requestDTO);
     int syncYouthPolicies(YouthPolicyRequestDTO requestDTO);
+
+    int syncDailyYouthPolicies();
 }

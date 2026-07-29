@@ -4,6 +4,8 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.scoula.benefit.domain.BenefitVO;
 
+import java.util.List;
+
 @Mapper
 public interface BenefitMapper {
     int upsertBenefit(BenefitVO benefit);
@@ -36,4 +38,10 @@ public interface BenefitMapper {
     );
 
     int existsRegion(String zipCd);
+
+    int existsBenefitByPlcyNo(String plcyNo);
+
+    int updateBenefitStatusOnly(BenefitVO benefit);
+
+
 }

@@ -11,6 +11,8 @@ import org.scoula.benefit.mapper.BenefitMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -77,6 +79,106 @@ public class BenefitServiceImpl implements BenefitService {
                 .collect(Collectors.toList());
     }
 
+    //is_active 설정
+    private String mapIsActive(String aplyPrdSeCd, String applyStartDate, String applyEndDate) {
+        if (aplyPrdSeCd == null || aplyPrdSeCd.trim().isEmpty()) {
+            return "N";
+        }
+
+        // 0057002: 상시
+        if ("0057002".equals(aplyPrdSeCd)) {
+            return "Y";
+        }
+
+        // 0057003: 마감
+        if ("0057003".equals(aplyPrdSeCd)) {
+            return "N";
+        }
+
+        // 0057001: 특정기간
+        if ("0057001".equals(aplyPrdSeCd)) {
+            LocalDate today = LocalDate.now();
+
+            LocalDate startDate = parseLocalDate(applyStartDate);
+            LocalDate endDate = parseLocalDate(applyEndDate);
+
+            if (startDate == null || endDate == null) {
+                return "N";
+            }
+
+            boolean afterOrSameStart = !today.isBefore(startDate);
+            boolean beforeOrSameEnd = !today.isAfter(endDate);
+
+            return afterOrSameStart && beforeOrSameEnd ? "Y" : "N";
+        }
+
+        return "N";
+    }
+
+    //날짜 변환 메서드
+    private LocalDate parseLocalDate(String dateText) {
+        if (dateText == null || dateText.trim().isEmpty()) {
+            return null;
+        }
+
+        String value = dateText.trim();
+
+        try {
+            // 2026-07-28 형식
+            if (value.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                return LocalDate.parse(value);
+            }
+
+            // 20260728 형식
+            if (value.matches("\\d{8}")) {
+                return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyyMMdd"));
+            }
+        } catch (Exception e) {
+            return null;
+        }
+
+        return null;
+    }
+
+    private boolean shouldUpdateStatus(BenefitVO benefit) {
+        String aplyPrdSeCd = benefit.getAplyPrdSeCd();
+
+        // 0057002: 상시
+        // 상시는 계속 조회수와 상태 갱신
+        if ("0057002".equals(aplyPrdSeCd)) {
+            return true;
+        }
+
+        // 0057003: 마감
+        // 이미 마감 코드면 갱신하지 않음
+        if ("0057003".equals(aplyPrdSeCd)) {
+            return false;
+        }
+
+        // 0057001: 특정기간
+        if ("0057001".equals(aplyPrdSeCd)) {
+            LocalDate today = LocalDate.now();
+
+            LocalDate endDate = parseLocalDate(benefit.getApplyEndDate());
+
+            // 종료일을 못 읽으면 마감 여부를 확정할 수 없으므로 일단 갱신 대상
+            if (endDate == null) {
+                return true;
+            }
+
+            // 종료일이 오늘보다 이전이면 이미 마감된 혜택이므로 갱신 제외
+            if (endDate.isBefore(today)) {
+                return false;
+            }
+
+            // 시작 전이거나 진행 중이면 계속 갱신
+            return true;
+        }
+
+        // 알 수 없는 코드면 안전하게 갱신 대상에 포함
+        return true;
+    }
+
     private final YouthPolicyApiClient youthPolicyApiClient;
     private final BenefitMapper benefitMapper;
 
@@ -115,6 +217,7 @@ public class BenefitServiceImpl implements BenefitService {
 
         return count;
     }
+
     private List<YouthPolicyApiItemDTO> parsePolicyList(String json) {
         try {
             JsonNode root = objectMapper.readTree(json);
@@ -122,6 +225,11 @@ public class BenefitServiceImpl implements BenefitService {
 
             if (listNode == null || !listNode.isArray()) {
                 throw new IllegalStateException("온통청년 API 응답에서 정책 목록 배열을 찾지 못했습니다.");
+            }
+
+            // 마지막 페이지처럼 youthPolicyList: [] 인 경우 정상 종료 처리
+            if (listNode.isEmpty()) {
+                return new ArrayList<>();
             }
 
             List<YouthPolicyApiItemDTO> result = new ArrayList<>();
@@ -142,6 +250,16 @@ public class BenefitServiceImpl implements BenefitService {
             return null;
         }
 
+        // 온통청년 API의 정책 목록 필드명을 직접 확인
+        if (node.isObject() && node.has("youthPolicyList")) {
+            JsonNode youthPolicyListNode = node.get("youthPolicyList");
+
+            if (youthPolicyListNode != null && youthPolicyListNode.isArray()) {
+                return youthPolicyListNode;
+            }
+        }
+
+        // 배열 안에 정책 객체가 있는 경우
         if (node.isArray()) {
             for (JsonNode item : node) {
                 if (item.has("plcyNo") || item.has("plcyNm")) {
@@ -150,9 +268,11 @@ public class BenefitServiceImpl implements BenefitService {
             }
         }
 
+        // 하위 노드 재귀 탐색
         if (node.isObject()) {
             for (JsonNode child : node) {
                 JsonNode result = findPolicyArray(child);
+
                 if (result != null) {
                     return result;
                 }
@@ -182,6 +302,14 @@ public class BenefitServiceImpl implements BenefitService {
         vo.setApplyEndDate(parseApplyEndDate(item.getAplyYmd()));
         vo.setApplyEndDate(parseApplyEndDate(item.getAplyYmd()));
         vo.setAplyPrdSeCd(item.getAplyPrdSeCd());
+        vo.setIsActive(
+                mapIsActive(
+                        vo.getAplyPrdSeCd(),
+                        vo.getApplyStartDate(),
+                        vo.getApplyEndDate()
+                )
+        );
+
         vo.setAplyUrlAddr(item.getAplyUrlAddr());
 
         vo.setSprtTrgtMinAge(toInteger(item.getSprtTrgtMinAge()));
@@ -196,8 +324,6 @@ public class BenefitServiceImpl implements BenefitService {
 
         vo.setConflictGroupCode(null);
         vo.setInqCnt(toInteger(item.getInqCnt()));
-
-        vo.setIsActive("Y");
 
         vo.setFrstRegDt(item.getFrstRegDt());
         vo.setLastMdfcnDt(item.getLastMdfcnDt());
@@ -225,15 +351,31 @@ public class BenefitServiceImpl implements BenefitService {
     }
 
     private String mapCategoryCode(String lclsfNm) {
-        if (lclsfNm == null) {
-            return null;
+        if (lclsfNm == null || lclsfNm.trim().isEmpty()) {
+            return "0";
         }
-        if (lclsfNm.contains("일자리")) {return "1";}
-        if (lclsfNm.contains("주거")) {return "2";}
-        if (lclsfNm.contains("교육")) {return "3";}
-        if (lclsfNm.contains("복지") || lclsfNm.contains("문화")) {return "4";}
-        if (lclsfNm.contains("참여") || lclsfNm.contains("권리")) {return "5";}
-        return null;
+
+        if (lclsfNm.contains("일자리")) {
+            return "1";
+        }
+
+        if (lclsfNm.contains("주거")) {
+            return "2";
+        }
+
+        if (lclsfNm.contains("교육")) {
+            return "3";
+        }
+
+        if (lclsfNm.contains("복지") || lclsfNm.contains("문화")) {
+            return "4";
+        }
+
+        if (lclsfNm.contains("참여") || lclsfNm.contains("권리")) {
+            return "5";
+        }
+
+        return "0";
     }
 
     private Integer toInteger(String value) {
@@ -306,5 +448,98 @@ public class BenefitServiceImpl implements BenefitService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    @Override
+    @Transactional
+    public int syncDailyYouthPolicies() {
+        int pageNum = 1;
+        int pageSize = 600;
+        int count = 0;
+
+        List<String> apiPlcyNoList = new ArrayList<>();
+
+        while (true) {
+            YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
+            requestDTO.setPageNum(pageNum);
+            requestDTO.setPageSize(pageSize);
+            requestDTO.setRtnType("json");
+
+            String json;
+
+            try {
+                json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
+            } catch (Exception e) {
+                e.printStackTrace();
+                break;
+            }
+
+            // 스케쥴러 실패사유 기록추가
+            List<YouthPolicyApiItemDTO> policyList;
+
+            try {
+                policyList = parsePolicyList(json);
+            } catch (Exception e) {
+                System.out.println("[온통청년 API 응답 파싱 실패] pageNum = " + pageNum);
+                System.out.println("[pageSize] " + pageSize);
+
+                if (json != null) {
+                    System.out.println("[응답 앞부분]");
+                    System.out.println(json.substring(0, Math.min(json.length(), 1000)));
+                }
+
+                System.out.println("[실패 사유] " + e.getMessage());
+                break;
+            }
+
+            if (policyList.isEmpty()) {
+                System.out.println("[온통청년 API 전체 조회 완료] pageNum = " + pageNum);
+                break;
+            }
+
+            for (YouthPolicyApiItemDTO item : policyList) {
+                apiPlcyNoList.add(item.getPlcyNo());
+
+                BenefitVO benefit = convertToBenefitVO(item);
+
+
+                int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
+
+                System.out.println("[정책 존재 여부] plcyNo = "
+                        + item.getPlcyNo()
+                        + ", exists = "
+                        + exists);
+
+                if (exists == 0) {
+                    // 신규 혜택이면 전체 저장 + 매핑 저장
+                    System.out.println("[신규 저장 분기] " + item.getPlcyNo());
+                    benefitMapper.upsertBenefit(benefit);
+
+                    Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+
+                    if (benefitNo != null) {
+                        saveBenefitMappings(benefitNo, item);
+                    }
+                } else {
+                    if (shouldUpdateStatus(benefit)) {
+                        // 기존 혜택 중 시작 전, 진행 중, 상시 혜택만 갱신
+                        System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
+                        benefitMapper.updateBenefitStatusOnly(benefit);
+                    } else {
+                        // 마감된 혜택은 갱신 제외
+                        System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
+                    }
+                }
+
+                count++;
+            }
+
+            pageNum++;
+//            스케쥴러 테스트로 페이지 설정 테스트 확인후 삭제필요
+//            if (pageNum > 3) {
+//                break;
+//            }
+        }
+        return count;
     }
 }

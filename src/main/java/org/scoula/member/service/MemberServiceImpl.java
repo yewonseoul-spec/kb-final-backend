@@ -7,18 +7,17 @@ import org.scoula.member.dto.MemberDTO;
 import org.scoula.member.dto.MemberJoinDTO;
 import org.scoula.member.dto.MemberUpdateDTO;
 import org.scoula.member.exception.PasswordMissmatchException;
+import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.scoula.member.mapper.MemberMapper;
-import org.scoula.security.account.domain.AuthVO;
 import org.scoula.security.account.domain.MemberVO;
+import org.scoula.terms.domain.TermsVO;
+import org.scoula.terms.dto.TermsAgreeReqDto;
+import org.scoula.terms.mapper.TermsMapper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.util.NoSuchElementException;
-import java.util.Optional;
+import java.util.*;
 
 @Log4j2
 @Service
@@ -26,66 +25,81 @@ import java.util.Optional;
 public class MemberServiceImpl implements MemberService {
     final PasswordEncoder passwordEncoder;
     final MemberMapper mapper;
+    final TermsMapper termsMapper;
 
     @Override
-    public boolean checkDuplicate(String username) {
-        MemberVO member = mapper.findByUsername(username);
+    public boolean checkDuplicate(String loginId) {
+        MemberVO member = mapper.findByLoginId(loginId);
         return member != null;
     }
 
     @Override
-    public MemberDTO get(String username) {
-        MemberVO member = Optional.ofNullable(mapper.get(username))
-                .orElseThrow(NoSuchElementException::new);
-        return MemberDTO.of(member);
+    public boolean checkDuplicateEmail(String email) {
+        return mapper.countByEmail(email) > 0;
     }
 
-    private void saveAvatar(MultipartFile avatar, String username) {
-        //아바타 업로드
-        if (avatar != null && !avatar.isEmpty()) {
-            File dest = new File("c:/upload/avatar", username + ".png");
-            try {
-                avatar.transferTo(dest);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
+    @Override
+    public MemberDTO get(String loginId) {
+        MemberVO member = Optional.ofNullable(mapper.get(loginId))
+                .orElseThrow(NoSuchElementException::new);
+        return MemberDTO.of(member);
     }
 
     @Transactional
     @Override
     public MemberDTO join(MemberJoinDTO dto) {
+        // SignUp 약관 목록
+        List<TermsVO> signupTerms = termsMapper.getSignupTerms();
+
+        // 사용자가 동의한 약관 번호 모으기
+        Set<Integer> agreedNos = new HashSet<>();
+        if (dto.getTerms() != null) {
+            for (TermsAgreeReqDto t : dto.getTerms()) {
+                if (t.isAgreed()) {
+                    agreedNos.add(t.getTermsNo());
+                }
+            }
+        }
+
+        // 필수 약관 검증 + 저장할 동의 목록 만들기
+        List<TermsAgreeReqDto> agreements = new ArrayList<>();
+        for (TermsVO terms : signupTerms) {
+            boolean agreed = agreedNos.contains(terms.getTermsNo());
+
+            if("Y".equals(terms.getIsRequired()) && !agreed) {
+                throw new RequiredTermsNotAgreedException();
+            }
+            agreements.add(new TermsAgreeReqDto(terms.getTermsNo(), agreed));
+        }
+
+        // 회원 저장
         MemberVO member = dto.toVO();
 
         member.setPassword(passwordEncoder.encode(member.getPassword())); // 비밀번호 암호화
         mapper.insert(member);
 
-        AuthVO auth = new AuthVO();
-        auth.setUsername(member.getUsername());
-        auth.setAuth("ROLE_MEMBER");
-        mapper.insertAuth(auth);
+        if (!agreements.isEmpty()) {
+            termsMapper.insertAgreements(member.getMemberNo(), agreements);
+        }
 
-        saveAvatar(dto.getAvatar(), member.getUsername());
-
-        return get(member.getUsername());
+        return get(member.getLoginId());
     }
 
     @Override
     public MemberDTO update(MemberUpdateDTO member) {
-        MemberVO vo = mapper.get(member.getUsername());
+        MemberVO vo = mapper.get(member.getLoginId());
         if (!passwordEncoder.matches(member.getPassword(), vo.getPassword())) {  // 비밀번호 일치 확인
             throw new PasswordMissmatchException();
         }
 
         mapper.update(member.toVO());
-        saveAvatar(member.getAvatar(), member.getUsername());
-        return get(member.getUsername());
+        return get(member.getLoginId());
 
     }
 
     @Override
     public void changePassword(ChangePasswordDTO changePassword) {
-        MemberVO member = mapper.get(changePassword.getUsername());
+        MemberVO member = mapper.get(changePassword.getLoginId());
 
         if (!passwordEncoder.matches(changePassword.getOldPassword(), member.getPassword())) {
             throw new PasswordMissmatchException();
