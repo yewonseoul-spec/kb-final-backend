@@ -77,4 +77,14 @@ public class BenefitController {
         return ResponseEntity.ok(result);
 
     }
+
+    //관리자 기간별 동기화 API
+    @PostMapping("/admin/sync/youth-center/frst-reg-date")
+    public ResponseEntity<Integer> syncYouthPoliciesByFrstRegDt(
+            @RequestParam String startDate,
+            @RequestParam String endDate
+    ) {
+        int count = benefitService.syncYouthPoliciesByFrstRegDt(startDate, endDate);
+        return ResponseEntity.ok(count);
+    }
 }

@@ -124,14 +124,17 @@ public class BenefitServiceImpl implements BenefitService {
         String value = dateText.trim();
 
         try {
-            // 2026-07-28 형식
+            //2026-07-28
             if (value.matches("\\d{4}-\\d{2}-\\d{2}")) {
                 return LocalDate.parse(value);
             }
-
-            // 20260728 형식
+            //20260728
             if (value.matches("\\d{8}")) {
                 return LocalDate.parse(value, DateTimeFormatter.ofPattern("yyyyMMdd"));
+            }
+            //2026-07-28 14:51:16
+            if (value.matches("\\d{4}-\\d{2}-\\d{2}.*")) {
+                return LocalDate.parse(value.substring(0, 10));
             }
         } catch (Exception e) {
             return null;
@@ -540,6 +543,100 @@ public class BenefitServiceImpl implements BenefitService {
 //                break;
 //            }
         }
+        return count;
+    }
+
+    //관리자 기간별 동기화 api
+    @Override
+    @Transactional
+    public int syncYouthPoliciesByFrstRegDt(String startDate, String endDate) {
+        int pageNum = 1;
+        int pageSize = 600;
+        int count = 0;
+
+        LocalDate start = parseLocalDate(startDate);
+        LocalDate end = parseLocalDate(endDate);
+
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("시작일과 종료일은 yyyy-MM-dd 또는 yyyyMMdd 형식이어야 합니다.");
+        }
+
+        while (true) {
+            YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
+            requestDTO.setPageNum(pageNum);
+            requestDTO.setPageSize(pageSize);
+            requestDTO.setRtnType("json");
+
+            String json;
+
+            try {
+                System.out.println("[관리자 기간 동기화 API 요청] pageNum = " + pageNum + ", pageSize = " + pageSize);
+                json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
+            } catch (Exception e) {
+                System.out.println("[관리자 기간 동기화 API 호출 실패] pageNum = " + pageNum);
+                System.out.println("[실패 사유] " + e.getMessage());
+                break;
+            }
+
+            List<YouthPolicyApiItemDTO> policyList;
+
+            try {
+                policyList = parsePolicyList(json);
+            } catch (Exception e) {
+                System.out.println("[관리자 기간 동기화 응답 파싱 실패] pageNum = " + pageNum);
+
+                if (json != null) {
+                    System.out.println("[응답 앞부분]");
+                    System.out.println(json.substring(0, Math.min(json.length(), 1000)));
+                }
+
+                System.out.println("[실패 사유] " + e.getMessage());
+                break;
+            }
+
+            if (policyList.isEmpty()) {
+                System.out.println("[관리자 기간 동기화 전체 페이지 조회 완료] pageNum = " + pageNum);
+                break;
+            }
+
+            for (YouthPolicyApiItemDTO item : policyList) {
+                if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
+                    continue;
+                }
+
+                LocalDate frstRegDate = parseLocalDate(item.getFrstRegDt());
+
+                if (frstRegDate == null) {
+                    continue;
+                }
+
+                boolean inPeriod = !frstRegDate.isBefore(start) && !frstRegDate.isAfter(end);
+
+                if (!inPeriod) {
+                    continue;
+                }
+
+                BenefitVO benefit = convertToBenefitVO(item);
+
+                System.out.println("[관리자 기간 혜택 전체 갱신] plcyNo = "
+                        + item.getPlcyNo()
+                        + ", frstRegDt = "
+                        + item.getFrstRegDt());
+
+                benefitMapper.upsertBenefit(benefit);
+
+                Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+
+                if (benefitNo != null) {
+                    saveBenefitMappings(benefitNo, item);
+                }
+
+                count++;
+            }
+
+            pageNum++;
+        }
+
         return count;
     }
 }
