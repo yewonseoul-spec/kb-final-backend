@@ -48,4 +48,14 @@ public class MypageController {
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("프로필이 수정되었습니다.");
     }
+
+    // 회원 탈퇴
+    @DeleteMapping
+    public ResponseEntity<String> withdraw(@AuthenticationPrincipal CustomUser user) {
+        service.withdraw(user.getMember().getMemberNo());
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("탈퇴가 완료되었습니다.");
+    }
 }

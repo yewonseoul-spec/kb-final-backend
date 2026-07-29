@@ -2,6 +2,7 @@ package org.scoula.mypage.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.scoula.member.mapper.MemberMapper;
 import org.scoula.mypage.domain.MemberProfileVO;
 import org.scoula.mypage.dto.ProfileDTO;
 import org.scoula.mypage.mapper.MemberProfileMapper;
@@ -17,6 +18,7 @@ import java.util.Optional;
 public class MypageServiceImpl implements MypageService {
 
     private final MemberProfileMapper mapper;
+    private final MemberMapper memberMapper;
 
     @Transactional
     @Override
@@ -36,6 +38,14 @@ public class MypageServiceImpl implements MypageService {
     @Override
     public void updateProfile(int memberNo, ProfileDTO dto) {
         if (mapper.update(dto.toVo(memberNo)) == 0) {
+            throw new NoSuchElementException();
+        }
+    }
+
+    @Transactional
+    @Override
+    public void withdraw(int memberNo) {
+        if (memberMapper.withdraw(memberNo) == 0) {
             throw new NoSuchElementException();
         }
     }
