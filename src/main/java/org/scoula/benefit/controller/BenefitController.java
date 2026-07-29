@@ -1,7 +1,9 @@
 package org.scoula.benefit.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.scoula.benefit.dto.BenefitCategoryResDto;
+import org.scoula.benefit.dto.BenefitCategoryResDTO;
+import org.scoula.benefit.dto.BenefitFilterReqDTO;
+import org.scoula.benefit.dto.BenefitListResDTO;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.http.ResponseEntity;
@@ -92,9 +94,18 @@ public class BenefitController {
 
     //필터
     @GetMapping("/categories")
-    public ResponseEntity<List<BenefitCategoryResDto>> getBenefitCategories() {
+    public ResponseEntity<List<BenefitCategoryResDTO>> getBenefitCategories() {
         return ResponseEntity.ok(
                 benefitService.findBenefitCategories()
+        );
+    }
+
+    @GetMapping
+    public ResponseEntity<List<BenefitListResDTO>> getBenefit(
+            BenefitFilterReqDTO filter
+    ) {
+        return ResponseEntity.ok(
+                benefitService.findBenefit(filter)
         );
     }
 }

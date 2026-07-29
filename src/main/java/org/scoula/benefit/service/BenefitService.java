@@ -1,6 +1,8 @@
 package org.scoula.benefit.service;
 
-import org.scoula.benefit.dto.BenefitCategoryResDto;
+import org.scoula.benefit.dto.BenefitCategoryResDTO;
+import org.scoula.benefit.dto.BenefitFilterReqDTO;
+import org.scoula.benefit.dto.BenefitListResDTO;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 
 import java.util.List;
@@ -16,5 +18,7 @@ public interface BenefitService {
     int syncYouthPoliciesByFrstRegDt(String startDate, String endDate);
 
     //필터
-    List<BenefitCategoryResDto> findBenefitCategories();
+    List<BenefitCategoryResDTO> findBenefitCategories();
+
+    List<BenefitListResDTO> findBenefit(BenefitFilterReqDTO filter);
 }

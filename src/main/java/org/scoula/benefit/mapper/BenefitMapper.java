@@ -3,7 +3,9 @@ package org.scoula.benefit.mapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.scoula.benefit.domain.BenefitVO;
-import org.scoula.benefit.dto.BenefitCategoryResDto;
+import org.scoula.benefit.dto.BenefitCategoryResDTO;
+import org.scoula.benefit.dto.BenefitFilterReqDTO;
+import org.scoula.benefit.dto.BenefitListResDTO;
 
 import java.util.List;
 
@@ -45,5 +47,7 @@ public interface BenefitMapper {
     int updateBenefitStatusOnly(BenefitVO benefit);
 
    // 필터 부분
-   List<BenefitCategoryResDto> findBenefitCategories();
+   List<BenefitCategoryResDTO> findBenefitCategories();
+
+    List<BenefitListResDTO> findBenefit(BenefitFilterReqDTO filter);
 }

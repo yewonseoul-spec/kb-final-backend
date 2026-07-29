@@ -188,12 +188,54 @@
 
 <!--필터 기능 -->
     <select id="findBenefitCategories"
-            resultType="org.scoula.benefit.dto.BenefitCategoryResDto">
+            resultType="org.scoula.benefit.dto.BenefitCategoryResDTO">
         SELECT
         category_code AS categoryCode,
         category_name AS categoryName,
         display_order AS displayOrder
         FROM benefit_category
         ORDER BY display_order ASC
+    </select>
+
+    <select id="findBenefit"
+            parameterType="org.scoula.benefit.dto.BenefitFilterReqDTO"
+            resultType="org.scoula.benefit.dto.BenefitListResDTO">
+
+        SELECT
+        b.benefit_no AS benefitNo,
+        b.plcy_no AS plcyNo,
+        b.plcy_nm AS plcyNm,
+        b.category_code AS categoryCode,
+        bc.category_name AS categoryName,
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        b.apply_start_date AS applyStartDate,
+        b.apply_end_date AS applyEndDate,
+        b.aply_prd_se_cd AS aplyPrdSeCd,
+        b.is_active AS isActive
+        FROM benefit b
+        JOIN benefit_category bc
+        ON b.category_code = bc.category_code
+        WHERE b.is_active = 'Y'
+
+        <if test="categoryCode != null and categoryCode != ''">
+            AND b.category_code = #{categoryCode}
+        </if>
+
+        <if test="keyword != null and keyword != ''">
+            AND (
+            b.plcy_nm LIKE CONCAT('%', #{keyword}, '%')
+            OR b.plcy_expln_cn LIKE CONCAT('%', #{keyword}, '%')
+            OR b.plcy_sprt_cn LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+
+        ORDER BY
+        CASE
+        WHEN b.apply_end_date IS NULL THEN 1
+        ELSE 0
+        END,
+        b.apply_end_date ASC,
+        b.benefit_no DESC
+
     </select>
 </mapper>

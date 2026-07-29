@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
-import org.scoula.benefit.dto.BenefitCategoryResDto;
-import org.scoula.benefit.dto.YouthPolicyApiItemDTO;
-import org.scoula.benefit.dto.YouthPolicyRequestDTO;
+import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -643,7 +641,15 @@ public class BenefitServiceImpl implements BenefitService {
 
     //필터
     @Override
-    public List<BenefitCategoryResDto> findBenefitCategories() {
+    public List<BenefitCategoryResDTO> findBenefitCategories() {
         return benefitMapper.findBenefitCategories();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BenefitListResDTO> findBenefit(
+            BenefitFilterReqDTO filter
+    ) {
+        return benefitMapper.findBenefit(filter);
     }
 }
