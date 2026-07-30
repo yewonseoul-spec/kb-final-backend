@@ -27,4 +27,18 @@ public class AdminController {
         SyncResultResDto result = adminService.executeSync(pageNum, pageSize, memberNo);
         return ResponseEntity.ok(result);
     }
+    /**
+     * admin-01: 관리자 기간별 동기화 실행
+     * 기준은 정책의 최초등록일(frst_reg_dt)이며 신청 기간이 아니다.
+     * 날짜 형식은 yyyy-MM-dd 또는 yyyyMMdd.
+     */
+    @PostMapping("/sync/period")
+    public ResponseEntity<SyncResultResDto> executeSyncByPeriod(
+            @RequestParam String startDate,
+            @RequestParam String endDate,
+            @RequestParam(required = false) Integer memberNo) {
+
+        SyncResultResDto result = adminService.executeSyncByPeriod(startDate, endDate, memberNo);
+        return ResponseEntity.ok(result);
+    }
 }
