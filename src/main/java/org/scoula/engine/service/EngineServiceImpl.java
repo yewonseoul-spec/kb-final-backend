@@ -84,19 +84,19 @@ public class EngineServiceImpl implements EngineService {
 
     /**
      * 조합 정렬 규칙 (engine-06 동점 처리)
-     *   1 조합 점수 높은 순
-     *   2 내부 경고가 적은 순
-     *   3 정책 수가 많은 순
-     *   4 조합 내 최저 정책점수 높은 순 — 약한 정책이 평균에 가려지는 것을 방지
-     *   5 가장 빠른 마감일 이른 순 — 같은 점수 구간 안에서 신청 시급성 구분
+     *   1 정책 수 많은 순 — 정책 3개 조합을 항상 우선한다
+     *   2 조합 점수 높은 순
+     *   3 내부 경고가 적은 순
+     *   4 조합 내 최저 정책점수 높은 순 — 약한 정책이 평균에 가려지는 것 방지
+     *   5 가장 빠른 마감일 (상시모집은 뒤로) — 같은 구간 안에서 시급성 구분
      *   6 로그 조회수 합계 높은 순 — 극단적 인기 정책 하나가 조합을 지배하는 것을 완화
      *   7 정렬된 정책번호 목록 — 결정론 보장용. 화면에 노출하지 않는다
      */
     private static final Comparator<CombinationResDto> COMBINATION_RANKING =
-            Comparator.<CombinationResDto>comparingDouble(CombinationResDto::getCombinationScore).reversed()
+            Comparator.<CombinationResDto>comparingInt(c -> c.getBenefits().size()).reversed()
+                    .thenComparing(Comparator.<CombinationResDto>comparingDouble(
+                            CombinationResDto::getCombinationScore).reversed())
                     .thenComparingInt(c -> c.getWarnings().size())
-                    .thenComparing(Comparator.comparingInt(
-                            (CombinationResDto c) -> c.getBenefits().size()).reversed())
                     .thenComparing(Comparator.comparingInt(
                             EngineServiceImpl::minPolicyScore).reversed())
                     .thenComparing(EngineServiceImpl::earliestDeadline,
