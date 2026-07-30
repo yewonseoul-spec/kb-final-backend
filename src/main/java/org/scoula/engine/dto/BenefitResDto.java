@@ -17,8 +17,6 @@ public class BenefitResDto {
     private String earnCndSeCd;
     private String earnEtcCn;
     private String mrgSttsCd;
-    private String schoolCd;
-    private String jobCd;
     private String conflictGroupCode;
     private String isActive;
     private Date applyEndDate;
