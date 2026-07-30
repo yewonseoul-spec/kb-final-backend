@@ -2,11 +2,17 @@ package org.scoula.admin.service;
 
 import lombok.RequiredArgsConstructor;
 import org.scoula.admin.domain.SyncLogVO;
+import org.scoula.admin.dto.DashboardResDto;
+import org.scoula.admin.dto.SyncLogPageResDto;
+import org.scoula.admin.dto.SyncLogSearchReqDto;
+import org.scoula.admin.dto.SyncLogStatsResDto;
 import org.scoula.admin.dto.SyncResultResDto;
 import org.scoula.admin.mapper.AdminMapper;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -18,8 +24,9 @@ public class AdminServiceImpl implements AdminService {
     // sync_log 코드값 (DB ENUM과 다르면 이 값만 수정)
     private static final String EXEC_TYPE_MANUAL = "M";   // 관리자 수동 실행
     private static final String EXEC_TYPE_PERIOD = "M";   // 기간별도 관리자가 실행하므로 수동
-    // ※ 'P'를 쓰려면 sync_log.exec_type ENUM에 'P'가 추가돼 있어야 한다.
-    //    ALTER TABLE 을 안 했다면 이 값을 "M" 으로 바꿔서 쓸 것.
+    // ※ exec_type은 '누가 실행했나'(자동/수동)를 나타낸다.
+    //    페이지 범위냐 기간 범위냐는 '어떻게 실행했나'라는 다른 축이므로 여기서 구분하지 않는다.
+    //    나중에 구분이 필요하면 sync_mode 같은 별도 컬럼을 추가할 것.
 
     private static final String STATUS_SUCCESS = "S";
     private static final String STATUS_PARTIAL = "P";
@@ -27,6 +34,77 @@ public class AdminServiceImpl implements AdminService {
 
     // error_msg 컬럼이 varchar(500)이라 초과분은 잘라서 저장한다
     private static final int ERROR_MSG_MAX = 500;
+
+    // 대시보드 목록(최근 동기화·마감 임박)에 보여줄 건수
+    private static final int DASHBOARD_LIST_SIZE = 5;
+
+    // 로그 목록 페이지 크기 상·하한 (잘못된 값이 들어와도 쿼리가 깨지지 않게 한다)
+    private static final int PAGE_SIZE_DEFAULT = 20;
+    private static final int PAGE_SIZE_MAX = 100;
+
+
+    /**
+     * admin-01: 관리자 대시보드 운영 현황
+     *
+     * '전체 정책'과 '추천 가능 정책'을 나눠 보여주는 것이 핵심이다.
+     * 전체 건수만으로는 실제 추천에 쓰이는 정책이 몇 건인지 알 수 없다.
+     * (마감됐거나 아직 신청 시작 전인 정책이 is_active='N'으로 빠져 있다)
+     */
+    @Override
+    public DashboardResDto getDashboard() {
+        return DashboardResDto.builder()
+                .totalBenefits(adminMapper.countBenefits())
+                .activeBenefits(adminMapper.countActiveBenefits())
+                .deadlineSoonCount(adminMapper.countDeadlineSoon())
+                .conflictRuleCount(adminMapper.countActiveConflictRules())
+                .memberCount(adminMapper.countMembers())
+                .recentSyncLogs(adminMapper.findRecentSyncLogs(DASHBOARD_LIST_SIZE))
+                .deadlineBenefits(adminMapper.findDeadlineSoonBenefits(DASHBOARD_LIST_SIZE))
+                .build();
+    }
+
+
+    /**
+     * admin-03: 동기화 로그 목록 조회
+     *
+     * 통계 카드는 상태·유형 필터를 빼고 기간만 반영한다.
+     * SUCCESS만 걸러놓고 '성공 41회 실패 0회'를 보여주면 정보가 사라지기 때문이다.
+     */
+    @Override
+    public SyncLogPageResDto getSyncLogs(SyncLogSearchReqDto search) {
+        normalizePaging(search);
+
+        int totalCount = adminMapper.countSyncLogs(search);
+        List<SyncLogVO> logs = adminMapper.findSyncLogs(search);
+        SyncLogStatsResDto stats = adminMapper.findSyncLogStats(search);
+
+        int size = search.getSize();
+        int totalPages = (totalCount == 0) ? 0 : ((totalCount - 1) / size) + 1;
+
+        return SyncLogPageResDto.builder()
+                .page(search.getPage())
+                .size(size)
+                .totalCount(totalCount)
+                .totalPages(totalPages)
+                .stats(stats)
+                .logs(logs)
+                .build();
+    }
+
+    /** 페이지 값이 비어 있거나 범위를 벗어나도 쿼리가 깨지지 않도록 보정한다 */
+    private void normalizePaging(SyncLogSearchReqDto search) {
+        if (search.getPage() == null || search.getPage() < 1) {
+            search.setPage(1);
+        }
+        if (search.getSize() == null || search.getSize() < 1) {
+            search.setSize(PAGE_SIZE_DEFAULT);
+        }
+        if (search.getSize() > PAGE_SIZE_MAX) {
+            search.setSize(PAGE_SIZE_MAX);
+        }
+        search.setOffset((search.getPage() - 1) * search.getSize());
+    }
+
 
     /**
      * admin-01: 관리자 수동 동기화 (페이지 범위)
