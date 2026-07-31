@@ -6,6 +6,7 @@ import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SignatureException;
 import org.scoula.security.util.JsonResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -26,6 +27,8 @@ public class AuthenticationErrorFilter extends OncePerRequestFilter {
             JsonResponse.sendError(response, HttpStatus.UNAUTHORIZED, "토큰의 유효시간이 지났습니다.");
         } catch (UnsupportedJwtException | MalformedJwtException | SignatureException e) {
             JsonResponse.sendError(response, HttpStatus.UNAUTHORIZED, e.getMessage());
+        } catch (AuthenticationException e) {
+            JsonResponse.sendError(response, HttpStatus.UNAUTHORIZED, "유효하지 않은 계정입니다.");
         } catch (ServletException e) {
             JsonResponse.sendError(response, HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
         }
