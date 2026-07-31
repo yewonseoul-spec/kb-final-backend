@@ -456,7 +456,7 @@ public class BenefitServiceImpl implements BenefitService {
     @Transactional
     public int syncDailyYouthPolicies() {
         int pageNum = 1;
-        int pageSize = 600;
+        int pageSize = 100;
         int count = 0;
 
         List<String> apiPlcyNoList = new ArrayList<>();
