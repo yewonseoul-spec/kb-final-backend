@@ -1,36 +1,22 @@
 package org.scoula.consumption.dto;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
 import java.util.List;
 
-// 일별 소비 내역
-public class DayDTO {
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class DayDTO { // 일별 소비 내역
     private String date; // "2026-07-05"
+
     private List<SpendingItemDTO> spendings;
+
     private List<ExpectedItemDTO> expectedSpendings;
-
-    public String getDate() {
-        return date;
-    }
-
-    public void setDate(String date) {
-        this.date = date;
-    }
-
-    public List<SpendingItemDTO> getSpendings() {
-        return spendings;
-    }
-
-    public void setSpendings(List<SpendingItemDTO> spendings) {
-        this.spendings = spendings;
-    }
-
-    public List<ExpectedItemDTO> getExpectedSpendings() {
-        return expectedSpendings;
-    }
-
-    public void setExpectedSpendings(List<ExpectedItemDTO> expectedSpendings) {
-        this.expectedSpendings = expectedSpendings;
-    }
 
     @Override
     public String toString() {
@@ -40,6 +26,4 @@ public class DayDTO {
                 ", expectedSpendings=" + expectedSpendings +
                 '}';
     }
-
 }
-

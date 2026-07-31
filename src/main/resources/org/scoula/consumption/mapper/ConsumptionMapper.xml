@@ -6,12 +6,20 @@
 <mapper namespace="org.scoula.consumption.mapper.ConsumptionMapper">
 
     <select id="selectSpendingByMonth" resultType="org.scoula.consumption.domain.SpendingVO">
-        SELECT s.spending_no, s.member_no, s.category_no, c.category_name, s.amount, s.merchant, s.spending_date
+        SELECT s.spending_no,
+               s.member_no,
+               s.category_no,
+               c.category_name,
+               s.amount,
+               s.merchant,
+               s.pay_method,
+               s.memo,
+               s.spending_date
         FROM spending s
                  INNER JOIN spending_category c
                             ON s.category_no = c.category_no
-        WHERE s.member_no = #{memberNo}
-          AND DATE_FORMAT(s.spending_date, '%Y-%m') = #{yearMonth}
+        WHERE s.member_no = #{param1}
+          AND DATE_FORMAT(s.spending_date, '%Y-%m') = #{param2}
         ORDER BY s.spending_date
     </select>
     <select id="selectExpectedByMonth" resultType="org.scoula.consumption.domain.ExpectedSpendingVO">
@@ -21,13 +29,41 @@
                c.category_name,
                e.expected_amount,
                e.merchant,
+               e.memo,
                e.expected_date
         FROM expected_spending e
                  INNER JOIN spending_category c
                             ON e.category_no = c.category_no
-        WHERE e.member_no = #{memberNo}
-          AND DATE_FORMAT(e.expected_date, '%Y-%m') = #{yearMonth}
+        WHERE e.member_no = #{param1}
+          AND DATE_FORMAT(e.expected_date, '%Y-%m') = #{param2}
         ORDER BY e.expected_date
-
     </select>
+
+    <insert id="insertExpected" parameterType="org.scoula.consumption.domain.ExpectedSpendingVO">
+        INSERT INTO expected_spending(member_no, category_no, expected_amount, expected_date, merchant, memo)
+        VALUES (#{memberNo}, #{categoryNo}, #{expectedAmount}, #{expectedDate}, #{merchant}, #{memo})
+    </insert>
+
+    <update id="updateExpected" parameterType="org.scoula.consumption.domain.ExpectedSpendingVO">
+        UPDATE expected_spending
+        SET category_no     = #{categoryNo},
+            expected_amount = #{expectedAmount},
+            expected_date   = #{expectedDate},
+            merchant        = #{merchant},
+            memo            = #{memo}
+        WHERE expected_no = #{expectedNo}
+    </update>
+
+    <delete id="deleteExpected" parameterType="org.scoula.consumption.domain.ExpectedSpendingVO">
+        DELETE
+        FROM expected_spending
+        WHERE expected_no = #{expectedNo}
+    </delete>
+
+    <delete id="replaceExpected" parameterType="org.scoula.consumption.domain.ExpectedSpendingVO">
+        DELETE
+        FROM expected_spending
+        WHERE expected_date &lt; CURDATE()
+    </delete>
+
 </mapper>

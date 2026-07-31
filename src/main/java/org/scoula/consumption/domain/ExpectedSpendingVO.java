@@ -1,6 +1,7 @@
 package org.scoula.consumption.domain;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -9,6 +10,7 @@ import java.time.LocalDate;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class ExpectedSpendingVO {
     private Long expectedNo;
 
@@ -18,8 +20,9 @@ public class ExpectedSpendingVO {
     private String categoryName;
 
     private Long expectedAmount;
-
+    
     private String merchant;
+    private String memo;
 
     private LocalDate expectedDate;
 }
