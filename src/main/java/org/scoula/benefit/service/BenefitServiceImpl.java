@@ -456,7 +456,7 @@ public class BenefitServiceImpl implements BenefitService {
     @Transactional
     public int syncDailyYouthPolicies() {
         int pageNum = 1;
-        int pageSize = 600;
+        int pageSize = 100;
         int count = 0;
 
         List<String> apiPlcyNoList = new ArrayList<>();
@@ -660,6 +660,11 @@ public class BenefitServiceImpl implements BenefitService {
             String parentRegionCode
     ) {
         return benefitMapper.findRegion(parentRegionCode);
+    }
+    //전공필터
+    @Override
+    public List<BenefitMajorResDTO> findBenefitMajors() {
+        return benefitMapper.findBenefitMajors();
     }
 
 }
