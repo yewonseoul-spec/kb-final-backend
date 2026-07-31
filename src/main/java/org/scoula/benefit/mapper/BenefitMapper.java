@@ -3,6 +3,10 @@ package org.scoula.benefit.mapper;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.scoula.benefit.domain.BenefitVO;
+import org.scoula.benefit.dto.BenefitCategoryResDTO;
+import org.scoula.benefit.dto.BenefitFilterReqDTO;
+import org.scoula.benefit.dto.BenefitListResDTO;
+import org.scoula.benefit.dto.BenefitRegionResDTO;
 
 import java.util.List;
 
@@ -43,5 +47,13 @@ public interface BenefitMapper {
 
     int updateBenefitStatusOnly(BenefitVO benefit);
 
+   //카테고리 필터
+   List<BenefitCategoryResDTO> findBenefitCategories();
 
+   //검색 조회
+    List<BenefitListResDTO> findBenefit(BenefitFilterReqDTO filter);
+
+    // 지역 필터
+    List<BenefitRegionResDTO> findRegion(
+            @Param("parentRegionCode") String parentRegionCode);
 }
