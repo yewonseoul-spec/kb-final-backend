@@ -639,12 +639,7 @@ public class BenefitServiceImpl implements BenefitService {
         return count;
     }
 
-    //필터
-    @Override
-    public List<BenefitCategoryResDTO> findBenefitCategories() {
-        return benefitMapper.findBenefitCategories();
-    }
-
+    //혜택 조회
     @Override
     @Transactional(readOnly = true)
     public List<BenefitListResDTO> findBenefit(
@@ -652,4 +647,19 @@ public class BenefitServiceImpl implements BenefitService {
     ) {
         return benefitMapper.findBenefit(filter);
     }
+
+    //카테고리 필터
+    @Override
+    public List<BenefitCategoryResDTO> findBenefitCategories() {
+        return benefitMapper.findBenefitCategories();
+    }
+
+    //지역 필터
+    @Override
+    public List<BenefitRegionResDTO> findRegion(
+            String parentRegionCode
+    ) {
+        return benefitMapper.findRegion(parentRegionCode);
+    }
+
 }

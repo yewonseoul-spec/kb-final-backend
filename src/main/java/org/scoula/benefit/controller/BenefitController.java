@@ -1,10 +1,7 @@
 package org.scoula.benefit.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.scoula.benefit.dto.BenefitCategoryResDTO;
-import org.scoula.benefit.dto.BenefitFilterReqDTO;
-import org.scoula.benefit.dto.BenefitListResDTO;
-import org.scoula.benefit.dto.YouthPolicyRequestDTO;
+import org.scoula.benefit.dto.*;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -92,7 +89,15 @@ public class BenefitController {
         return ResponseEntity.ok(count);
     }
 
-    //필터
+    @GetMapping
+    public ResponseEntity<List<BenefitListResDTO>> getBenefit(
+            BenefitFilterReqDTO filter
+    ) {
+        return ResponseEntity.ok(
+                benefitService.findBenefit(filter)
+        );
+    }
+    //카테고리 필터
     @GetMapping("/categories")
     public ResponseEntity<List<BenefitCategoryResDTO>> getBenefitCategories() {
         return ResponseEntity.ok(
@@ -100,12 +105,15 @@ public class BenefitController {
         );
     }
 
-    @GetMapping
-    public ResponseEntity<List<BenefitListResDTO>> getBenefit(
-            BenefitFilterReqDTO filter
+
+    //지역 필터
+    @GetMapping("/regions")
+    public ResponseEntity<List<BenefitRegionResDTO>> getRegion(
+            @RequestParam(required = false)
+            String parentRegionCode
     ) {
         return ResponseEntity.ok(
-                benefitService.findBenefit(filter)
+                benefitService.findRegion(parentRegionCode)
         );
     }
 }
