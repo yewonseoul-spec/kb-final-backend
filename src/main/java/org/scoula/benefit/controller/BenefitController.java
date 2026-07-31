@@ -116,4 +116,12 @@ public class BenefitController {
                 benefitService.findRegion(parentRegionCode)
         );
     }
+
+    @GetMapping("/majors")
+    public ResponseEntity<List<BenefitMajorResDTO>> getBenefitMajors() {
+
+        return ResponseEntity.ok(
+                benefitService.findBenefitMajors()
+        );
+    }
 }

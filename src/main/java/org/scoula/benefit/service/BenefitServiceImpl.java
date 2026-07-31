@@ -661,5 +661,10 @@ public class BenefitServiceImpl implements BenefitService {
     ) {
         return benefitMapper.findRegion(parentRegionCode);
     }
+    //전공필터
+    @Override
+    public List<BenefitMajorResDTO> findBenefitMajors() {
+        return benefitMapper.findBenefitMajors();
+    }
 
 }

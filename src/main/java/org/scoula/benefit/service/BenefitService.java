@@ -24,4 +24,6 @@ public interface BenefitService {
     //지역 필터
     List<BenefitRegionResDTO> findRegion(String parentRegionCode);
 
+    //전공 필터
+    List<BenefitMajorResDTO> findBenefitMajors();
 }
