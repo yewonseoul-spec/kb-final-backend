@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.engine.mapper.EngineMapper">
+
+    <!-- 사용자 프로필 조회 -->
+    <select id="findUserProfile"
+            resultType="org.scoula.engine.dto.UserProfileResDto">
+        SELECT
+            member_no,
+            birth_date,
+            region_code,
+            income,
+            employ_status,
+            major,
+            education,
+            mrg_stts_cd
+        FROM member_profile
+        WHERE member_no = #{memberNo}
+    </select>
+
+    <!-- 이미 보유한 정책 번호 목록
+         룰북 2번: 보유 정책 조회에는 is_active 필터를 적용하지 않는다.
+         (신규 신청기간이 끝났어도 사용자가 수혜 중일 수 있으므로 검사 대상) -->
+    <select id="findAppliedBenefitNos"
+            resultType="int">
+        SELECT benefit_no
+        FROM applied_benefit
+        WHERE member_no = #{memberNo}
+    </select>
+
+    <!-- engine-01·02 + 룰북 6번: 자격조건 필터링 + 그룹충돌 + 개별쌍 중복불가 -->
+    <select id="findEligibleBenefits"
+            resultType="org.scoula.engine.dto.BenefitResDto">
+        SELECT
+        b.benefit_no,
+        b.plcy_no,
+        b.inq_cnt,
+        b.plcy_nm,
+        b.category_code,
+        b.sprt_trgt_min_age,
+        b.sprt_trgt_max_age,
+        b.earn_min_amt,
+        b.earn_max_amt,
+        b.earn_cnd_se_cd,
+        b.earn_etc_cn,
+        b.mrg_stts_cd,
+        b.conflict_group_code,
+        b.is_active,
+        b.apply_end_date
+        FROM benefit b
+        WHERE b.is_active = 'Y'
+        <!-- 신청기간 구분이 '마감'(0057003)이면 후보에서 제외
+           상시(0057002)는 apply_end_date가 NULL이므로 아래 조건에서 통과된다 -->
+        AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd &lt;&gt; '0057003')
+        AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
+        <!-- 마감일이 지난 정책은 신규 추천 후보에서 제외
+             (동기화가 마감 시 is_active를 N으로 갱신하지 않아 직접 걸러낸다) -->
+        AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
+        <!-- 나이 조건 (최소·최대 분리, NULL이면 제한 없음) -->
+        AND (b.sprt_trgt_min_age IS NULL
+        OR TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()) >= b.sprt_trgt_min_age)
+        AND (b.sprt_trgt_max_age IS NULL
+        OR b.sprt_trgt_max_age >= TIMESTAMPDIFF(YEAR, #{birthDate}, CURDATE()))
+        <!-- 소득 조건
+             0043001 제한없음 → 통과
+             0043003 기타     → 통과. 조건이 earn_etc_cn에 문장으로만 있어 SQL 판정 불가.
+                                프론트에서 '소득조건 확인 필요' 표시
+             0043002 연소득   → member_profile.income(원/월)을 연소득(만원)으로 환산 후 비교 -->
+        AND (
+        b.earn_cnd_se_cd = '0043001'
+        OR b.earn_cnd_se_cd = '0043003'
+        OR (
+        b.earn_cnd_se_cd = '0043002'
+        AND (b.earn_min_amt IS NULL OR (#{income} * 12 / 10000) >= b.earn_min_amt)
+        AND (b.earn_max_amt IS NULL OR b.earn_max_amt >= (#{income} * 12 / 10000))
+        )
+        )
+        <!-- 혼인 조건 (0055003 = 제한없음) -->
+        AND (b.mrg_stts_cd IS NULL
+        OR b.mrg_stts_cd = '0055003'
+        OR b.mrg_stts_cd = #{mrgSttsCd})
+        <!-- 취업 조건: 매핑 행이 없으면 제한 없음, 0013010 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = #{employStatus})
+        OR EXISTS (SELECT 1 FROM benefit_job bj WHERE bj.benefit_no = b.benefit_no AND bj.job_cd = '0013010')
+        )
+        <!-- 학력 조건: 0049010 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = #{education})
+        OR EXISTS (SELECT 1 FROM benefit_school bs WHERE bs.benefit_no = b.benefit_no AND bs.school_cd = '0049010')
+        )
+        <!-- 전공 조건: 0011009 = 제한없음 코드 -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no)
+        OR EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no AND bm.plcy_major_cd = #{major})
+        OR EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no AND bm.plcy_major_cd = '0011009')
+        )
+        <!-- 지역 조건 (룰북 미포함, 데이터 확인 후 추가)
+           매핑이 없으면 전국 정책으로 보고 통과.
+           회원과 정책의 지역 단위가 달라(회원=광역시도, 정책=시군구 등)
+           region.parent_region_code로 상위·하위 관계까지 비교한다. -->
+        AND (
+        NOT EXISTS (SELECT 1 FROM benefit_region br WHERE br.benefit_no = b.benefit_no)
+        OR EXISTS (
+        SELECT 1
+        FROM benefit_region br
+        LEFT JOIN region pr ON pr.zip_cd = br.zip_cd
+        LEFT JOIN region mr ON mr.zip_cd = #{regionCode}
+        WHERE br.benefit_no = b.benefit_no
+        AND (
+        br.zip_cd = #{regionCode}
+        OR pr.parent_region_code = #{regionCode}
+        OR br.zip_cd = mr.parent_region_code
+        )
+        )
+        )
+        <!-- 룰북 3번: 이미 보유 등록한 동일 정책은 다시 추천하지 않는다 -->
+        AND b.benefit_no NOT IN (
+        SELECT benefit_no
+        FROM applied_benefit
+        WHERE member_no = #{memberNo}
+        )
+        <!-- 룰북 4번: 그룹형 충돌 (보유 vs 후보) — 같은 conflict_group_code면 제거 -->
+        AND NOT EXISTS (
+        SELECT 1
+        FROM applied_benefit ab
+        JOIN benefit ob ON ob.benefit_no = ab.benefit_no
+        WHERE ab.member_no = #{memberNo}
+        AND ob.conflict_group_code IS NOT NULL
+        AND b.conflict_group_code IS NOT NULL
+        AND ob.conflict_group_code = b.conflict_group_code
+        )
+        <!-- 룰북 6번: 개별쌍 중복불가 (보유 vs 후보)
+             내부 정책쌍은 순서 없는 관계이므로 양방향 모두 검사한다 -->
+        AND NOT EXISTS (
+        SELECT 1
+        FROM benefit_conflict_rule r
+        JOIN applied_benefit ab ON ab.member_no = #{memberNo}
+        WHERE r.confirm_status = '확정'
+        AND r.is_active = 'Y'
+        AND r.conflict_type = '중복불가'
+        AND r.trigger_benefit_no IS NOT NULL
+        AND ((r.trigger_benefit_no = ab.benefit_no AND r.target_benefit_no = b.benefit_no)
+        OR (r.target_benefit_no  = ab.benefit_no AND r.trigger_benefit_no = b.benefit_no))
+        )
+    </select>
+
+    <!-- engine-03 / 룰북 7번: 경고 (보유 vs 후보) — 일부제한·확인필요는 제거하지 않고 경고만
+         IntelliJ가 list를 Java 코드로 인식 못 해 빨간 줄이 뜨지만 실행에는 영향 없다 -->
+    <select id="findConflictWarnings"
+            resultType="org.scoula.engine.dto.ConflictWarningDto">
+        SELECT
+        b.benefit_no,
+        b.plcy_nm,
+        r.conflict_type,
+        r.rule_text
+        FROM benefit_conflict_rule r
+        JOIN benefit b ON (
+        CASE
+        WHEN r.trigger_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        THEN b.benefit_no = r.target_benefit_no
+        ELSE b.benefit_no = r.trigger_benefit_no
+        END
+        )
+        WHERE r.confirm_status = '확정'
+        AND r.is_active = 'Y'
+        AND r.trigger_benefit_no IS NOT NULL
+        AND (
+        r.trigger_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        OR r.target_benefit_no IN
+        <foreach collection="list" item="no" open="(" separator="," close=")">
+            #{no}
+        </foreach>
+        )
+        AND r.conflict_type IN ('일부제한', '확인필요')
+    </select>
+
+    <!-- engine-04 / 룰북 13번: 외부 제도(실업급여 등) 충돌 경고
+         trigger_benefit_no가 NULL = 우리 benefit 테이블에 없는 외부 제도가 주체
+         룰북 절대규칙 25번: 외부 경고는 conflict_type이 '확인필요'인 것만 노출한다 -->
+    <select id="findExternalWarnings"
+            resultType="org.scoula.engine.dto.ConflictWarningDto">
+        SELECT
+            b.benefit_no,
+            b.plcy_nm,
+            r.conflict_type,
+            r.rule_text
+        FROM benefit_conflict_rule r
+                 JOIN benefit b ON b.benefit_no = r.target_benefit_no
+        WHERE r.trigger_benefit_no IS NULL
+          AND r.conflict_type = '확인필요'
+          AND r.confirm_status = '확정'
+          AND r.is_active = 'Y'
+    </select>
+    <!-- engine-06: 조합 내부 충돌 검사용 내부 규칙 전체 조회
+         조합마다 SQL을 부르지 않도록 한 번에 가져와 Java에서 검사한다 -->
+    <select id="findConfirmedInternalRules"
+            resultType="org.scoula.engine.dto.ConflictRuleDto">
+        SELECT
+            r.trigger_benefit_no,
+            r.target_benefit_no,
+            r.conflict_type,
+            r.rule_text
+        FROM benefit_conflict_rule r
+        WHERE r.trigger_benefit_no IS NOT NULL
+          AND r.confirm_status = '확정'
+          AND r.is_active = 'Y'
+          AND r.conflict_type IN ('중복불가', '일부제한', '확인필요')
+    </select>
+</mapper>
