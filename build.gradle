@@ -101,6 +101,9 @@ dependencies {
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:${junitVersion}")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:${junitVersion}")
+
+   //날짜모듈
+    implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }
 
 

@@ -16,4 +16,6 @@ public interface MemberMapper {
 
     int updatePassword(ChangePasswordDTO changePasswordDTO);
 
+    int withdraw(int memberNo);
+
 }

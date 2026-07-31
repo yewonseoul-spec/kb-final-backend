@@ -96,6 +96,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .authorizeRequests() // 경로별 접근 권한 설정
                 .antMatchers(HttpMethod.OPTIONS).permitAll() // 로그인, 회원가입, 중복확인, 약관은 비로그인 접근 필수
                 .antMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
+                .antMatchers("/api/mypage/**").authenticated()
                 .anyRequest().permitAll(); // 나머지는 전부 개방
     }
 

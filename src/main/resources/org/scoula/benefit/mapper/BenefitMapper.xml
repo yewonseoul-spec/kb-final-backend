@@ -176,7 +176,7 @@
     </select>
 
 
-<!--    테스트 설정시 last_mdfcn_dt = NOW()로 하고 10개제한     -->
+<!--    테스트 설정시 last_mdfcn_dt = NOW()   -->
     <update id="updateBenefitStatusOnly">
         UPDATE benefit
         SET
@@ -185,4 +185,150 @@
         last_mdfcn_dt = NOW()
         WHERE plcy_no = #{plcyNo}
     </update>
+
+<!--카테고리 필터 -->
+    <select id="findBenefitCategories"
+            resultType="org.scoula.benefit.dto.BenefitCategoryResDTO">
+        SELECT
+        category_code AS categoryCode,
+        category_name AS categoryName,
+        display_order AS displayOrder
+        FROM benefit_category
+        ORDER BY display_order ASC
+    </select>
+
+
+    <!-- 지역필터-->
+    <select id="findRegion"
+            resultType="org.scoula.benefit.dto.BenefitRegionResDTO">
+
+        SELECT
+        r.zip_cd AS zipCd,
+        r.region_name AS regionName,
+        r.parent_region_code AS parentRegionCode,
+
+        CASE
+        WHEN EXISTS (
+        SELECT 1
+        FROM region child
+        WHERE child.parent_region_code = r.zip_cd
+        )
+        THEN TRUE
+        ELSE FALSE
+        END AS hasChildren
+
+        FROM region r
+
+        <choose>
+            <when test="parentRegionCode == null or parentRegionCode == ''">
+                WHERE r.parent_region_code IS NULL
+            </when>
+
+            <otherwise>
+                WHERE r.parent_region_code = #{parentRegionCode}
+            </otherwise>
+        </choose>
+
+        ORDER BY r.zip_cd ASC
+    </select>
+
+<!--    검색 조회-->
+    <select id="findBenefit"
+            parameterType="org.scoula.benefit.dto.BenefitFilterReqDTO"
+            resultType="org.scoula.benefit.dto.BenefitListResDTO">
+
+        <if test="zipCd != null and zipCd != ''">
+            WITH RECURSIVE region_scope AS (
+            SELECT
+            r.zip_cd,
+            r.parent_region_code
+            FROM region r
+            WHERE r.zip_cd = #{zipCd}
+
+            UNION ALL
+
+            SELECT
+            child.zip_cd,
+            child.parent_region_code
+            FROM region child
+            INNER JOIN region_scope parent
+            ON child.parent_region_code = parent.zip_cd
+            )
+        </if>
+
+        SELECT
+        b.benefit_no AS benefitNo,
+        b.plcy_no AS plcyNo,
+        b.plcy_nm AS plcyNm,
+        b.category_code AS categoryCode,
+        bc.category_name AS categoryName,
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        b.apply_start_date AS applyStartDate,
+        b.apply_end_date AS applyEndDate,
+        b.aply_prd_se_cd AS aplyPrdSeCd,
+        b.is_active AS isActive,
+
+        CASE
+        WHEN b.apply_end_date IS NULL
+        THEN 'ALWAYS'
+
+        WHEN b.apply_end_date &lt; CURDATE()
+        THEN 'CLOSED'
+
+        ELSE 'OPEN'
+        END AS benefitStatus
+
+        FROM benefit b
+        JOIN benefit_category bc
+        ON b.category_code = bc.category_code
+
+        WHERE 1 = 1
+
+        <if test="categoryCode != null and categoryCode != ''">
+            AND b.category_code = #{categoryCode}
+        </if>
+
+        <if test="keyword != null and keyword != ''">
+            AND (
+            b.plcy_nm LIKE CONCAT('%', #{keyword}, '%')
+            OR b.plcy_expln_cn LIKE CONCAT('%', #{keyword}, '%')
+            OR b.plcy_sprt_cn LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
+
+        <if test="zipCd != null and zipCd != ''">
+            AND EXISTS (
+            SELECT 1
+            FROM benefit_region br
+            WHERE br.benefit_no = b.benefit_no
+            AND br.zip_cd IN (
+            SELECT zip_cd
+            FROM region_scope
+            )
+            )
+        </if>
+
+
+<!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
+        ORDER BY
+        CASE
+        WHEN b.apply_end_date IS NOT NULL
+        AND b.apply_end_date &gt;= CURDATE()
+        THEN 0
+
+        WHEN b.apply_end_date IS NULL
+        THEN 1
+
+        ELSE 2
+        END ASC,
+
+        CASE
+        WHEN b.apply_end_date IS NOT NULL
+        AND b.apply_end_date &gt;= CURDATE()
+        THEN b.apply_end_date
+        END ASC,
+
+        b.benefit_no DESC
+    </select>
+
 </mapper>

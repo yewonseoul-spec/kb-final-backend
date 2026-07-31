@@ -54,5 +54,12 @@
             update_date = now()
         WHERE login_id = #{loginId}
     </update>
+    <update id="withdraw">
+        UPDATE member
+        SET status     = 'N',
+            updated_at = NOW()
+        WHERE member_no = #{memberNo}
+          AND status = 'Y'
+    </update>
 
 </mapper>
