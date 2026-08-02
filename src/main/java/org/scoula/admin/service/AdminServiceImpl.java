@@ -2,13 +2,13 @@ package org.scoula.admin.service;
 
 import lombok.RequiredArgsConstructor;
 import org.scoula.admin.domain.SyncLogVO;
-import org.scoula.admin.dto.DashboardResDto;
-import org.scoula.admin.dto.SyncLogPageResDto;
-import org.scoula.admin.dto.SyncLogSearchReqDto;
-import org.scoula.admin.dto.SyncLogStatsResDto;
-import org.scoula.admin.dto.SyncResultResDto;
+import org.scoula.admin.dto.*;
 import org.scoula.admin.mapper.AdminMapper;
 import org.scoula.benefit.dto.YouthPolicyRequestDTO;
+import org.scoula.admin.dto.AdminBenefitDetailResDto;
+import org.scoula.admin.dto.AdminBenefitPageResDto;
+import org.scoula.admin.dto.AdminBenefitListResDto;
+import org.scoula.admin.dto.AdminBenefitSearchReqDto;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.stereotype.Service;
 
@@ -41,6 +41,20 @@ public class AdminServiceImpl implements AdminService {
     // 로그 목록 페이지 크기 상·하한 (잘못된 값이 들어와도 쿼리가 깨지지 않게 한다)
     private static final int PAGE_SIZE_DEFAULT = 20;
     private static final int PAGE_SIZE_MAX = 100;
+
+    /** 페이지 값이 비어 있거나 범위를 벗어나도 쿼리가 깨지지 않도록 보정한다 */
+    private void normalizePaging(SyncLogSearchReqDto search) {
+        if (search.getPage() == null || search.getPage() < 1) {
+            search.setPage(1);
+        }
+        if (search.getSize() == null || search.getSize() < 1) {
+            search.setSize(PAGE_SIZE_DEFAULT);
+        }
+        if (search.getSize() > PAGE_SIZE_MAX) {
+            search.setSize(PAGE_SIZE_MAX);
+        }
+        search.setOffset((search.getPage() - 1) * search.getSize());
+    }
 
 
     /**
@@ -90,21 +104,88 @@ public class AdminServiceImpl implements AdminService {
                 .logs(logs)
                 .build();
     }
+    // 정책 목록 페이지 크기
+    private static final int POLICY_PAGE_SIZE_DEFAULT = 20;
+    private static final int POLICY_PAGE_SIZE_MAX = 100;
+
+    // 혜택 목록 페이지 크기
+    private static final int BENEFIT_PAGE_SIZE_DEFAULT = 20;
+    private static final int BENEFIT_PAGE_SIZE_MAX = 100;
+
+    /**
+     * admin-02: 혜택 목록 조회
+     */
+    @Override
+    public AdminBenefitPageResDto getBenefits(AdminBenefitSearchReqDto search) {
+        normalizeBenefitPaging(search);
+
+        int totalCount = adminMapper.countBenefitList(search);
+        List<AdminBenefitListResDto> benefits = adminMapper.findBenefitList(search);
+
+        int size = search.getSize();
+        int totalPages = (totalCount == 0) ? 0 : ((totalCount - 1) / size) + 1;
+
+        return AdminBenefitPageResDto.builder()
+                .page(search.getPage())
+                .size(size)
+                .totalCount(totalCount)
+                .totalPages(totalPages)
+                .benefits(benefits)
+                .build();
+    }
+
+    /**
+     * admin-02: 혜택 상세 조회
+     */
+    @Override
+    public AdminBenefitDetailResDto getBenefitDetail(int benefitNo) {
+        AdminBenefitDetailResDto detail = adminMapper.findBenefitDetail(benefitNo);
+        if (detail == null) {
+            throw new IllegalArgumentException("존재하지 않는 혜택입니다. benefitNo=" + benefitNo);
+        }
+        return detail;
+    }
+
+    /**
+     * admin-02: 혜택 노출 상태 변경
+     *
+     * 물리 삭제는 benefit_region 등 7개 테이블이 FK로 참조해 불가능하다.
+     * 노종훈 멘토의 '기간 종료 시 삭제가 아니라 상태 변경' 피드백과도 맞는 방식이다.
+     *
+     * 한계: 동기화가 is_active를 다시 계산해 덮어쓴다.
+     *      upsertBenefit과 updateBenefitStatusOnly 둘 다 이 컬럼을 갱신하므로
+     *      관리자가 내린 혜택이 다음 동기화에서 되살아날 수 있다.
+     *      conflict_group_code처럼 별도 컬럼을 두고 동기화 대상에서 빼야 해결되며,
+     *      스키마 변경이라 팀 협의가 필요하다.
+     */
+    @Override
+    public AdminBenefitDetailResDto changeBenefitActive(int benefitNo, String isActive) {
+        if (!"Y".equals(isActive) && !"N".equals(isActive)) {
+            throw new IllegalArgumentException("isActive는 Y 또는 N만 가능합니다. 입력값=" + isActive);
+        }
+
+        int updated = adminMapper.updateBenefitActive(benefitNo, isActive);
+        if (updated == 0) {
+            throw new IllegalArgumentException("존재하지 않는 혜택입니다. benefitNo=" + benefitNo);
+        }
+
+        // 변경 결과를 그대로 돌려줘 프론트가 다시 조회하지 않아도 되게 한다
+        return adminMapper.findBenefitDetail(benefitNo);
+    }
 
     /** 페이지 값이 비어 있거나 범위를 벗어나도 쿼리가 깨지지 않도록 보정한다 */
-    private void normalizePaging(SyncLogSearchReqDto search) {
+    private void normalizeBenefitPaging(AdminBenefitSearchReqDto search) {
         if (search.getPage() == null || search.getPage() < 1) {
             search.setPage(1);
         }
         if (search.getSize() == null || search.getSize() < 1) {
-            search.setSize(PAGE_SIZE_DEFAULT);
+            search.setSize(BENEFIT_PAGE_SIZE_DEFAULT);
         }
-        if (search.getSize() > PAGE_SIZE_MAX) {
-            search.setSize(PAGE_SIZE_MAX);
+        if (search.getSize() > BENEFIT_PAGE_SIZE_MAX) {
+            search.setSize(BENEFIT_PAGE_SIZE_MAX);
         }
         search.setOffset((search.getPage() - 1) * search.getSize());
     }
-
 
     /**
      * admin-01: 관리자 수동 동기화 (페이지 범위)

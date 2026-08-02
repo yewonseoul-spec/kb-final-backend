@@ -31,7 +31,7 @@ import java.util.List;
         "org.scoula.engine.mapper",
         "org.scoula.consumption.mapper",
         "org.scoula.terms.mapper",
-        "org.scoula.mypage.mapper"
+        "org.scoula.mypage.mapper",
         "org.scoula.admin.mapper"
 })
 @ComponentScan(basePackages = {
@@ -42,7 +42,7 @@ import java.util.List;
         "org.scoula.engine.service",
         "org.scoula.consumption.service",
         "org.scoula.terms.service",
-        "org.scoula.mypage.service"
+        "org.scoula.mypage.service",
         "org.scoula.admin.service"
 })
 

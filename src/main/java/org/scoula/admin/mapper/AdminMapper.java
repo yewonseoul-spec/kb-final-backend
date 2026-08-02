@@ -3,7 +3,11 @@ package org.scoula.admin.mapper;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 import org.scoula.admin.domain.SyncLogVO;
+import org.scoula.admin.dto.AdminBenefitDetailResDto;
+import org.scoula.admin.dto.AdminBenefitListResDto;
+import org.scoula.admin.dto.AdminBenefitSearchReqDto;
 import org.scoula.admin.dto.DeadlineBenefitResDto;
 import org.scoula.admin.dto.SyncLogSearchReqDto;
 import org.scoula.admin.dto.SyncLogStatsResDto;
@@ -150,4 +154,115 @@ public interface AdminMapper {
             + "</where>"
             + "</script>")
     SyncLogStatsResDto findSyncLogStats(SyncLogSearchReqDto search);
+
+
+    // ==================================================================
+    // admin-02 : 혜택 관리
+    // ==================================================================
+
+    /**
+     * 혜택 목록.
+     *
+     * deadlineSoon 은 대시보드 '마감 임박' 카드에서, hasConflict 는 '중복수혜 규칙'
+     * 카드에서 넘어올 때 쓰는 조건이라 is_active 조건과 별개로 동작한다.
+     *
+     * hasConflict 는 그룹형(conflict_group_code)뿐 아니라 개별쌍 규칙에만 걸린 혜택도
+     * 함께 잡는다. 둘 중 하나만 보면 '중복수혜 관리 대상'이 반쪽만 나온다.
+     */
+    @Select("<script>"
+            + "SELECT benefit_no, plcy_no, plcy_nm, category_code, sprvsn_inst_cd_nm, "
+            + "       apply_end_date, aply_prd_se_cd, is_active, inq_cnt, "
+            + "       conflict_group_code, frst_reg_dt, "
+            + "       CASE WHEN apply_end_date IS NULL THEN NULL "
+            + "            ELSE DATEDIFF(apply_end_date, CURDATE()) END AS dday "
+            + "FROM benefit "
+            + "<where>"
+            + "  <if test='keyword != null and keyword != \"\"'>"
+            + "    AND plcy_nm LIKE CONCAT('%', #{keyword}, '%')"
+            + "  </if>"
+            + "  <if test='isActive != null and isActive != \"\"'>"
+            + "    AND is_active = #{isActive}"
+            + "  </if>"
+            + "  <if test='categoryCode != null and categoryCode != \"\"'>"
+            + "    AND category_code = #{categoryCode}"
+            + "  </if>"
+            + "  <if test='deadlineSoon != null and deadlineSoon'>"
+            + "    AND apply_end_date IS NOT NULL "
+            + "    AND apply_end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)"
+            + "  </if>"
+            + "  <if test='hasConflict != null and hasConflict'>"
+            + "    AND (conflict_group_code IS NOT NULL "
+            + "         OR benefit_no IN ("
+            + "             SELECT trigger_benefit_no FROM benefit_conflict_rule "
+            + "              WHERE confirm_status = '확정' AND is_active = 'Y' "
+            + "                AND trigger_benefit_no IS NOT NULL "
+            + "             UNION "
+            + "             SELECT target_benefit_no FROM benefit_conflict_rule "
+            + "              WHERE confirm_status = '확정' AND is_active = 'Y'"
+            + "         ))"
+            + "  </if>"
+            + "</where>"
+            + "ORDER BY frst_reg_dt DESC, benefit_no DESC "
+            + "LIMIT #{offset}, #{size}"
+            + "</script>")
+    List<AdminBenefitListResDto> findBenefitList(AdminBenefitSearchReqDto search);
+
+    /** 목록과 같은 조건의 전체 건수 */
+    @Select("<script>"
+            + "SELECT COUNT(*) FROM benefit "
+            + "<where>"
+            + "  <if test='keyword != null and keyword != \"\"'>"
+            + "    AND plcy_nm LIKE CONCAT('%', #{keyword}, '%')"
+            + "  </if>"
+            + "  <if test='isActive != null and isActive != \"\"'>"
+            + "    AND is_active = #{isActive}"
+            + "  </if>"
+            + "  <if test='categoryCode != null and categoryCode != \"\"'>"
+            + "    AND category_code = #{categoryCode}"
+            + "  </if>"
+            + "  <if test='deadlineSoon != null and deadlineSoon'>"
+            + "    AND apply_end_date IS NOT NULL "
+            + "    AND apply_end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)"
+            + "  </if>"
+            + "  <if test='hasConflict != null and hasConflict'>"
+            + "    AND (conflict_group_code IS NOT NULL "
+            + "         OR benefit_no IN ("
+            + "             SELECT trigger_benefit_no FROM benefit_conflict_rule "
+            + "              WHERE confirm_status = '확정' AND is_active = 'Y' "
+            + "                AND trigger_benefit_no IS NOT NULL "
+            + "             UNION "
+            + "             SELECT target_benefit_no FROM benefit_conflict_rule "
+            + "              WHERE confirm_status = '확정' AND is_active = 'Y'"
+            + "         ))"
+            + "  </if>"
+            + "</where>"
+            + "</script>")
+    int countBenefitList(AdminBenefitSearchReqDto search);
+
+    /**
+     * 혜택 상세.
+     * region_count는 지역 매핑 개수로, 200을 넘으면 전국 코드가 부여된 혜택이다.
+     * 주관기관이 특정 지자체인데 이 값이 크면 원천 데이터 오류를 의심할 수 있다.
+     */
+    @Select("SELECT b.benefit_no, b.plcy_no, b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, " +
+            "       b.target_desc, b.plcy_sprt_cn, b.plcy_aply_mthd_cn, b.sbmsn_dcmnt_cn, " +
+            "       b.plcy_expln_cn, b.aply_url_addr, " +
+            "       b.apply_start_date, b.apply_end_date, b.aply_ymd, b.aply_prd_se_cd, " +
+            "       b.sprt_trgt_min_age, b.sprt_trgt_max_age, " +
+            "       b.earn_cnd_se_cd, b.earn_min_amt, b.earn_max_amt, b.earn_etc_cn, " +
+            "       b.mrg_stts_cd, b.conflict_group_code, b.inq_cnt, b.is_active, " +
+            "       b.frst_reg_dt, b.last_mdfcn_dt, " +
+            "       (SELECT COUNT(*) FROM benefit_region br " +
+            "         WHERE br.benefit_no = b.benefit_no) AS region_count " +
+            "FROM benefit b WHERE b.benefit_no = #{benefitNo}")
+    AdminBenefitDetailResDto findBenefitDetail(@Param("benefitNo") int benefitNo);
+
+    /**
+     * 혜택 노출 상태 변경.
+     * 물리 삭제는 benefit_region 등 7개 테이블이 FK로 참조하고 있어 불가능하다.
+     */
+    @Update("UPDATE benefit SET is_active = #{isActive}, last_mdfcn_dt = NOW() " +
+            "WHERE benefit_no = #{benefitNo}")
+    int updateBenefitActive(@Param("benefitNo") int benefitNo,
+                            @Param("isActive") String isActive);
 }

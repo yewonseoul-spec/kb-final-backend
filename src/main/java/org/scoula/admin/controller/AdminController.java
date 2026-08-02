@@ -8,6 +8,9 @@ import org.scoula.admin.dto.SyncResultResDto;
 import org.scoula.admin.service.AdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.scoula.admin.dto.AdminBenefitDetailResDto;
+import org.scoula.admin.dto.AdminBenefitPageResDto;
+import org.scoula.admin.dto.AdminBenefitSearchReqDto;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -51,6 +54,50 @@ public class AdminController {
         search.setSize(size);
 
         return ResponseEntity.ok(adminService.getSyncLogs(search));
+    }
+
+    /**
+     * admin-02: 혜택 목록 조회
+     * 모든 조건은 선택이며, 아무것도 안 주면 전체를 최신 등록순으로 반환한다.
+     */
+    @GetMapping("/benefits")
+    public ResponseEntity<AdminBenefitPageResDto> getBenefits(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String isActive,
+            @RequestParam(required = false) String categoryCode,
+            @RequestParam(required = false) Boolean deadlineSoon,
+            @RequestParam(required = false) Boolean hasConflict,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+
+        AdminBenefitSearchReqDto search = new AdminBenefitSearchReqDto();
+        search.setKeyword(keyword);
+        search.setIsActive(isActive);
+        search.setCategoryCode(categoryCode);
+        search.setDeadlineSoon(deadlineSoon);
+        search.setHasConflict(hasConflict);
+        search.setPage(page);
+        search.setSize(size);
+
+        return ResponseEntity.ok(adminService.getBenefits(search));
+    }
+
+    /** admin-02: 혜택 상세 조회 */
+    @GetMapping("/benefits/{benefitNo}")
+    public ResponseEntity<AdminBenefitDetailResDto> getBenefitDetail(@PathVariable int benefitNo) {
+        return ResponseEntity.ok(adminService.getBenefitDetail(benefitNo));
+    }
+
+    /**
+     * admin-02: 혜택 노출 상태 변경
+     * 물리 삭제는 FK 제약으로 불가능해 상태 변경 방식만 제공한다.
+     */
+    @PatchMapping("/benefits/{benefitNo}/active")
+    public ResponseEntity<AdminBenefitDetailResDto> changeBenefitActive(
+            @PathVariable int benefitNo,
+            @RequestParam String isActive) {
+
+        return ResponseEntity.ok(adminService.changeBenefitActive(benefitNo, isActive));
     }
 
     /**
