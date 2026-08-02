@@ -19,6 +19,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
         "org.scoula.consumption.controller",
         "org.scoula.engine.controller",
         "org.scoula.terms.controller",
+        "org.scoula.mypage.controller"
         "org.scoula.admin.controller"
 })
 

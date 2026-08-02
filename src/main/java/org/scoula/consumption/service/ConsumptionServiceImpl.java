@@ -7,6 +7,7 @@ import org.scoula.consumption.dto.*;
 import org.scoula.consumption.mapper.ConsumptionMapper;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -22,6 +23,9 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
     @Override
     public ConsumptionCalendarDTO getCal(Long memberNo, String yearMonth) {
+
+        // 달력을 조회할 때마다 예정일이 지난 예상 소비 삭제
+        consumptionMapper.replaceExpected();
 
         // 1. DB에서 이번 달 소비 내역 / 예상 소비 목록 조회
         List<SpendingVO> spendings =
@@ -45,9 +49,10 @@ public class ConsumptionServiceImpl implements ConsumptionService {
         List<CategoryDTO> categorySummary = new ArrayList<>();
 
         for (SpendingVO spendingVO : spendings) {
-            CategoryDTO categoryDTO = new CategoryDTO();
-            categoryDTO.setCategoryName(spendingVO.getCategoryName());
-            categoryDTO.setCategoryNo(spendingVO.getCategoryNo());
+            CategoryDTO categoryDTO = CategoryDTO.builder()
+                    .categoryName(spendingVO.getCategoryName())
+                    .categoryNo(spendingVO.getCategoryNo())
+                    .build();
             categorySummary.add(categoryDTO);
         }
 
@@ -72,61 +77,89 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
         List<DayDTO> days = new ArrayList<>();
 
-
         for (String date : allDates) {
-            DayDTO dayDto = new DayDTO();
-            dayDto.setDate(date);
 
             List<SpendingItemDTO> spendingItems = new ArrayList<>();
 
-            for (SpendingVO v :
-                    spendingsByDate.getOrDefault(date, List.of())) {
-
-                SpendingItemDTO item = new SpendingItemDTO();
-
-
-                item.setSpendingNo(v.getSpendingNo());
-                item.setCategoryName(v.getCategoryName());
-                item.setAmount(v.getAmount());
-                item.setMerchant(v.getMerchant());
-
+            for (SpendingVO v : spendingsByDate.getOrDefault(date, List.of())) {
+                SpendingItemDTO item = SpendingItemDTO.builder()
+                        .spendingNo(v.getSpendingNo())
+                        .categoryName(v.getCategoryName())
+                        .amount(v.getAmount())
+                        .merchant(v.getMerchant())
+                        .payMethod(v.getPayMethod())
+                        .memo(v.getMemo())
+                        .build();
                 spendingItems.add(item);
             }
 
 
             List<ExpectedItemDTO> expectedItems = new ArrayList<>();
 
-            for (ExpectedSpendingVO v :
-                    expectedByDate.getOrDefault(date, List.of())) {
-
-                ExpectedItemDTO item = new ExpectedItemDTO();
-
-                item.setExpectedNo(v.getExpectedNo());
-                item.setCategoryName(v.getCategoryName());
-                item.setAmount(v.getExpectedAmount());
-                item.setMerchant(v.getMerchant());
-
+            for (ExpectedSpendingVO v : expectedByDate.getOrDefault(date, List.of())) {
+                ExpectedItemDTO item = ExpectedItemDTO.builder()
+                        .expectedNo(v.getExpectedNo())
+                        .categoryName(v.getCategoryName())
+                        .amount(v.getExpectedAmount())
+                        .merchant(v.getMerchant())
+                        .memo(v.getMemo())
+                        .build();
                 expectedItems.add(item);
             }
 
-            dayDto.setSpendings(spendingItems);
-            dayDto.setExpectedSpendings(expectedItems);
-
+            DayDTO dayDto = DayDTO.builder()
+                    .date(date)
+                    .spendings(spendingItems)
+                    .expectedSpendings(expectedItems)
+                    .build();
             days.add(dayDto);
         }
 
         // 5. 최종 응답 DTO 생성
-        ConsumptionCalendarDTO result =
-                new ConsumptionCalendarDTO();
+        ConsumptionCalendarDTO result = ConsumptionCalendarDTO.builder()
+                .yearMonth(yearMonth)
+                .totalSpend(totalSpend)
+                .expectedTotal(expectedTotal)
+                .category(categorySummary)
+                .days(days)
+                .build();
 
-        result.setYearMonth(yearMonth);
-        result.setTotalSpend(-totalSpend);
-        result.setExpectedTotal(expectedTotal);
-        result.setCategory(categorySummary);
-        result.setDays(days);
-
-        System.out.println("======== result ===========");
+        System.out.println("========== result ==========");
         System.out.println(result);
         return result;
+    }
+
+    // 예상 소비 추가
+    @Override
+    public void addExpected(Long memberNo, ExpectedReqDTO request) {
+        ExpectedSpendingVO vo = new ExpectedSpendingVO();
+        vo.setMemberNo(memberNo);
+        vo.setCategoryNo(request.getCategoryNo());
+        vo.setExpectedAmount(request.getExpectedAmount());
+        vo.setExpectedDate(LocalDate.parse(request.getExpectedDate()));
+        vo.setMerchant(request.getMerchant());
+        vo.setMemo(request.getMemo());
+
+        consumptionMapper.insertExpected(vo);
+    }
+
+    // 예상 소비 수정
+    @Override
+    public void updateExpected(Long expectedNo, ExpectedReqDTO request) {
+        ExpectedSpendingVO vo = new ExpectedSpendingVO();
+        vo.setExpectedNo(expectedNo);
+        vo.setCategoryNo(request.getCategoryNo());
+        vo.setExpectedAmount(request.getExpectedAmount());
+        vo.setExpectedDate(LocalDate.parse(request.getExpectedDate()));
+        vo.setMerchant(request.getMerchant());
+        vo.setMemo(request.getMemo());
+
+        consumptionMapper.updateExpected(vo);
+    }
+
+    // 예상 소비 삭제
+    @Override
+    public void deleteExpected(Long expectedNo) {
+        consumptionMapper.deleteExpected(expectedNo);
     }
 }

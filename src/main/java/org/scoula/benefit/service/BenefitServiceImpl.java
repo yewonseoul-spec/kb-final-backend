@@ -5,8 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
-import org.scoula.benefit.dto.YouthPolicyApiItemDTO;
-import org.scoula.benefit.dto.YouthPolicyRequestDTO;
+import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -457,7 +456,7 @@ public class BenefitServiceImpl implements BenefitService {
     @Transactional
     public int syncDailyYouthPolicies() {
         int pageNum = 1;
-        int pageSize = 600;
+        int pageSize = 100;
         int count = 0;
 
         List<String> apiPlcyNoList = new ArrayList<>();
@@ -639,4 +638,33 @@ public class BenefitServiceImpl implements BenefitService {
 
         return count;
     }
+
+    //혜택 조회
+    @Override
+    @Transactional(readOnly = true)
+    public List<BenefitListResDTO> findBenefit(
+            BenefitFilterReqDTO filter
+    ) {
+        return benefitMapper.findBenefit(filter);
+    }
+
+    //카테고리 필터
+    @Override
+    public List<BenefitCategoryResDTO> findBenefitCategories() {
+        return benefitMapper.findBenefitCategories();
+    }
+
+    //지역 필터
+    @Override
+    public List<BenefitRegionResDTO> findRegion(
+            String parentRegionCode
+    ) {
+        return benefitMapper.findRegion(parentRegionCode);
+    }
+    //전공필터
+    @Override
+    public List<BenefitMajorResDTO> findBenefitMajors() {
+        return benefitMapper.findBenefitMajors();
+    }
+
 }

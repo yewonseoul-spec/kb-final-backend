@@ -9,16 +9,15 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SpendingItemDTO { // 일별 소비 내역 1건
-    private Long spendingNo;
+public class ExpectedReqDTO {
+    // 예상 소비 등록/수정 요청 DTO
+    private String expectedDate;
 
-    private String categoryName;
+    private Long categoryNo;
 
-    private Long amount;
+    private Long expectedAmount;
 
     private String merchant;
-
-    private String payMethod;
 
     private String memo;
 

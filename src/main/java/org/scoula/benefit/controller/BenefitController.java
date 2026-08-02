@@ -1,12 +1,13 @@
 package org.scoula.benefit.controller;
 
 import lombok.RequiredArgsConstructor;
-import org.scoula.benefit.dto.YouthPolicyRequestDTO;
+import org.scoula.benefit.dto.*;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static io.jsonwebtoken.Jwts.header;
@@ -86,5 +87,41 @@ public class BenefitController {
     ) {
         int count = benefitService.syncYouthPoliciesByFrstRegDt(startDate, endDate);
         return ResponseEntity.ok(count);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<BenefitListResDTO>> getBenefit(
+            BenefitFilterReqDTO filter
+    ) {
+        return ResponseEntity.ok(
+                benefitService.findBenefit(filter)
+        );
+    }
+    //카테고리 필터
+    @GetMapping("/categories")
+    public ResponseEntity<List<BenefitCategoryResDTO>> getBenefitCategories() {
+        return ResponseEntity.ok(
+                benefitService.findBenefitCategories()
+        );
+    }
+
+
+    //지역 필터
+    @GetMapping("/regions")
+    public ResponseEntity<List<BenefitRegionResDTO>> getRegion(
+            @RequestParam(required = false)
+            String parentRegionCode
+    ) {
+        return ResponseEntity.ok(
+                benefitService.findRegion(parentRegionCode)
+        );
+    }
+
+    @GetMapping("/majors")
+    public ResponseEntity<List<BenefitMajorResDTO>> getBenefitMajors() {
+
+        return ResponseEntity.ok(
+                benefitService.findBenefitMajors()
+        );
     }
 }
