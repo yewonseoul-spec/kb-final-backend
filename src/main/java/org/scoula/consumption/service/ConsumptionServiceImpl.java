@@ -8,6 +8,7 @@ import org.scoula.consumption.mapper.ConsumptionMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -15,17 +16,22 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ConsumptionServiceImpl implements ConsumptionService {
 
-    private final ConsumptionMapper consumptionMapper;
+    // 정기적 예상 소비로 인정하려면 같은 소비처로 최근 몇 달 연속 소비 내역이 있어야 하는지
+    private static final int REQUIRED_MONTHS = 2;
 
-//    public ConsumptionServiceImpl(ConsumptionMapper consumptionMapper) {
+    //    public ConsumptionServiceImpl(ConsumptionMapper consumptionMapper) {
 //        this.consumptionMapper = consumptionMapper;
 //    }
+    private final ConsumptionMapper consumptionMapper;
 
     @Override
     public ConsumptionCalendarDTO getCal(Long memberNo, String yearMonth) {
 
         // 달력을 조회할 때마다 예정일이 지난 예상 소비 삭제
         consumptionMapper.replaceExpected();
+
+        // 정기적인 예상 소비를 감지하여 자동 등록
+        detectRecurringSpending(memberNo);
 
         // 1. DB에서 이번 달 소비 내역 / 예상 소비 목록 조회
         List<SpendingVO> spendings =
@@ -161,5 +167,87 @@ public class ConsumptionServiceImpl implements ConsumptionService {
     @Override
     public void deleteExpected(Long expectedNo) {
         consumptionMapper.deleteExpected(expectedNo);
+    }
+
+    // 정기적 예상 소비 감지하여 자동 등록
+    @Override
+    public void detectRecurringSpending(Long memberNo) {
+        // 소비처가 있는 최근 소비 내역들을 가져 온다
+        List<SpendingVO> recentSpending = consumptionMapper.selectRecentSpendingWithMerchant(memberNo);
+
+        // 소비처 + 카테고리가 같은 내역들끼리 묶는다
+        Map<String, List<SpendingVO>> grouped = recentSpending.stream()
+                .collect(Collectors.groupingBy(v -> v.getMerchant() + "|" + v.getCategoryName()));
+
+        YearMonth thisMonth = YearMonth.now();
+
+        // 그룹마다 최근 n달 간 연속으로 있었는지 확인
+        for (List<SpendingVO> sameGroupList : grouped.values()) {
+
+            // 연속이 아니면 정기적 소비 내역으로 보지 않고 넘어간다
+            if (!hasConsecutiveMonths(sameGroupList, thisMonth, REQUIRED_MONTHS)) {
+                continue;
+            }
+
+            // 지난 달에 있었던 것들 중 가장 최근 걸 기준으로 삼는다
+            YearMonth lastMonth = thisMonth.minusMonths(1);
+            SpendingVO latest = sameGroupList.stream()
+                    .filter(v -> YearMonth.from(v.getSpendingDate()).equals(lastMonth))
+                    .max(Comparator.comparing(SpendingVO::getSpendingDate))
+                    .orElse(null);
+
+            if (latest == null) {
+                continue;
+            }
+
+            // 이번 달에도 지난 달이랑 같은 날짜에 결제될 것이라고 예측
+            int dayOfMonth = latest.getSpendingDate().getDayOfMonth();
+            LocalDate predictedDate = predictNextDate(thisMonth, dayOfMonth);
+
+            if (predictedDate.isBefore(LocalDate.now())) {
+                predictedDate = predictNextDate(thisMonth.plusMonths(1), dayOfMonth);
+            }
+
+            // 이미 그 날짜로 등록된 예상 소비가 있으면 생성 안 함
+            ExpectedSpendingVO checkCondition = new ExpectedSpendingVO();
+            checkCondition.setMemberNo(memberNo);
+            checkCondition.setMerchant(latest.getMerchant());
+            checkCondition.setExpectedDate(predictedDate);
+
+            if (consumptionMapper.countExpectedByCondition(checkCondition) > 0) {
+                continue;
+            }
+
+            // 새 예상 소비로 등록한다
+            ExpectedSpendingVO newExpected = new ExpectedSpendingVO();
+            newExpected.setMemberNo(memberNo);
+            newExpected.setCategoryNo(latest.getCategoryNo());
+            newExpected.setExpectedAmount(latest.getAmount());
+            newExpected.setExpectedDate(predictedDate);
+            newExpected.setMerchant(latest.getMerchant());
+            newExpected.setMemo("정기 지출로 자동 등록됨");
+
+            consumptionMapper.insertExpected(newExpected);
+        }
+    }
+
+    private boolean hasConsecutiveMonths(List<SpendingVO> list, YearMonth thisMonth, int monthsRequired) {
+        for (int i = 1; i <= monthsRequired; i++) {
+            YearMonth targetMonth = thisMonth.minusMonths(i);
+
+            boolean hasThatMonth = list.stream()
+                    .anyMatch(v -> YearMonth.from(v.getSpendingDate()).equals(targetMonth));
+
+            if (!hasThatMonth) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private LocalDate predictNextDate(YearMonth month, int dayOfMonth) {
+        int lastDayOfMonth = month.lengthOfMonth();
+        int safeDay = Math.min(dayOfMonth, lastDayOfMonth);
+        return month.atDay(safeDay);
     }
 }
