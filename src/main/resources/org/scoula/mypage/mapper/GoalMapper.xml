@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.mypage.mapper.GoalMapper">
+    <insert id="insert">
+        INSERT INTO goal (member_no, goal_type)
+        VALUES (#{memberNo}, #{goalType})
+    </insert>
+    <update id="update">
+        UPDATE goal
+        SET goal_type = #{goalType}
+        WHERE member_no = #{memberNo}
+    </update>
+    <delete id="delete">
+        DELETE FROM goal
+        WHERE member_no = #{memberNo}
+    </delete>
+    <select id="get" resultType="org.scoula.mypage.domain.GoalVO">
+        SELECT goal_no, member_no, goal_type, created_at
+        FROM goal
+        WHERE member_no = #{memberNo}
+    </select>
+</mapper>
