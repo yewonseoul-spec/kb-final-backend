@@ -332,6 +332,7 @@ CREATE TABLE goal (
                                                                   COMMENT '목표유형(독립/취업/창업/결혼/유학)',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '설정일시',
     PRIMARY KEY (goal_no),
+    CONSTRAINT uk_goal_member UNIQUE (member_no),
     CONSTRAINT fk_goal_member FOREIGN KEY (member_no)
         REFERENCES member (member_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='목표';
