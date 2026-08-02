@@ -117,11 +117,22 @@ public class BenefitController {
         );
     }
 
+    //전공 필터
     @GetMapping("/majors")
     public ResponseEntity<List<BenefitMajorResDTO>> getBenefitMajors() {
 
         return ResponseEntity.ok(
                 benefitService.findBenefitMajors()
+        );
+    }
+
+    // 학력 필터
+    @GetMapping("/schools")
+    public ResponseEntity<List<BenefitSchoolResDTO>>
+    getBenefitSchools() {
+
+        return ResponseEntity.ok(
+                benefitService.findBenefitSchools()
         );
     }
 }
