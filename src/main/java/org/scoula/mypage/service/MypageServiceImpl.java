@@ -4,7 +4,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.scoula.member.mapper.MemberMapper;
 import org.scoula.mypage.domain.MemberProfileVO;
+import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
+import org.scoula.mypage.mapper.GoalMapper;
 import org.scoula.mypage.mapper.MemberProfileMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ public class MypageServiceImpl implements MypageService {
 
     private final MemberProfileMapper mapper;
     private final MemberMapper memberMapper;
+    private final GoalMapper goalMapper;
 
     @Transactional
     @Override
@@ -48,5 +51,11 @@ public class MypageServiceImpl implements MypageService {
         if (memberMapper.withdraw(memberNo) == 0) {
             throw new NoSuchElementException();
         }
+    }
+
+    @Transactional
+    @Override
+    public void createGoal(int memberNo, GoalDTO dto) {
+        goalMapper.insert(dto.toVo(memberNo));
     }
 }

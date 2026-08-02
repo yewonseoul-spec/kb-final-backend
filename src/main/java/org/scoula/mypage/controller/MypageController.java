@@ -1,6 +1,7 @@
 package org.scoula.mypage.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
 import org.scoula.mypage.service.MypageService;
 import org.scoula.security.account.domain.CustomUser;
@@ -57,5 +58,19 @@ public class MypageController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("탈퇴가 완료되었습니다.");
+    }
+
+    // 목표 최초 저장
+    @PostMapping("/goal")
+    public ResponseEntity<String> createGoal(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody GoalDTO dto) {
+
+        service.createGoal(user.getMember().getMemberNo(), dto);
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("목표가 저장되었습니다.");
     }
 }
