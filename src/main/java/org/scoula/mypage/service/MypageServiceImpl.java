@@ -3,6 +3,7 @@ package org.scoula.mypage.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.scoula.member.mapper.MemberMapper;
+import org.scoula.mypage.domain.GoalVO;
 import org.scoula.mypage.domain.MemberProfileVO;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
@@ -57,5 +58,28 @@ public class MypageServiceImpl implements MypageService {
     @Override
     public void createGoal(int memberNo, GoalDTO dto) {
         goalMapper.insert(dto.toVo(memberNo));
+    }
+
+    @Transactional(readOnly = true)
+    @Override
+    public GoalDTO getGoal(int memberNo) {
+        GoalVO vo = Optional.ofNullable(goalMapper.get(memberNo))
+                .orElseThrow(NoSuchElementException::new);
+        return GoalDTO.of(vo);
+    }
+
+    @Transactional
+    @Override
+    public void updateGoal(int memberNo, GoalDTO dto) {
+        if (goalMapper.update(dto.toVo(memberNo)) == 0) {
+            throw new NoSuchElementException();
+        }
+    }
+
+    // 목표 해제. 이미 없어도 성공으로 본다.
+    @Transactional
+    @Override
+    public void deleteGoal(int memberNo) {
+        goalMapper.delete(memberNo);
     }
 }

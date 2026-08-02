@@ -8,7 +8,15 @@
         INSERT INTO goal (member_no, goal_type)
         VALUES (#{memberNo}, #{goalType})
     </insert>
-
+    <update id="update">
+        UPDATE goal
+        SET goal_type = #{goalType}
+        WHERE member_no = #{memberNo}
+    </update>
+    <delete id="delete">
+        DELETE FROM goal
+        WHERE member_no = #{memberNo}
+    </delete>
     <select id="get" resultType="org.scoula.mypage.domain.GoalVO">
         SELECT goal_no, member_no, goal_type, created_at
         FROM goal

@@ -6,4 +6,8 @@ public interface GoalMapper {
     int insert(GoalVO vo);
 
     GoalVO get(int memberNo);
+
+    int update(GoalVO vo);
+
+    int delete(int memberNo);
 }

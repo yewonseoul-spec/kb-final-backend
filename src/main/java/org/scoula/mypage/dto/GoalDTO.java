@@ -21,4 +21,10 @@ public class GoalDTO {
                 .goalType(goalType)
                 .build();
     }
+
+    public static GoalDTO of(GoalVO vo) {
+        return GoalDTO.builder()
+                .goalType(vo.getGoalType())
+                .build();
+    }
 }

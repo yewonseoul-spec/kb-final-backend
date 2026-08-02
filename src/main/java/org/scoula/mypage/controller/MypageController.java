@@ -73,4 +73,33 @@ public class MypageController {
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("목표가 저장되었습니다.");
     }
+
+    // 목표 조회
+    @GetMapping("/goal")
+    public ResponseEntity<GoalDTO> getGoal(@AuthenticationPrincipal CustomUser user) {
+        return ResponseEntity.ok(service.getGoal(user.getMember().getMemberNo()));
+    }
+
+    // 목표 수정
+    @PutMapping("/goal")
+    public ResponseEntity<String> updateGoal(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody GoalDTO dto) {
+
+        service.updateGoal(user.getMember().getMemberNo(), dto);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("목표가 수정되었습니다.");
+    }
+
+    // 목표 해제 ('나중에 정할래요' 로 되돌리기)
+    @DeleteMapping("/goal")
+    public ResponseEntity<String> deleteGoal(@AuthenticationPrincipal CustomUser user) {
+        service.deleteGoal(user.getMember().getMemberNo());
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("목표가 해제되었습니다.");
+    }
 }

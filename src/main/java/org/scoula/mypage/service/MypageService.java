@@ -10,4 +10,7 @@ public interface MypageService {
     void withdraw(int memberNo);
 
     void createGoal(int memberNo, GoalDTO dto);
+    GoalDTO getGoal(int memberNo);
+    void updateGoal(int memberNo, GoalDTO dto);
+    void deleteGoal(int memberNo);
 }
