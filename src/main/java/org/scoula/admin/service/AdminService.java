@@ -1,12 +1,15 @@
 package org.scoula.admin.service;
 
-import org.scoula.admin.dto.DashboardResDto;
 import org.scoula.admin.dto.AdminBenefitDetailResDto;
 import org.scoula.admin.dto.AdminBenefitPageResDto;
 import org.scoula.admin.dto.AdminBenefitSearchReqDto;
+import org.scoula.admin.dto.DashboardResDto;
+import org.scoula.admin.dto.SyncLogDetailResDto;
 import org.scoula.admin.dto.SyncLogPageResDto;
 import org.scoula.admin.dto.SyncLogSearchReqDto;
 import org.scoula.admin.dto.SyncResultResDto;
+
+import java.util.List;
 
 public interface AdminService {
 
@@ -15,6 +18,9 @@ public interface AdminService {
 
     // admin-03: 동기화 로그 목록 조회
     SyncLogPageResDto getSyncLogs(SyncLogSearchReqDto search);
+
+    // admin-03: 동기화 갱신 내역 조회
+    List<SyncLogDetailResDto> getSyncLogDetails(int logNo);
 
     // admin-02: 혜택 목록 조회
     AdminBenefitPageResDto getBenefits(AdminBenefitSearchReqDto search);

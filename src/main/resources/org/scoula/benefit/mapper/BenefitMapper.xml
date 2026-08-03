@@ -361,4 +361,26 @@
         b.benefit_no DESC
     </select>
 
+    <!-- 동기화 전후 비교용 기존 행 조회 -->
+    <select id="findBenefitByPlcyNo" resultType="org.scoula.benefit.domain.BenefitVO">
+        SELECT
+        benefit_no        AS benefitNo,
+        plcy_no           AS plcyNo,
+        plcy_nm           AS plcyNm,
+        category_code     AS categoryCode,
+        sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        DATE_FORMAT(apply_start_date, '%Y-%m-%d') AS applyStartDate,
+        DATE_FORMAT(apply_end_date,   '%Y-%m-%d') AS applyEndDate,
+        aply_prd_se_cd    AS aplyPrdSeCd,
+        sprt_trgt_min_age AS sprtTrgtMinAge,
+        sprt_trgt_max_age AS sprtTrgtMaxAge,
+        earn_cnd_se_cd    AS earnCndSeCd,
+        earn_max_amt      AS earnMaxAmt,
+        mrg_stts_cd       AS mrgSttsCd,
+        is_active         AS isActive,
+        inq_cnt           AS inqCnt
+        FROM benefit
+        WHERE plcy_no = #{plcyNo}
+    </select>
+
 </mapper>

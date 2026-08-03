@@ -1,17 +1,27 @@
 package org.scoula.admin.service;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.admin.domain.SyncLogDetailVO;
 import org.scoula.admin.domain.SyncLogVO;
-import org.scoula.admin.dto.*;
-import org.scoula.admin.mapper.AdminMapper;
-import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.admin.dto.AdminBenefitDetailResDto;
-import org.scoula.admin.dto.AdminBenefitPageResDto;
 import org.scoula.admin.dto.AdminBenefitListResDto;
+import org.scoula.admin.dto.AdminBenefitPageResDto;
 import org.scoula.admin.dto.AdminBenefitSearchReqDto;
+import org.scoula.admin.dto.DashboardResDto;
+import org.scoula.admin.dto.SyncLogDetailResDto;
+import org.scoula.admin.dto.SyncLogPageResDto;
+import org.scoula.admin.dto.SyncLogSearchReqDto;
+import org.scoula.admin.dto.SyncLogStatsResDto;
+import org.scoula.admin.dto.SyncResultResDto;
+import org.scoula.admin.mapper.AdminMapper;
+import org.scoula.benefit.dto.SyncDetailResultDTO;
+import org.scoula.benefit.dto.SyncedBenefitDTO;
+import org.scoula.benefit.dto.YouthPolicyRequestDTO;
 import org.scoula.benefit.service.BenefitService;
 import org.springframework.stereotype.Service;
 
+import java.sql.Date;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -25,8 +35,8 @@ public class AdminServiceImpl implements AdminService {
     private static final String EXEC_TYPE_MANUAL = "M";   // 관리자 수동 실행
     private static final String EXEC_TYPE_PERIOD = "M";   // 기간별도 관리자가 실행하므로 수동
     // ※ exec_type은 '누가 실행했나'(자동/수동)를 나타낸다.
-    //    페이지 범위냐 기간 범위냐는 '어떻게 실행했나'라는 다른 축이므로 여기서 구분하지 않는다.
-    //    나중에 구분이 필요하면 sync_mode 같은 별도 컬럼을 추가할 것.
+    //    페이지 범위냐 기간 범위냐는 '어떻게 실행했나'라는 다른 축이므로 여기서 구분하지 않고,
+    //    대신 sync_start_date·sync_end_date에 실제 대상 기간을 남긴다.
 
     private static final String STATUS_SUCCESS = "S";
     private static final String STATUS_PARTIAL = "P";
@@ -42,19 +52,9 @@ public class AdminServiceImpl implements AdminService {
     private static final int PAGE_SIZE_DEFAULT = 20;
     private static final int PAGE_SIZE_MAX = 100;
 
-    /** 페이지 값이 비어 있거나 범위를 벗어나도 쿼리가 깨지지 않도록 보정한다 */
-    private void normalizePaging(SyncLogSearchReqDto search) {
-        if (search.getPage() == null || search.getPage() < 1) {
-            search.setPage(1);
-        }
-        if (search.getSize() == null || search.getSize() < 1) {
-            search.setSize(PAGE_SIZE_DEFAULT);
-        }
-        if (search.getSize() > PAGE_SIZE_MAX) {
-            search.setSize(PAGE_SIZE_MAX);
-        }
-        search.setOffset((search.getPage() - 1) * search.getSize());
-    }
+    // 혜택 목록 페이지 크기
+    private static final int BENEFIT_PAGE_SIZE_DEFAULT = 20;
+    private static final int BENEFIT_PAGE_SIZE_MAX = 100;
 
 
     /**
@@ -104,13 +104,32 @@ public class AdminServiceImpl implements AdminService {
                 .logs(logs)
                 .build();
     }
-    // 정책 목록 페이지 크기
-    private static final int POLICY_PAGE_SIZE_DEFAULT = 20;
-    private static final int POLICY_PAGE_SIZE_MAX = 100;
 
-    // 혜택 목록 페이지 크기
-    private static final int BENEFIT_PAGE_SIZE_DEFAULT = 20;
-    private static final int BENEFIT_PAGE_SIZE_MAX = 100;
+    /**
+     * admin-03: 동기화 갱신 내역 조회
+     *
+     * 로그에는 '몇 건 처리했다'는 집계만 남아 어떤 혜택이 갱신됐는지 알 수 없다.
+     * 관리자가 실제로 무엇이 들어왔는지 확인할 수 있게 건별 내역을 돌려준다.
+     */
+    @Override
+    public List<SyncLogDetailResDto> getSyncLogDetails(int logNo) {
+        return adminMapper.findSyncLogDetails(logNo);
+    }
+
+    /** 페이지 값이 비어 있거나 범위를 벗어나도 쿼리가 깨지지 않도록 보정한다 */
+    private void normalizePaging(SyncLogSearchReqDto search) {
+        if (search.getPage() == null || search.getPage() < 1) {
+            search.setPage(1);
+        }
+        if (search.getSize() == null || search.getSize() < 1) {
+            search.setSize(PAGE_SIZE_DEFAULT);
+        }
+        if (search.getSize() > PAGE_SIZE_MAX) {
+            search.setSize(PAGE_SIZE_MAX);
+        }
+        search.setOffset((search.getPage() - 1) * search.getSize());
+    }
+
 
     /**
      * admin-02: 혜택 목록 조회
@@ -187,6 +206,7 @@ public class AdminServiceImpl implements AdminService {
         search.setOffset((search.getPage() - 1) * search.getSize());
     }
 
+
     /**
      * admin-01: 관리자 수동 동기화 (페이지 범위)
      * 예림님 syncYouthPolicies를 그대로 호출하고, 실행 이력만 sync_log에 기록한다.
@@ -194,6 +214,9 @@ public class AdminServiceImpl implements AdminService {
      * syncYouthPolicies는 처리 건수(int)만 돌려주므로 정확한 UPDATE 건수를 알 수 없다.
      * 동기화 전후 benefit 전체 건수의 차이로 신규 건수를 '추정'한다.
      * 따라서 insertCnt·updateCnt는 정확한 값이 아니라 추정치다.
+     *
+     * 페이지 범위 방식은 관리자 화면에서 제거했고 개발 확인용으로만 남겨둔다.
+     * 대상 기간과 처리 내역이 없으므로 상세는 기록하지 않는다.
      */
     @Override
     public SyncResultResDto executeSync(Integer pageNum, Integer pageSize, Integer memberNo) {
@@ -215,8 +238,8 @@ public class AdminServiceImpl implements AdminService {
             int updateCnt = Math.max(0, totalCnt - insertCnt);
             int durationMs = (int) (System.currentTimeMillis() - startTime);
 
-            saveSyncLog(EXEC_TYPE_MANUAL, STATUS_SUCCESS, totalCnt, insertCnt, updateCnt,
-                    null, durationMs, memberNo);
+            saveSyncLog(EXEC_TYPE_MANUAL, null, null, STATUS_SUCCESS,
+                    totalCnt, insertCnt, updateCnt, null, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_SUCCESS,
@@ -227,7 +250,8 @@ public class AdminServiceImpl implements AdminService {
             int durationMs = (int) (System.currentTimeMillis() - startTime);
             String errorMsg = normalizeErrorMsg(e);
 
-            saveSyncLog(EXEC_TYPE_MANUAL, STATUS_FAIL, 0, 0, 0, errorMsg, durationMs, memberNo);
+            saveSyncLog(EXEC_TYPE_MANUAL, null, null, STATUS_FAIL,
+                    0, 0, 0, errorMsg, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_FAIL,
@@ -242,9 +266,12 @@ public class AdminServiceImpl implements AdminService {
      * 주의 1. 기준은 정책이 온통청년에 '등록된 날'이며 신청 기간이 아니다.
      * 주의 2. 온통청년 API가 등록일 조회 파라미터를 제공하지 않아
      *         전체를 받아온 뒤 클라이언트에서 걸러낸다. 기간을 좁혀도 소요 시간은 줄지 않는다.
-     * 주의 3. syncYouthPoliciesByFrstRegDt는 API 호출·파싱이 실패해도 예외를 던지지 않고
-     *         그때까지의 건수를 반환한다. 그래서 아래 catch만으로는 실패를 잡을 수 없어
+     * 주의 3. 동기화 메서드는 API 호출·파싱이 실패해도 예외를 던지지 않고
+     *         그때까지의 결과를 반환한다. 그래서 아래 catch만으로는 실패를 잡을 수 없어
      *         0건일 때를 부분 성공(P)으로 남긴다.
+     *
+     * 어떤 기간을 대상으로 무엇을 처리했는지 알 수 없으면 이력을 나중에 해석할 수 없으므로
+     * 대상 기간과 처리한 혜택 목록을 함께 기록한다.
      */
     @Override
     public SyncResultResDto executeSyncByPeriod(String startDate, String endDate, Integer memberNo) {
@@ -253,9 +280,11 @@ public class AdminServiceImpl implements AdminService {
         try {
             int beforeCount = adminMapper.countBenefits();
 
-            // 날짜 형식이 잘못되면 여기서 IllegalArgumentException이 올라온다
-            int totalCnt = benefitService.syncYouthPoliciesByFrstRegDt(startDate, endDate);
+            // 처리 내역까지 함께 받아 sync_log_detail에 기록한다
+            SyncDetailResultDTO syncResult =
+                    benefitService.syncByFrstRegDtWithDetail(startDate, endDate);
 
+            int totalCnt = syncResult.getTotalCount();
             int afterCount = adminMapper.countBenefits();
 
             int insertCnt = estimateInsertCnt(beforeCount, afterCount, totalCnt);
@@ -266,11 +295,10 @@ public class AdminServiceImpl implements AdminService {
             // 성공이라고 단정하지 않고 사실만 남긴다.
             if (totalCnt == 0) {
                 String partialMsg = "처리된 정책이 0건입니다. "
-                        + "해당 기간에 등록된 정책이 없거나 외부 API 호출이 중단됐을 수 있습니다. "
-                        + "(기간 " + startDate + " ~ " + endDate + ")";
+                        + "해당 기간에 등록된 정책이 없거나 외부 API 호출이 중단됐을 수 있습니다.";
 
-                saveSyncLog(EXEC_TYPE_PERIOD, STATUS_PARTIAL, 0, 0, 0,
-                        partialMsg, durationMs, memberNo);
+                saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_PARTIAL,
+                        0, 0, 0, partialMsg, durationMs, memberNo, null);
 
                 return new SyncResultResDto(
                         STATUS_PARTIAL,
@@ -278,8 +306,9 @@ public class AdminServiceImpl implements AdminService {
                         0, 0, 0, durationMs, partialMsg);
             }
 
-            saveSyncLog(EXEC_TYPE_PERIOD, STATUS_SUCCESS, totalCnt, insertCnt, updateCnt,
-                    null, durationMs, memberNo);
+            saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_SUCCESS,
+                    totalCnt, insertCnt, updateCnt, null, durationMs, memberNo,
+                    syncResult.getItems());
 
             return new SyncResultResDto(
                     STATUS_SUCCESS,
@@ -290,7 +319,8 @@ public class AdminServiceImpl implements AdminService {
             int durationMs = (int) (System.currentTimeMillis() - startTime);
             String errorMsg = normalizeErrorMsg(e);
 
-            saveSyncLog(EXEC_TYPE_PERIOD, STATUS_FAIL, 0, 0, 0, errorMsg, durationMs, memberNo);
+            saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_FAIL,
+                    0, 0, 0, errorMsg, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_FAIL,
@@ -334,12 +364,32 @@ public class AdminServiceImpl implements AdminService {
                 : message;
     }
 
+    /**
+     * 화면에서 넘어오는 yyyy-MM-dd를 DATE로 바꾼다.
+     * 페이지 범위 동기화처럼 대상 기간이 없는 경우는 null이다.
+     * 형식이 잘못돼도 이력 기록 자체가 실패하면 안 되므로 null로 넘긴다.
+     */
+    private Date parseDate(String yyyyMMdd) {
+        if (yyyyMMdd == null || yyyyMMdd.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            return Date.valueOf(yyyyMMdd.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** 로그 기록 실패가 동기화 자체를 실패로 만들지 않도록 분리 */
-    private void saveSyncLog(String execType, String resultStatus, int totalCnt, int insertCnt,
-                             int updateCnt, String errorMsg, int durationMs, Integer memberNo) {
+    private void saveSyncLog(String execType, String startDate, String endDate,
+                             String resultStatus, int totalCnt, int insertCnt,
+                             int updateCnt, String errorMsg, int durationMs, Integer memberNo,
+                             List<SyncedBenefitDTO> syncedItems) {
         try {
             SyncLogVO log = new SyncLogVO();
             log.setExecType(execType);
+            log.setSyncStartDate(parseDate(startDate));
+            log.setSyncEndDate(parseDate(endDate));
             log.setResultStatus(resultStatus);
             log.setTotalCnt(totalCnt);
             log.setInsertCnt(insertCnt);
@@ -349,10 +399,34 @@ public class AdminServiceImpl implements AdminService {
             log.setDurationMs(durationMs);
             log.setMemberNo(memberNo);
 
+            // useGeneratedKeys 로 log.logNo 가 채워진다
             adminMapper.insertSyncLog(log);
+
+            saveSyncLogDetails(log.getLogNo(), syncedItems);
+
         } catch (Exception e) {
             // 로그가 안 남는 것이 가장 위험하므로 원인을 반드시 출력한다
             System.out.println("동기화 이력 기록 실패: " + normalizeErrorMsg(e));
+        }
+    }
+
+    /**
+     * 처리 내역 저장.
+     * 상세가 없어도 동기화 자체는 성공이므로 실패해도 예외를 올리지 않는다.
+     */
+    private void saveSyncLogDetails(Integer logNo, List<SyncedBenefitDTO> items) {
+        if (logNo == null || items == null || items.isEmpty()) {
+            return;
+        }
+        try {
+            List<SyncLogDetailVO> details = new ArrayList<>(items.size());
+            for (SyncedBenefitDTO item : items) {
+                details.add(new SyncLogDetailVO(logNo, item.getBenefitNo(),
+                        item.getActionType(), item.getChangedSummary()));
+            }
+            adminMapper.insertSyncLogDetails(details);
+        } catch (Exception e) {
+            System.out.println("동기화 처리 내역 기록 실패: " + normalizeErrorMsg(e));
         }
     }
 }

@@ -1,16 +1,19 @@
 package org.scoula.admin.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.admin.dto.AdminBenefitDetailResDto;
+import org.scoula.admin.dto.AdminBenefitPageResDto;
+import org.scoula.admin.dto.AdminBenefitSearchReqDto;
 import org.scoula.admin.dto.DashboardResDto;
+import org.scoula.admin.dto.SyncLogDetailResDto;
 import org.scoula.admin.dto.SyncLogPageResDto;
 import org.scoula.admin.dto.SyncLogSearchReqDto;
 import org.scoula.admin.dto.SyncResultResDto;
 import org.scoula.admin.service.AdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.scoula.admin.dto.AdminBenefitDetailResDto;
-import org.scoula.admin.dto.AdminBenefitPageResDto;
-import org.scoula.admin.dto.AdminBenefitSearchReqDto;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -54,6 +57,15 @@ public class AdminController {
         search.setSize(size);
 
         return ResponseEntity.ok(adminService.getSyncLogs(search));
+    }
+
+    /**
+     * admin-03: 특정 동기화가 처리한 혜택 목록
+     * 로그에는 건수만 남아 있어 무엇이 갱신됐는지 알 수 없으므로 건별 내역을 제공한다.
+     */
+    @GetMapping("/synclog/{logNo}/details")
+    public ResponseEntity<List<SyncLogDetailResDto>> getSyncLogDetails(@PathVariable int logNo) {
+        return ResponseEntity.ok(adminService.getSyncLogDetails(logNo));
     }
 
     /**
@@ -102,8 +114,7 @@ public class AdminController {
 
     /**
      * admin-01: 관리자 수동 동기화 실행 (페이지 범위)
-     * 온통청년 API에 기간 조회 파라미터가 연결돼 있지 않아
-     * 페이지 범위로 동기화 대상을 조절한다.
+     * 화면에서는 제거했고 개발 확인용으로만 남겨둔다.
      */
     @PostMapping("/sync")
     public ResponseEntity<SyncResultResDto> executeSync(

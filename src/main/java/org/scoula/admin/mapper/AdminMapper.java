@@ -1,14 +1,17 @@
 package org.scoula.admin.mapper;
 
 import org.apache.ibatis.annotations.Insert;
+import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.scoula.admin.domain.SyncLogDetailVO;
 import org.scoula.admin.domain.SyncLogVO;
 import org.scoula.admin.dto.AdminBenefitDetailResDto;
 import org.scoula.admin.dto.AdminBenefitListResDto;
 import org.scoula.admin.dto.AdminBenefitSearchReqDto;
 import org.scoula.admin.dto.DeadlineBenefitResDto;
+import org.scoula.admin.dto.SyncLogDetailResDto;
 import org.scoula.admin.dto.SyncLogSearchReqDto;
 import org.scoula.admin.dto.SyncLogStatsResDto;
 
@@ -46,8 +49,8 @@ public interface AdminMapper {
 
     // 최근 동기화 이력.
     // log_no 순서와 실행 시각 순서가 어긋난 데이터가 있어 executed_at을 1순위로 둔다.
-    @Select("SELECT log_no, executed_at, exec_type, result_status, " +
-            "       total_cnt, insert_cnt, update_cnt, skip_cnt, " +
+    @Select("SELECT log_no, executed_at, exec_type, sync_start_date, sync_end_date, " +
+            "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, " +
             "       error_msg, duration_ms, member_no " +
             "FROM sync_log " +
             "ORDER BY executed_at DESC, log_no DESC " +
@@ -67,12 +70,13 @@ public interface AdminMapper {
 
     // 동기화 실행 이력 기록
     @Insert("INSERT INTO sync_log (" +
-            "executed_at, exec_type, result_status, total_cnt, " +
+            "executed_at, exec_type, sync_start_date, sync_end_date, result_status, total_cnt, " +
             "insert_cnt, update_cnt, skip_cnt, error_msg, duration_ms, member_no" +
             ") VALUES (" +
-            "NOW(), #{execType}, #{resultStatus}, #{totalCnt}, " +
+            "NOW(), #{execType}, #{syncStartDate}, #{syncEndDate}, #{resultStatus}, #{totalCnt}, " +
             "#{insertCnt}, #{updateCnt}, #{skipCnt}, #{errorMsg}, #{durationMs}, #{memberNo}" +
             ")")
+    @Options(useGeneratedKeys = true, keyProperty = "logNo")
     int insertSyncLog(SyncLogVO syncLog);
 
 
@@ -88,8 +92,8 @@ public interface AdminMapper {
 
     /** 조건에 맞는 동기화 이력 목록 (페이지네이션) */
     @Select("<script>"
-            + "SELECT log_no, executed_at, exec_type, result_status, "
-            + "       total_cnt, insert_cnt, update_cnt, skip_cnt, "
+            + "SELECT log_no, executed_at, exec_type, sync_start_date, sync_end_date, "
+            + "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, "
             + "       error_msg, duration_ms, member_no "
             + "FROM sync_log "
             + "<where>"
@@ -265,4 +269,33 @@ public interface AdminMapper {
             "WHERE benefit_no = #{benefitNo}")
     int updateBenefitActive(@Param("benefitNo") int benefitNo,
                             @Param("isActive") String isActive);
+
+    // ==================================================================
+    // admin-03 : 동기화 갱신 내역
+    // ==================================================================
+
+    /** 처리 내역 일괄 저장. 수백 건까지 나올 수 있어 한 번에 넣는다 */
+    @Insert("<script>"
+            + "INSERT INTO sync_log_detail (log_no, benefit_no, action_type, changed_summary) VALUES "
+            + "<foreach collection='list' item='d' separator=','>"
+            + "  (#{d.logNo}, #{d.benefitNo}, #{d.actionType}, #{d.changedSummary})"
+            + "</foreach>"
+            + "</script>")
+    int insertSyncLogDetails(List<SyncLogDetailVO> details);
+
+    /**
+     * 특정 동기화가 처리한 혜택 목록.
+     * 신규(I)를 먼저, 그 안에서는 실제로 값이 바뀐 건을 먼저 보여준다.
+     * 갱신 대상이어도 내용이 그대로인 경우가 많아 변경분이 뒤로 밀리면 확인하기 어렵다.
+     */
+    @Select("SELECT d.benefit_no, d.action_type, d.changed_summary, " +
+            "       b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, " +
+            "       b.is_active, b.inq_cnt, b.apply_end_date " +
+            "FROM sync_log_detail d " +
+            "JOIN benefit b ON b.benefit_no = d.benefit_no " +
+            "WHERE d.log_no = #{logNo} " +
+            "ORDER BY d.action_type ASC, " +
+            "         CASE WHEN d.changed_summary IS NULL THEN 1 ELSE 0 END, " +
+            "         d.detail_no ASC")
+    List<SyncLogDetailResDto> findSyncLogDetails(@Param("logNo") int logNo);
 }
