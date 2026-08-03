@@ -427,6 +427,22 @@
             )
         </if>
 
+        <if test="age != null">
+            AND (
+            (
+            b.sprt_trgt_min_age IS NULL
+            OR b.sprt_trgt_min_age = 0
+            OR b.sprt_trgt_min_age &lt;= #{age}
+            )
+            AND
+            (
+            b.sprt_trgt_max_age IS NULL
+            OR b.sprt_trgt_max_age = 0
+            OR b.sprt_trgt_max_age &gt;= #{age}
+            )
+            )
+        </if>
+
 <!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
         ORDER BY
         CASE
