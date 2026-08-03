@@ -678,4 +678,10 @@ public class BenefitServiceImpl implements BenefitService {
     public List<BenefitJobResDTO> findBenefitJobs() {
         return benefitMapper.findBenefitJobs();
     }
+
+    //혼인필터
+    @Override
+    public List<BenefitMarriageResDTO> findBenefitMarriage() {
+        return benefitMapper.findBenefitMarriage();
+    }
 }

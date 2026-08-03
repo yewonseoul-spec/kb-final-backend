@@ -289,6 +289,25 @@
 
     </select>
 
+    <!-- 혼인 필터 -->
+    <select id="findBenefitMarriage"
+            resultType="org.scoula.benefit.dto.BenefitMarriageResDTO">
+
+        SELECT
+        code AS mrgSttsCd,
+        code_name AS codeName,
+        display_order AS displayOrder
+        FROM common_code
+        WHERE group_code = '0055'
+        AND api_field = 'mrgSttsCd'
+        AND is_active = 'Y'
+        AND code != '0055003'
+        ORDER BY
+        display_order ASC,
+        code ASC
+
+    </select>
+
 <!--    검색 조회-->
     <select id="findBenefit"
             parameterType="org.scoula.benefit.dto.BenefitFilterReqDTO"
@@ -398,6 +417,13 @@
             bj.job_cd = #{jobCd}
             OR bj.job_cd = '0013010'
             )
+            )
+        </if>
+
+        <if test="mrgSttsCd != null and mrgSttsCd != ''">
+            AND (
+            b.mrg_stts_cd = #{mrgSttsCd}
+            OR b.mrg_stts_cd = '0055003'
             )
         </if>
 

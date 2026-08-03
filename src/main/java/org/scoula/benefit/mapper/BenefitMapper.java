@@ -62,4 +62,7 @@ public interface BenefitMapper {
 
     //직업 필터
     List<BenefitJobResDTO> findBenefitJobs();
+
+    //혼인 필터
+    List<BenefitMarriageResDTO> findBenefitMarriage();
 }

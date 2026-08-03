@@ -32,4 +32,7 @@ public interface BenefitService {
 
     //직업 필터
     List<BenefitJobResDTO> findBenefitJobs();
+
+    //혼인 필터
+    List<BenefitMarriageResDTO> findBenefitMarriage();
 }

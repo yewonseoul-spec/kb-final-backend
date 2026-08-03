@@ -120,7 +120,6 @@ public class BenefitController {
     //전공 필터
     @GetMapping("/majors")
     public ResponseEntity<List<BenefitMajorResDTO>> getBenefitMajors() {
-
         return ResponseEntity.ok(
                 benefitService.findBenefitMajors()
         );
@@ -130,7 +129,6 @@ public class BenefitController {
     @GetMapping("/schools")
     public ResponseEntity<List<BenefitSchoolResDTO>>
     getBenefitSchools() {
-
         return ResponseEntity.ok(
                 benefitService.findBenefitSchools()
         );
@@ -140,9 +138,18 @@ public class BenefitController {
     @GetMapping("/jobs")
     public ResponseEntity<List<BenefitJobResDTO>>
     getBenefitJobs() {
-
         return ResponseEntity.ok(
                 benefitService.findBenefitJobs()
+        );
+    }
+
+    //혼인 필터
+    // 혼인 여부 필터
+    @GetMapping("/marriage")
+    public ResponseEntity<List<BenefitMarriageResDTO>>
+    getBenefitMarriage() {
+        return ResponseEntity.ok(
+                benefitService.findBenefitMarriage()
         );
     }
 }
