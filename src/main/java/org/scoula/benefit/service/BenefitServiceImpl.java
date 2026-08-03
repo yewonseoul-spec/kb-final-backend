@@ -673,5 +673,9 @@ public class BenefitServiceImpl implements BenefitService {
         return benefitMapper.findBenefitSchools();
     }
 
-
+    //직업필터
+    @Override
+    public List<BenefitJobResDTO> findBenefitJobs() {
+        return benefitMapper.findBenefitJobs();
+    }
 }

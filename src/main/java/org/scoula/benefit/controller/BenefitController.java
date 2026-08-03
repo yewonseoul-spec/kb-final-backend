@@ -135,4 +135,14 @@ public class BenefitController {
                 benefitService.findBenefitSchools()
         );
     }
+
+    // 직업 필터
+    @GetMapping("/jobs")
+    public ResponseEntity<List<BenefitJobResDTO>>
+    getBenefitJobs() {
+
+        return ResponseEntity.ok(
+                benefitService.findBenefitJobs()
+        );
+    }
 }

@@ -12,4 +12,5 @@ public class BenefitFilterReqDTO {
 
     private String plcyMajorCd;
     private String schoolCd;
+    private String jobCd;
 }
