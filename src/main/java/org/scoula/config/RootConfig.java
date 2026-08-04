@@ -15,8 +15,8 @@ import org.springframework.context.annotation.PropertySource;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -32,6 +32,9 @@ import java.util.List;
         "org.scoula.consumption.mapper",
         "org.scoula.terms.mapper",
         "org.scoula.mypage.mapper",
+        "org.scoula.asset.mapper",
+        "org.scoula.admin.mapper",
+        "org.scoula.home.mapper",
         "org.scoula.admin.mapper",
         "org.scoula.stress.mapper"
 })
@@ -44,6 +47,9 @@ import java.util.List;
         "org.scoula.consumption.service",
         "org.scoula.terms.service",
         "org.scoula.mypage.service",
+        "org.scoula.asset.service",
+        "org.scoula.admin.service",
+        "org.scoula.home.service",
         "org.scoula.admin.service",
         "org.scoula.stress.service"
 })
