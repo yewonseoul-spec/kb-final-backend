@@ -56,4 +56,13 @@ public interface BenefitMapper {
 
     //전공 필터
     List<BenefitMajorResDTO> findBenefitMajors();
+
+    //학력 필터
+    List<BenefitSchoolResDTO> findBenefitSchools();
+
+    //직업 필터
+    List<BenefitJobResDTO> findBenefitJobs();
+
+    //혼인 필터
+    List<BenefitMarriageResDTO> findBenefitMarriage();
 }

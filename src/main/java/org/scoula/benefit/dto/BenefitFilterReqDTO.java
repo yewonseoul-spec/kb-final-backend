@@ -11,4 +11,8 @@ public class BenefitFilterReqDTO {
     private String zipCd;
 
     private String plcyMajorCd;
+    private String schoolCd;
+    private String jobCd;
+    private String mrgSttsCd;
+    private Integer age;
 }

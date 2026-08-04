@@ -667,6 +667,23 @@ public class BenefitServiceImpl implements BenefitService {
         return benefitMapper.findBenefitMajors();
     }
 
+    //학력필터
+    @Override
+    public List<BenefitSchoolResDTO> findBenefitSchools() {
+        return benefitMapper.findBenefitSchools();
+    }
+
+    //직업필터
+    @Override
+    public List<BenefitJobResDTO> findBenefitJobs() {
+        return benefitMapper.findBenefitJobs();
+    }
+
+    //혼인필터
+    @Override
+    public List<BenefitMarriageResDTO> findBenefitMarriage() {
+        return benefitMapper.findBenefitMarriage();
+    }
     // ══════════════════════════════════════════════════════════════════════
 // BenefitServiceImpl.java 에 넣을 내용
 // 기존 syncYouthPoliciesByFrstRegDt 는 그대로 두고 아래를 추가한다.
