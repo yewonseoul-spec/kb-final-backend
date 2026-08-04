@@ -1,4 +1,7 @@
 -- =====================================================================
+-- [v1.1] terms 칼럼 추가, member_terms_agree 중복 데이터 삭제
+-- =====================================================================
+-- =====================================================================
 --  청년타파 - data_1_base.sql   base + 회원 · 자산
 --  실행 전제 : schema.sql(28개 테이블) + data_0_code.sql(코드 마스터) 완료
 --  실행 순서 : schema.sql -> data_0_code.sql -> ★이 파일★ -> data_2_benefit.sql
@@ -38,11 +41,11 @@ INSERT INTO member (member_no, login_id, password, email, role, real_name, statu
   (15, 'user15', '$2b$10$Mr0xNYvXvyD1R4rJZPqgGu2Je4I18d5ZtgbtoG2ia5tZ2V9vqKTsS', 'user15@test.com', 'USER', '권나윤', 'N', '2026-03-16 09:15:00');
 
 -- 2. 약관 (terms) : is_required Y/N 커버
-INSERT INTO terms (terms_no, content, is_required, version) VALUES
-  (1, '서비스 이용약관 전문 ...', 'Y', 'v10'),
-  (2, '개인정보 수집 및 이용 동의 전문 ...', 'Y', 'v10'),
-  (3, '혜택 알림 수신 동의 (선택) ...', 'N', 'v10'),
-  (4, 'AI 맞춤 설명을 위한 개인정보 제3자 제공 동의 (선택) ...', 'N', 'v10');
+INSERT INTO terms (terms_no, title, content, is_required, terms_type, version) VALUES
+  (1, '이용약관 동의', '서비스 이용약관 전문 ...', 'Y', 'SIGNUP', 'v10'),
+  (2, '개인정보 처리방침 동의', '개인정보 수집 및 이용 동의 전문 ...', 'Y', 'SIGNUP', 'v10'),
+  (3, '혜택 알림 수신', '혜택 알림 수신 동의 (선택) ...', 'N', 'SIGNUP', 'v10'),
+  (4, 'AI 맞춤 설명 개인정보 제3자 제공', 'AI 맞춤 설명을 위한 개인정보 제3자 제공 동의 (선택) ...', 'N', 'AI', 'v10');
 
 -- 3,4 지역, 카테고리 부분은 data_0_code.로 이동함
 
@@ -132,7 +135,6 @@ INSERT INTO member_terms_agree (agree_no, member_no, terms_no, is_agreed, agreed
   (10, 5, 2, 'Y', '2026-05-10 09:00:00'),
   (11, 6, 1, 'Y', '2026-06-10 09:00:00'),
   (12, 6, 2, 'Y', '2026-06-10 09:00:00'),
-  (13, 6, 3, 'Y', '2026-06-10 09:00:00'),
   (14, 7, 1, 'Y', '2026-01-10 09:00:00'),
   (15, 7, 2, 'Y', '2026-01-10 09:00:00'),
   (16, 8, 1, 'Y', '2026-02-10 09:00:00'),

@@ -1,25 +1,17 @@
 package org.scoula.consumption.dto;
 
-// 카테고리
-public class CategoryDTO {
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class CategoryDTO { // 카테고리
     private Long categoryNo;
     private String categoryName;
-
-    public Long getCategoryNo() {
-        return categoryNo;
-    }
-
-    public void setCategoryNo(Long categoryNo) {
-        this.categoryNo = categoryNo;
-    }
-
-    public String getCategoryName() {
-        return categoryName;
-    }
-
-    public void setCategoryName(String categoryName) {
-        this.categoryName = categoryName;
-    }
 
     @Override
     public String toString() {
