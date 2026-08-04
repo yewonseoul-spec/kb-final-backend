@@ -44,14 +44,14 @@
     <update id="update">
         UPDATE member
         SET email       = #{email},
-            update_date = now()
+            updated_at = now()
         WHERE login_id = #{loginId}
     </update>
 
     <update id="updatePassword">
         UPDATE member
         SET password    = #{newPassword},
-            update_date = now()
+            updated_at = now()
         WHERE login_id = #{loginId}
     </update>
     <update id="withdraw">
