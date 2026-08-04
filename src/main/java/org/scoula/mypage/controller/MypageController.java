@@ -1,6 +1,8 @@
 package org.scoula.mypage.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.member.dto.ChangePasswordDTO;
+import org.scoula.member.service.MemberService;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
 import org.scoula.mypage.service.MypageService;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 public class MypageController {
 
     private final MypageService service;
+    private final MemberService memberService;
 
     // 개인정보 최초 저장
     @PostMapping("/info")
@@ -58,6 +61,21 @@ public class MypageController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("탈퇴가 완료되었습니다.");
+    }
+
+    // 비밀번호 변경
+    // loginId 는 요청 본문 값을 쓰지 않고 토큰에서 덮어쓴다.
+    @PatchMapping("/password")
+    public ResponseEntity<String> changePassword(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody ChangePasswordDTO dto) {
+
+        dto.setLoginId(user.getMember().getLoginId());
+        memberService.changePassword(dto);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("비밀번호가 변경되었습니다.");
     }
 
     // 목표 최초 저장
