@@ -446,47 +446,69 @@ public class EngineServiceImpl implements EngineService {
      * engine-05: 점수와 매칭 근거를 함께 계산해 DTO에 세팅한다.
      * support_amount 컬럼은 있으나 현재 데이터가 전부 NULL이라
      * 금액 기준 대신 '인기도 + 자격 확실성 + 시급성'으로 우선순위를 정한다.
+     *
+     * 근거는 '확인 필요'를 앞에, '충족'을 뒤에 둔다.
+     * 열 줄이 전부 '충족'으로 나열되면 정작 사용자가 챙겨야 할 항목이 묻히기 때문이다.
      */
     private void applyScore(BenefitResDto benefit, Set<Integer> internallyWarnedNos) {
-        List<String> reasons = new ArrayList<>();
+        List<String> needCheck = new ArrayList<>();   // 사용자가 직접 확인해야 하는 것
+        List<String> confirmed = new ArrayList<>();   // SQL로 판정이 끝난 것
 
         // ① 인기도 (조회수)
-        int score = applyPopularity(benefit.getInqCnt(), reasons);
+        int score = applyPopularity(benefit.getInqCnt(), confirmed);
 
         // ② SQL 필터를 통과했다는 것은 아래 조건을 모두 만족했다는 뜻
-        reasons.add("연령 조건 충족");
-        reasons.add("취업 조건 충족");
-        reasons.add("학력 조건 충족");
-        reasons.add("전공 조건 충족");
-        reasons.add("혼인 조건 충족");
-        reasons.add("거주 지역 조건 충족");
+        confirmed.add("연령 조건 충족");
+        confirmed.add("취업 조건 충족");
+        confirmed.add("학력 조건 충족");
+        confirmed.add("전공 조건 충족");
+        confirmed.add("혼인 조건 충족");
+        confirmed.add("거주 지역 조건 충족");
 
         // ③ 소득 조건
+        // 0043003(기타)은 조건이 자연어라 SQL로 판정할 수 없어 일단 통과시킨 것이다.
+        // '충족'이라고 쓰면 자격이 확인된 것처럼 읽히므로 원문을 그대로 붙여 안내한다.
         String earnCode = benefit.getEarnCndSeCd();
         if ("0043001".equals(earnCode)) {
             score += SCORE_INCOME_CERTAIN;
-            reasons.add("소득 조건 없음");
+            confirmed.add("소득 조건 없음");
         } else if ("0043002".equals(earnCode)) {
             score += SCORE_INCOME_CERTAIN;
-            reasons.add("소득 조건 충족 확인");
+            confirmed.add("소득 조건 충족 확인");
         } else {
             score += SCORE_INCOME_UNSURE;
-            reasons.add("소득 조건 별도 확인 필요");
+            needCheck.add(buildIncomeCheckText(benefit.getEarnEtcCn()));
         }
 
         // ④ 마감 임박도
-        score += applyDeadline(benefit.getApplyEndDate(), reasons);
+        score += applyDeadline(benefit.getApplyEndDate(), confirmed);
 
         // ⑤ 중복수혜 충돌 (내부 경고만 반영)
         if (internallyWarnedNos.contains(benefit.getBenefitNo())) {
-            reasons.add("중복수혜 확인 필요");
+            needCheck.add("중복수혜 확인 필요");
         } else {
             score += SCORE_NO_WARNING;
-            reasons.add("중복수혜 충돌 없음");
+            confirmed.add("중복수혜 충돌 없음");
         }
+
+        List<String> reasons = new ArrayList<>(needCheck.size() + confirmed.size());
+        reasons.addAll(needCheck);
+        reasons.addAll(confirmed);
 
         benefit.setScore(score);
         benefit.setScoreDetail(reasons);
+    }
+
+    /**
+     * 기타 소득조건 안내 문구.
+     * earn_etc_cn에 '중위소득 150% 이하' 같은 실제 조건이 들어 있어 그대로 보여준다.
+     * 값이 비어 있으면 문구만 남긴다.
+     */
+    private String buildIncomeCheckText(String earnEtcCn) {
+        if (earnEtcCn == null || earnEtcCn.trim().isEmpty()) {
+            return "소득 조건 확인 필요";
+        }
+        return "소득 조건 확인 필요 — " + earnEtcCn.trim();
     }
 
     /** 조회수 구간별 인기도 점수. 분포가 크게 치우쳐 있어 구간으로 나눈다. */

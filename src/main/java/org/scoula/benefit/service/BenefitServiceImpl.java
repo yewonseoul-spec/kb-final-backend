@@ -684,4 +684,156 @@ public class BenefitServiceImpl implements BenefitService {
     public List<BenefitMarriageResDTO> findBenefitMarriage() {
         return benefitMapper.findBenefitMarriage();
     }
+    // ══════════════════════════════════════════════════════════════════════
+// BenefitServiceImpl.java 에 넣을 내용
+// 기존 syncYouthPoliciesByFrstRegDt 는 그대로 두고 아래를 추가한다.
+//
+// import 추가
+//   import org.scoula.benefit.dto.SyncDetailResultDTO;
+// ══════════════════════════════════════════════════════════════════════
+
+
+    /**
+     * 관리자 기간별 동기화 (처리 내역 포함)
+     *
+     * syncYouthPoliciesByFrstRegDt와 동작은 같고, 처리한 혜택 목록을 함께 반환한다.
+     * upsertBenefit은 INSERT와 UPDATE를 구분해주지 않고 갱신 전 값도 남기지 않으므로,
+     * 호출 전에 기존 행을 읽어 신규/갱신 판별과 변경 내용 비교를 함께 처리한다.
+     */
+    @Override
+    @Transactional
+    public SyncDetailResultDTO syncByFrstRegDtWithDetail(String startDate, String endDate) {
+        int pageNum = 1;
+        int pageSize = 600;
+        SyncDetailResultDTO result = new SyncDetailResultDTO();
+
+        LocalDate start = parseLocalDate(startDate);
+        LocalDate end = parseLocalDate(endDate);
+
+        if (start == null || end == null) {
+            throw new IllegalArgumentException("시작일과 종료일은 yyyy-MM-dd 또는 yyyyMMdd 형식이어야 합니다.");
+        }
+
+        while (true) {
+            YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
+            requestDTO.setPageNum(pageNum);
+            requestDTO.setPageSize(pageSize);
+            requestDTO.setRtnType("json");
+
+            String json;
+
+            try {
+                System.out.println("[관리자 기간 동기화 API 요청] pageNum = " + pageNum + ", pageSize = " + pageSize);
+                json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
+            } catch (Exception e) {
+                System.out.println("[관리자 기간 동기화 API 호출 실패] pageNum = " + pageNum);
+                System.out.println("[실패 사유] " + e.getMessage());
+                break;
+            }
+
+            List<YouthPolicyApiItemDTO> policyList;
+
+            try {
+                policyList = parsePolicyList(json);
+            } catch (Exception e) {
+                System.out.println("[관리자 기간 동기화 응답 파싱 실패] pageNum = " + pageNum);
+                System.out.println("[실패 사유] " + e.getMessage());
+                break;
+            }
+
+            if (policyList.isEmpty()) {
+                System.out.println("[관리자 기간 동기화 전체 페이지 조회 완료] pageNum = " + pageNum);
+                break;
+            }
+
+            for (YouthPolicyApiItemDTO item : policyList) {
+                if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
+                    continue;
+                }
+
+                LocalDate frstRegDate = parseLocalDate(item.getFrstRegDt());
+
+                if (frstRegDate == null) {
+                    continue;
+                }
+
+                boolean inPeriod = !frstRegDate.isBefore(start) && !frstRegDate.isAfter(end);
+
+                if (!inPeriod) {
+                    continue;
+                }
+
+                // upsert 후에는 기존 값을 알 수 없으므로 미리 읽어 둔다
+                BenefitVO before = benefitMapper.findBenefitByPlcyNo(item.getPlcyNo());
+                String actionType = (before == null) ? "I" : "U";
+
+                BenefitVO benefit = convertToBenefitVO(item);
+                String changedSummary = (before == null) ? null : buildChangeSummary(before, benefit);
+
+                benefitMapper.upsertBenefit(benefit);
+
+                Integer benefitNo = (before != null)
+                        ? before.getBenefitNo()
+                        : benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+
+                if (benefitNo != null) {
+                    saveBenefitMappings(benefitNo, item);
+                }
+
+                result.add(benefitNo, actionType, changedSummary);
+            }
+
+            pageNum++;
+        }
+
+        return result;
+    }
+
+    /**
+     * 동기화로 실제 무엇이 바뀌었는지 요약한다.
+     * 조회수(inq_cnt)는 매 동기화마다 달라져 전부 '변경됨'이 되므로 비교에서 뺀다.
+     * 바뀐 것이 없으면 null을 돌려주고, 화면에서는 '변경 없음'으로 표시한다.
+     */
+    private String buildChangeSummary(BenefitVO before, BenefitVO after) {
+        StringBuilder sb = new StringBuilder();
+
+        appendIfChanged(sb, "혜택명", before.getPlcyNm(), after.getPlcyNm());
+        appendIfChanged(sb, "노출상태", before.getIsActive(), after.getIsActive());
+        appendIfChanged(sb, "마감일", before.getApplyEndDate(), after.getApplyEndDate());
+        appendIfChanged(sb, "신청기간구분", before.getAplyPrdSeCd(), after.getAplyPrdSeCd());
+        appendIfChanged(sb, "카테고리", before.getCategoryCode(), after.getCategoryCode());
+        appendIfChanged(sb, "소득조건", before.getEarnCndSeCd(), after.getEarnCndSeCd());
+        appendIfChanged(sb, "최대연령",
+                toText(before.getSprtTrgtMaxAge()), toText(after.getSprtTrgtMaxAge()));
+
+        if (sb.length() == 0) {
+            return null;
+        }
+
+        // changed_summary가 varchar(500)이라 길이를 보장한다
+        String summary = sb.toString();
+        return summary.length() > 500 ? summary.substring(0, 500) : summary;
+    }
+
+    /** 값이 달라졌을 때만 '항목 이전 → 이후' 형태로 덧붙인다 */
+    private void appendIfChanged(StringBuilder sb, String label, String before, String after) {
+        String b = (before == null) ? "" : before.trim();
+        String a = (after == null) ? "" : after.trim();
+
+        if (b.equals(a)) {
+            return;
+        }
+        if (sb.length() > 0) {
+            sb.append(", ");
+        }
+        sb.append(label).append(" ")
+                .append(b.isEmpty() ? "없음" : b)
+                .append(" → ")
+                .append(a.isEmpty() ? "없음" : a);
+    }
+
+    private String toText(Integer value) {
+        return (value == null) ? "" : String.valueOf(value);
+    }
+
 }
