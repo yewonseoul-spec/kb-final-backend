@@ -20,6 +20,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
         "org.scoula.engine.controller",
         "org.scoula.terms.controller",
         "org.scoula.mypage.controller",
+        "org.scoula.asset.controller",
         "org.scoula.admin.controller",
         "org.scoula.home.controller"
 })

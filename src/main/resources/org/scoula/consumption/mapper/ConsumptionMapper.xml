@@ -66,4 +66,21 @@
         WHERE expected_date &lt; CURDATE()
     </delete>
 
+    <select id="selectRecentSpendingWithMerchant" resultType="org.scoula.consumption.domain.SpendingVO">
+        SELECT *
+        FROM spending
+        WHERE member_no = #{memberNo}
+          AND merchant IS NOT NULL
+          AND merchant != ''
+        AND spending_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+    </select>
+
+    <select id="countExpectedByCondition" parameterType="org.scoula.consumption.domain.ExpectedSpendingVO"
+            resultType="int">
+        SELECT COUNT(*)
+        FROM expected_spending
+        WHERE member_no = #{memberNo}
+          AND merchant = #{merchant}
+          AND expected_date = #{expectedDate}
+    </select>
 </mapper>
