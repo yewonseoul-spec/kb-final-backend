@@ -6,6 +6,7 @@ import java.util.List;
 
 public interface BenefitService {
     String getYouthPolicyRaw(YouthPolicyRequestDTO requestDTO);
+
     int syncYouthPolicies(YouthPolicyRequestDTO requestDTO);
 
     //scheduler
@@ -35,4 +36,27 @@ public interface BenefitService {
 
     //혼인 필터
     List<BenefitMarriageResDTO> findBenefitMarriage();
+
+    //검색창
+    List<RecommendedKeywordResDTO>
+    findRecommendedKeywords();
+
+    List<String> findRecentKeywords(
+            Integer memberNo
+    );
+
+    void saveRecentKeyword(
+            Integer memberNo,
+            String keyword
+    );
+
+    void deleteRecentKeyword(
+            Integer memberNo,
+            String keyword
+    );
+
+    void deleteAllRecentKeywords(
+            Integer memberNo
+    );
+
 }

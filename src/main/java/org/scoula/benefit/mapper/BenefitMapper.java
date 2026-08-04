@@ -65,4 +65,8 @@ public interface BenefitMapper {
 
     //혼인 필터
     List<BenefitMarriageResDTO> findBenefitMarriage();
+
+    //검색창 키워드
+    List<RecommendedKeywordResDTO>
+    findRecommendedKeywords();
 }

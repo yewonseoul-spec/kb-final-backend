@@ -7,9 +7,11 @@ import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -684,4 +686,140 @@ public class BenefitServiceImpl implements BenefitService {
     public List<BenefitMarriageResDTO> findBenefitMarriage() {
         return benefitMapper.findBenefitMarriage();
     }
+
+    //검색창
+    private final StringRedisTemplate redisTemplate;
+
+    private static final String RECENT_KEY_PREFIX =
+            "benefit:recent-search:";
+
+    private static final int MAX_RECENT_COUNT = 10;
+
+    private static final Duration RECENT_TTL =
+            Duration.ofDays(30);
+
+    @Override
+    public List<RecommendedKeywordResDTO>
+    findRecommendedKeywords() {
+
+        return benefitMapper.findRecommendedKeywords();
+    }
+
+    @Override
+    public List<String> findRecentKeywords(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            return Collections.emptyList();
+        }
+
+        List<String> keywords =
+                redisTemplate
+                        .opsForList()
+                        .range(
+                                createRecentSearchKey(memberNo),
+                                0,
+                                MAX_RECENT_COUNT - 1
+                        );
+
+        return keywords != null
+                ? keywords
+                : Collections.emptyList();
+    }
+
+    @Override
+    public void saveRecentKeyword(
+            Integer memberNo,
+            String keyword
+    ) {
+        if (
+                memberNo == null
+                        || !hasText(keyword)
+        ) {
+            return;
+        }
+
+        String redisKey =
+                createRecentSearchKey(memberNo);
+
+        String normalizedKeyword =
+                normalizeKeyword(keyword);
+
+        redisTemplate
+                .opsForList()
+                .remove(
+                        redisKey,
+                        0,
+                        normalizedKeyword
+                );
+
+        redisTemplate
+                .opsForList()
+                .leftPush(
+                        redisKey,
+                        normalizedKeyword
+                );
+
+        redisTemplate
+                .opsForList()
+                .trim(
+                        redisKey,
+                        0,
+                        MAX_RECENT_COUNT - 1
+                );
+
+        redisTemplate.expire(
+                redisKey,
+                RECENT_TTL
+        );
+    }
+
+    @Override
+    public void deleteRecentKeyword(
+            Integer memberNo,
+            String keyword
+    ) {
+        if (
+                memberNo == null
+                        || !hasText(keyword)
+        ) {
+            return;
+        }
+
+        redisTemplate
+                .opsForList()
+                .remove(
+                        createRecentSearchKey(memberNo),
+                        0,
+                        normalizeKeyword(keyword)
+                );
+    }
+
+    @Override
+    public void deleteAllRecentKeywords(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            return;
+        }
+
+        redisTemplate.delete(
+                createRecentSearchKey(memberNo)
+        );
+    }
+
+    private String createRecentSearchKey(
+            Integer memberNo
+    ) {
+        return RECENT_KEY_PREFIX + memberNo;
+    }
+    private String normalizeKeyword(
+            String keyword
+    ) {
+        return keyword
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+
 }

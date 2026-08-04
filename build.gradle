@@ -104,6 +104,11 @@ dependencies {
 
    //날짜모듈
     implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+
+    //redis
+    implementation 'org.springframework.data:spring-data-redis:2.7.11'
+    implementation 'io.lettuce:lettuce-core:6.2.4.RELEASE'
+
 }
 
 
