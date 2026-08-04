@@ -33,6 +33,8 @@ import java.util.List;
         "org.scoula.terms.mapper",
         "org.scoula.mypage.mapper",
         "org.scoula.asset.mapper",
+        "org.scoula.admin.mapper",
+        "org.scoula.home.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
@@ -44,6 +46,8 @@ import java.util.List;
         "org.scoula.terms.service",
         "org.scoula.mypage.service",
         "org.scoula.asset.service",
+        "org.scoula.admin.service",
+        "org.scoula.home.service"
 })
 
 @EnableScheduling
@@ -93,6 +97,7 @@ public class RootConfig {
         resources.addAll(Arrays.asList(
                 applicationContext.getResources("classpath*:/org/scoula/engine/mapper/**/*.xml")
         ));
+
 
         sqlSessionFactory.setMapperLocations(resources.toArray(new Resource[0]));
 

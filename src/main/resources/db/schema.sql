@@ -1,4 +1,11 @@
 -- =====================================================================
+-- [v1.6] sync_log에 sync_start_date, sync_end_date 추가 (관리자 기간별 동기화 대상 기간)
+--        sync_log_detail 테이블 신설 (동기화가 어떤 혜택을 어떻게 처리했는지 기록)
+-- =====================================================================
+-- =====================================================================
+-- [v1.5] goal 테이블에 member_no unique 제약 추가
+-- =====================================================================
+-- =====================================================================
 -- [v1.4] terms 테이블에 title, terms_type 칼럼 추가
 -- =====================================================================
 -- =====================================================================
@@ -24,7 +31,7 @@
 -- =====================================================================
 
 CREATE DATABASE IF NOT EXISTS youthtapa
-DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
+    DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 USE youthtapa;
 
 SET NAMES utf8mb4;
@@ -33,6 +40,7 @@ SET NAMES utf8mb4;
 --  초기화 (재실행 대비) — 자식 → 부모 역순 DROP
 -- ---------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS sync_log_detail;
 DROP TABLE IF EXISTS sync_log;
 DROP TABLE IF EXISTS benefit_conflict_rule;
 DROP TABLE IF EXISTS applied_benefit;
@@ -78,18 +86,18 @@ SET FOREIGN_KEY_CHECKS = 1;
 --     필터 노출 순서와 코드 사용 여부를 관리한다.
 -- =====================================================================
 CREATE TABLE common_code (
-    code          CHAR(7)     NOT NULL                            COMMENT '코드(전역 유일, 예: 0013004)',
-    group_code    CHAR(4)     NOT NULL                            COMMENT '코드군(예: 0013)',
-    api_field     VARCHAR(30) NOT NULL                            COMMENT 'API 필드명(예: jobCd) - 동기화 매핑용',
-    group_name    VARCHAR(50) NOT NULL                            COMMENT '코드군명(예: 정책취업요건코드)',
-    code_name     VARCHAR(50) NOT NULL                            COMMENT '코드명(예: 재직자)',
-    display_order INT         NULL                                COMMENT '필터 화면 노출 순서',
-    is_active     CHAR(1)     NOT NULL DEFAULT 'Y'                COMMENT '사용여부 Y/N',
-    PRIMARY KEY (code),
-    CONSTRAINT chk_common_code_group CHECK (code LIKE CONCAT(group_code, '%')),
-    CONSTRAINT chk_common_code_active CHECK (is_active IN ('Y','N')),
-    INDEX idx_common_code_group (group_code),
-    INDEX idx_common_code_api_field (api_field)
+                             code          CHAR(7)     NOT NULL                            COMMENT '코드(전역 유일, 예: 0013004)',
+                             group_code    CHAR(4)     NOT NULL                            COMMENT '코드군(예: 0013)',
+                             api_field     VARCHAR(30) NOT NULL                            COMMENT 'API 필드명(예: jobCd) - 동기화 매핑용',
+                             group_name    VARCHAR(50) NOT NULL                            COMMENT '코드군명(예: 정책취업요건코드)',
+                             code_name     VARCHAR(50) NOT NULL                            COMMENT '코드명(예: 재직자)',
+                             display_order INT         NULL                                COMMENT '필터 화면 노출 순서',
+                             is_active     CHAR(1)     NOT NULL DEFAULT 'Y'                COMMENT '사용여부 Y/N',
+                             PRIMARY KEY (code),
+                             CONSTRAINT chk_common_code_group CHECK (code LIKE CONCAT(group_code, '%')),
+                             CONSTRAINT chk_common_code_active CHECK (is_active IN ('Y','N')),
+                             INDEX idx_common_code_group (group_code),
+                             INDEX idx_common_code_api_field (api_field)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='공통코드(온통청년 API 코드정보)';
 
 
@@ -97,19 +105,19 @@ CREATE TABLE common_code (
 --  1. member : 회원
 -- =====================================================================
 CREATE TABLE member (
-    member_no   INT           NOT NULL AUTO_INCREMENT              COMMENT '회원번호',
-    login_id    VARCHAR(30)   NOT NULL                             COMMENT '아이디',
-    password    VARCHAR(255)  NOT NULL                             COMMENT '비밀번호(BCrypt 해시)',
-    email       VARCHAR(100)  NOT NULL                             COMMENT '이메일',
-    role        ENUM('USER','ADMIN') NOT NULL DEFAULT 'USER'       COMMENT '권한',
-    real_name   VARCHAR(20)   NOT NULL                             COMMENT '실명(본인확인용)',
-    status      CHAR(1)       NOT NULL DEFAULT 'Y'                 COMMENT '회원상태 Y/N(탈퇴 시 N, Soft Delete)',
-    created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP   COMMENT '가입일시',
-    updated_at  DATETIME      NULL     DEFAULT NULL                COMMENT '수정일시(MyBatis UPDATE로 갱신)',
-    PRIMARY KEY (member_no),
-    CONSTRAINT uk_member_login_id UNIQUE (login_id),
-    CONSTRAINT uk_member_email    UNIQUE (email),
-    CONSTRAINT chk_member_status  CHECK (status IN ('Y','N'))
+                        member_no   INT           NOT NULL AUTO_INCREMENT              COMMENT '회원번호',
+                        login_id    VARCHAR(30)   NOT NULL                             COMMENT '아이디',
+                        password    VARCHAR(255)  NOT NULL                             COMMENT '비밀번호(BCrypt 해시)',
+                        email       VARCHAR(100)  NOT NULL                             COMMENT '이메일',
+                        role        ENUM('USER','ADMIN') NOT NULL DEFAULT 'USER'       COMMENT '권한',
+                        real_name   VARCHAR(20)   NOT NULL                             COMMENT '실명(본인확인용)',
+                        status      CHAR(1)       NOT NULL DEFAULT 'Y'                 COMMENT '회원상태 Y/N(탈퇴 시 N, Soft Delete)',
+                        created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP   COMMENT '가입일시',
+                        updated_at  DATETIME      NULL     DEFAULT NULL                COMMENT '수정일시(MyBatis UPDATE로 갱신)',
+                        PRIMARY KEY (member_no),
+                        CONSTRAINT uk_member_login_id UNIQUE (login_id),
+                        CONSTRAINT uk_member_email    UNIQUE (email),
+                        CONSTRAINT chk_member_status  CHECK (status IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='회원';
 
 
@@ -117,14 +125,14 @@ CREATE TABLE member (
 --  2. terms : 약관
 -- =====================================================================
 CREATE TABLE terms (
-    terms_no    INT                     NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
-    title       VARCHAR(100)            NOT NULL                              COMMENT '약관제목',
-    content     TEXT                    NOT NULL                              COMMENT '약관내용',
-    is_required CHAR(1)                 NOT NULL                              COMMENT '필수여부 Y/N',
-    terms_type  ENUM('SIGNUP', 'AI')    NOT NULL                              COMMENT '용도 구분',
-    version     CHAR(3)                 NOT NULL                              COMMENT '버전(예: v10)',
-    PRIMARY KEY (terms_no),
-    CONSTRAINT chk_terms_is_required CHECK (is_required IN ('Y','N'))
+                       terms_no    INT                     NOT NULL AUTO_INCREMENT               COMMENT '약관번호',
+                       title       VARCHAR(100)            NOT NULL                              COMMENT '약관제목',
+                       content     TEXT                    NOT NULL                              COMMENT '약관내용',
+                       is_required CHAR(1)                 NOT NULL                              COMMENT '필수여부 Y/N',
+                       terms_type  ENUM('SIGNUP', 'AI')    NOT NULL                              COMMENT '용도 구분',
+                       version     CHAR(3)                 NOT NULL                              COMMENT '버전(예: v10)',
+                       PRIMARY KEY (terms_no),
+                       CONSTRAINT chk_terms_is_required CHECK (is_required IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='약관';
 
 
@@ -132,12 +140,12 @@ CREATE TABLE terms (
 --  3. region : 지역 (법정시군구코드, 자기참조)
 -- =====================================================================
 CREATE TABLE region (
-    zip_cd           CHAR(5)     NOT NULL                        COMMENT '지역코드(법정시군구코드)',
-    region_name        VARCHAR(50) NOT NULL                        COMMENT '지역명',
-    parent_region_code CHAR(5)     NULL                            COMMENT '상위지역코드(시/도·전국은 NULL)',
-    PRIMARY KEY (zip_cd),
-    CONSTRAINT fk_region_parent FOREIGN KEY (parent_region_code)
-        REFERENCES region (zip_cd)
+                        zip_cd           CHAR(5)     NOT NULL                        COMMENT '지역코드(법정시군구코드)',
+                        region_name        VARCHAR(50) NOT NULL                        COMMENT '지역명',
+                        parent_region_code CHAR(5)     NULL                            COMMENT '상위지역코드(시/도·전국은 NULL)',
+                        PRIMARY KEY (zip_cd),
+                        CONSTRAINT fk_region_parent FOREIGN KEY (parent_region_code)
+                            REFERENCES region (zip_cd)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='지역';
 
 
@@ -150,12 +158,12 @@ CREATE TABLE region (
 --    매칭 키로 사용. 파일 표기("교육")와 실제 응답("교육･직업훈련")이
 --    다르고 가운뎃점도 반각(U+FF65)이라, 반드시 응답 원문을 저장할 것.
 CREATE TABLE benefit_category (
-    category_code CHAR(2)     NOT NULL                             COMMENT '카테고리코드(01~05)',
-    category_name VARCHAR(30) NOT NULL                             COMMENT '카테고리명(화면 표시용)',
-    lclsf_nm      VARCHAR(50) NOT NULL                             COMMENT '정책대분류명(lclsfNm, API 원문·동기화 매칭키)',
-    display_order INT         NULL                                 COMMENT '표시순서',
-    PRIMARY KEY (category_code),
-    CONSTRAINT uk_benefit_category_lclsf_nm UNIQUE (lclsf_nm)
+                                  category_code CHAR(2)     NOT NULL                             COMMENT '카테고리코드(01~05)',
+                                  category_name VARCHAR(30) NOT NULL                             COMMENT '카테고리명(화면 표시용)',
+                                  lclsf_nm      VARCHAR(50) NOT NULL                             COMMENT '정책대분류명(lclsfNm, API 원문·동기화 매칭키)',
+                                  display_order INT         NULL                                 COMMENT '표시순서',
+                                  PRIMARY KEY (category_code),
+                                  CONSTRAINT uk_benefit_category_lclsf_nm UNIQUE (lclsf_nm)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택카테고리(API 대분류 1:1)';
 
 
@@ -163,10 +171,10 @@ CREATE TABLE benefit_category (
 --  5. spending_category : 소비 카테고리
 -- =====================================================================
 CREATE TABLE spending_category (
-    category_no   INT         NOT NULL AUTO_INCREMENT              COMMENT '카테고리번호',
-    category_name VARCHAR(30) NOT NULL                            COMMENT '카테고리명',
-    PRIMARY KEY (category_no),
-    CONSTRAINT uk_spending_category_name UNIQUE (category_name)
+                                   category_no   INT         NOT NULL AUTO_INCREMENT              COMMENT '카테고리번호',
+                                   category_name VARCHAR(30) NOT NULL                            COMMENT '카테고리명',
+                                   PRIMARY KEY (category_no),
+                                   CONSTRAINT uk_spending_category_name UNIQUE (category_name)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='소비 카테고리';
 
 
@@ -174,13 +182,13 @@ CREATE TABLE spending_category (
 --  6. finance_product : 금융 상품
 -- =====================================================================
 CREATE TABLE finance_product (
-    product_no    INT          NOT NULL AUTO_INCREMENT             COMMENT '상품번호',
-    product_name  VARCHAR(100) NOT NULL                           COMMENT '상품명',
-    product_type  ENUM('DEPOSIT','SAVINGS','SUBSCRIPTION','INSURANCE','PENSION') NOT NULL
-                                                                  COMMENT '상품유형(예금/적금/청약/보험·공제/퇴직연금)',
-    org_name      VARCHAR(100) NOT NULL                           COMMENT '금융기관명',
-    interest_rate DECIMAL(5,2) NULL                               COMMENT '연이율',
-    PRIMARY KEY (product_no)
+                                 product_no    INT          NOT NULL AUTO_INCREMENT             COMMENT '상품번호',
+                                 product_name  VARCHAR(100) NOT NULL                           COMMENT '상품명',
+                                 product_type  ENUM('DEPOSIT','SAVINGS','SUBSCRIPTION','INSURANCE','PENSION') NOT NULL
+                                     COMMENT '상품유형(예금/적금/청약/보험·공제/퇴직연금)',
+                                 org_name      VARCHAR(100) NOT NULL                           COMMENT '금융기관명',
+                                 interest_rate DECIMAL(5,2) NULL                               COMMENT '연이율',
+                                 PRIMARY KEY (product_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='금융 상품';
 
 
@@ -188,12 +196,12 @@ CREATE TABLE finance_product (
 --  7. recommend_keyword : 추천검색어
 -- =====================================================================
 CREATE TABLE recommend_keyword (
-    keyword_code  INT         NOT NULL AUTO_INCREMENT              COMMENT '키워드코드',
-    keyword_name  VARCHAR(50) NOT NULL                            COMMENT '키워드명',
-    display_order INT         NULL                                COMMENT '표시순서',
-    is_active     CHAR(1)     NOT NULL DEFAULT 'Y'                COMMENT '활성화여부 Y/N',
-    PRIMARY KEY (keyword_code),
-    CONSTRAINT chk_recommend_keyword_active CHECK (is_active IN ('Y','N'))
+                                   keyword_code  INT         NOT NULL AUTO_INCREMENT              COMMENT '키워드코드',
+                                   keyword_name  VARCHAR(50) NOT NULL                            COMMENT '키워드명',
+                                   display_order INT         NULL                                COMMENT '표시순서',
+                                   is_active     CHAR(1)     NOT NULL DEFAULT 'Y'                COMMENT '활성화여부 Y/N',
+                                   PRIMARY KEY (keyword_code),
+                                   CONSTRAINT chk_recommend_keyword_active CHECK (is_active IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='추천검색어';
 
 
@@ -202,18 +210,18 @@ CREATE TABLE recommend_keyword (
 --     복합 UNIQUE(scenario_code, shock_level)
 -- =====================================================================
 CREATE TABLE stress_scenario (
-    scenario_no     INT          NOT NULL AUTO_INCREMENT           COMMENT '시나리오번호',
-    scenario_code   VARCHAR(20)  NOT NULL                         COMMENT '시나리오코드(INFLATION/MEDICAL/RENT/RATE/COMPLEX)',
-    scenario_name   VARCHAR(50)  NOT NULL                         COMMENT '시나리오명',
-    description     VARCHAR(200) NULL                             COMMENT '설명',
-    shock_level     ENUM('LOW','MID','HIGH') NOT NULL             COMMENT '충격강도',
-    target_category VARCHAR(100) NOT NULL                         COMMENT '영향카테고리(COMPLEX는 ALL)',
-    change_rate     DECIMAL(4,3) NULL                             COMMENT '변동률(0~1, 0.100=10%)',
-    fixed_amount    BIGINT       NULL                             COMMENT '고정추가금액(원)',
-    PRIMARY KEY (scenario_no),
-    CONSTRAINT uk_stress_scenario_code_level UNIQUE (scenario_code, shock_level),
-    CONSTRAINT chk_stress_change_rate  CHECK (change_rate IS NULL OR (change_rate >= 0 AND change_rate <= 1)),
-    CONSTRAINT chk_stress_fixed_amount CHECK (fixed_amount IS NULL OR fixed_amount >= 0)
+                                 scenario_no     INT          NOT NULL AUTO_INCREMENT           COMMENT '시나리오번호',
+                                 scenario_code   VARCHAR(20)  NOT NULL                         COMMENT '시나리오코드(INFLATION/MEDICAL/RENT/RATE/COMPLEX)',
+                                 scenario_name   VARCHAR(50)  NOT NULL                         COMMENT '시나리오명',
+                                 description     VARCHAR(200) NULL                             COMMENT '설명',
+                                 shock_level     ENUM('LOW','MID','HIGH') NOT NULL             COMMENT '충격강도',
+                                 target_category VARCHAR(100) NOT NULL                         COMMENT '영향카테고리(COMPLEX는 ALL)',
+                                 change_rate     DECIMAL(4,3) NULL                             COMMENT '변동률(0~1, 0.100=10%)',
+                                 fixed_amount    BIGINT       NULL                             COMMENT '고정추가금액(원)',
+                                 PRIMARY KEY (scenario_no),
+                                 CONSTRAINT uk_stress_scenario_code_level UNIQUE (scenario_code, shock_level),
+                                 CONSTRAINT chk_stress_change_rate  CHECK (change_rate IS NULL OR (change_rate >= 0 AND change_rate <= 1)),
+                                 CONSTRAINT chk_stress_fixed_amount CHECK (fixed_amount IS NULL OR fixed_amount >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='스트레스 테스트 시나리오';
 
 
@@ -221,50 +229,50 @@ CREATE TABLE stress_scenario (
 --  9. benefit : 청년지원혜택 (온통청년 API 매핑)
 -- =====================================================================
 CREATE TABLE benefit (
-    benefit_no          INT          NOT NULL AUTO_INCREMENT       COMMENT '혜택번호(내부 PK)',
-    plcy_no             VARCHAR(30)  NULL                          COMMENT '외부정책ID(plcyNo, 동기화 매칭키)',
-    plcy_nm             TEXT         NOT NULL                      COMMENT '혜택명(plcyNm)',
-    category_code       CHAR(2)      NOT NULL                      COMMENT '카테고리코드',
-    sprvsn_inst_cd_nm   VARCHAR(100) NULL                          COMMENT '주관기관명(sprvsnInstCdNm)',
-    target_desc         TEXT         NULL                          COMMENT '지원대상',
-    plcy_sprt_cn        TEXT         NULL                          COMMENT '지원내용(plcySprtCn)',
-    support_amount      INT          NULL                          COMMENT '지원금액(파싱)',
-    plcy_aply_mthd_cn   TEXT         NULL                          COMMENT '신청방법(plcyAplyMthdCn)',
-    sbmsn_dcmnt_cn      TEXT         NULL                          COMMENT '제출서류(sbmsnDcmntCn)',
-    apply_start_date    DATE         NULL                          COMMENT '신청시작일',
-    apply_end_date      DATE         NULL                          COMMENT '신청종료일(D-Day 기준)',
-    aply_ymd            VARCHAR(200) NULL                          COMMENT '신청기간원문(aplyYmd)',
-    aply_prd_se_cd      CHAR(7)      NULL                          COMMENT '신청기간구분코드(0057 계열)',
-    aply_url_addr       TEXT          NULL                          COMMENT '신청URL(aplyUrlAddr)',
-    sprt_trgt_min_age   INT          NULL                          COMMENT '최소연령(sprtTrgtMinAge)',
-    sprt_trgt_max_age   INT          NULL                          COMMENT '최대연령(sprtTrgtMaxAge)',
-    earn_cnd_se_cd      CHAR(7)      NULL                          COMMENT '소득조건구분코드(earnCndSeCd) 0043',
-    earn_min_amt        INT          NULL                          COMMENT '최소소득(earnMinAmt)',
-    earn_max_amt        INT          NULL                          COMMENT '최대소득(earnMaxAmt)',
-    earn_etc_cn         TEXT         NULL                          COMMENT '소득기타내용(earnEtcCn, 0043003일 때 조건 원문)',
-    mrg_stts_cd         CHAR(7)      NULL                          COMMENT '결혼상태코드(mrgSttsCd) 0055',
-    conflict_group_code VARCHAR(50)  NULL                          COMMENT '중복수혜그룹코드',
-    inq_cnt             INT          NOT NULL DEFAULT 0            COMMENT '조회수(초기값; 실시간은 Redis)',
-    is_active           CHAR(1)      NOT NULL DEFAULT 'Y'          COMMENT '활성화여부 Y/N(마감 경과 시 N)',
-    frst_reg_dt        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
-    last_mdfcn_dt       DATETIME     NULL     DEFAULT NULL         COMMENT '최종수정일시(lastMdfcnDt)',
-    plcy_expln_cn       TEXT         NULL                          COMMENT '정책설명내용(plcyExplnCn)',
+                         benefit_no          INT          NOT NULL AUTO_INCREMENT       COMMENT '혜택번호(내부 PK)',
+                         plcy_no             VARCHAR(30)  NULL                          COMMENT '외부정책ID(plcyNo, 동기화 매칭키)',
+                         plcy_nm             TEXT         NOT NULL                      COMMENT '혜택명(plcyNm)',
+                         category_code       CHAR(2)      NOT NULL                      COMMENT '카테고리코드',
+                         sprvsn_inst_cd_nm   VARCHAR(100) NULL                          COMMENT '주관기관명(sprvsnInstCdNm)',
+                         target_desc         TEXT         NULL                          COMMENT '지원대상',
+                         plcy_sprt_cn        TEXT         NULL                          COMMENT '지원내용(plcySprtCn)',
+                         support_amount      INT          NULL                          COMMENT '지원금액(파싱)',
+                         plcy_aply_mthd_cn   TEXT         NULL                          COMMENT '신청방법(plcyAplyMthdCn)',
+                         sbmsn_dcmnt_cn      TEXT         NULL                          COMMENT '제출서류(sbmsnDcmntCn)',
+                         apply_start_date    DATE         NULL                          COMMENT '신청시작일',
+                         apply_end_date      DATE         NULL                          COMMENT '신청종료일(D-Day 기준)',
+                         aply_ymd            VARCHAR(200) NULL                          COMMENT '신청기간원문(aplyYmd)',
+                         aply_prd_se_cd      CHAR(7)      NULL                          COMMENT '신청기간구분코드(0057 계열)',
+                         aply_url_addr       TEXT          NULL                          COMMENT '신청URL(aplyUrlAddr)',
+                         sprt_trgt_min_age   INT          NULL                          COMMENT '최소연령(sprtTrgtMinAge)',
+                         sprt_trgt_max_age   INT          NULL                          COMMENT '최대연령(sprtTrgtMaxAge)',
+                         earn_cnd_se_cd      CHAR(7)      NULL                          COMMENT '소득조건구분코드(earnCndSeCd) 0043',
+                         earn_min_amt        INT          NULL                          COMMENT '최소소득(earnMinAmt)',
+                         earn_max_amt        INT          NULL                          COMMENT '최대소득(earnMaxAmt)',
+                         earn_etc_cn         TEXT         NULL                          COMMENT '소득기타내용(earnEtcCn, 0043003일 때 조건 원문)',
+                         mrg_stts_cd         CHAR(7)      NULL                          COMMENT '결혼상태코드(mrgSttsCd) 0055',
+                         conflict_group_code VARCHAR(50)  NULL                          COMMENT '중복수혜그룹코드',
+                         inq_cnt             INT          NOT NULL DEFAULT 0            COMMENT '조회수(초기값; 실시간은 Redis)',
+                         is_active           CHAR(1)      NOT NULL DEFAULT 'Y'          COMMENT '활성화여부 Y/N(마감 경과 시 N)',
+                         frst_reg_dt        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
+                         last_mdfcn_dt       DATETIME     NULL     DEFAULT NULL         COMMENT '최종수정일시(lastMdfcnDt)',
+                         plcy_expln_cn       TEXT         NULL                          COMMENT '정책설명내용(plcyExplnCn)',
 
-    PRIMARY KEY (benefit_no),
-    CONSTRAINT uk_benefit_plcy_no UNIQUE (plcy_no),
-    CONSTRAINT fk_benefit_category FOREIGN KEY (category_code)
-        REFERENCES benefit_category (category_code),
-    CONSTRAINT fk_benefit_mrg      FOREIGN KEY (mrg_stts_cd)    REFERENCES common_code (code),
-    CONSTRAINT fk_benefit_earn_cnd FOREIGN KEY (earn_cnd_se_cd) REFERENCES common_code (code),
-    CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
+                         PRIMARY KEY (benefit_no),
+                         CONSTRAINT uk_benefit_plcy_no UNIQUE (plcy_no),
+                         CONSTRAINT fk_benefit_category FOREIGN KEY (category_code)
+                             REFERENCES benefit_category (category_code),
+                         CONSTRAINT fk_benefit_mrg      FOREIGN KEY (mrg_stts_cd)    REFERENCES common_code (code),
+                         CONSTRAINT fk_benefit_earn_cnd FOREIGN KEY (earn_cnd_se_cd) REFERENCES common_code (code),
+                         CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
     -- FK는 코드 존재만 검증하므로 코드군까지 CHECK로 강제 (NULL은 UNKNOWN이라 통과)
     -- 혜택 측은 '제한없음'이 정상 조건값이므로 별도 차단하지 않는다
-    CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd IS NULL OR mrg_stts_cd LIKE '0055%'),
-    CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd IS NULL OR earn_cnd_se_cd LIKE '0043%'),
-    CONSTRAINT chk_benefit_is_active CHECK (is_active IN ('Y','N')),
-    CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd IS NULL OR aply_prd_se_cd LIKE '0057%'),
-    INDEX idx_benefit_apply_end (apply_end_date),
-    INDEX idx_benefit_is_active (is_active)
+                         CONSTRAINT chk_benefit_mrg      CHECK (mrg_stts_cd IS NULL OR mrg_stts_cd LIKE '0055%'),
+                         CONSTRAINT chk_benefit_earn_cnd CHECK (earn_cnd_se_cd IS NULL OR earn_cnd_se_cd LIKE '0043%'),
+                         CONSTRAINT chk_benefit_is_active CHECK (is_active IN ('Y','N')),
+                         CONSTRAINT chk_benefit_aply_prd_se_cd CHECK (aply_prd_se_cd IS NULL OR aply_prd_se_cd LIKE '0057%'),
+                         INDEX idx_benefit_apply_end (apply_end_date),
+                         INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
 
 
@@ -272,34 +280,34 @@ CREATE TABLE benefit (
 --  10. member_profile : 회원 프로필 (member와 1:1, member_no = PK+FK)
 -- =====================================================================
 CREATE TABLE member_profile (
-    member_no        INT          NOT NULL                        COMMENT '회원번호(PK이자 FK, 자동채번 아님)',
-    birth_date       DATE         NULL                            COMMENT '생년월일(나이 자격 판정)',
-    region_code      CHAR(5)      NULL                            COMMENT '지역코드',
-    income           INT          NULL                            COMMENT '소득(실제값)',
-    employ_status    CHAR(7)      NULL                            COMMENT '취업상태(jobCd 0013)',
-    major            CHAR(7)      NULL                            COMMENT '전공(plcyMajorCd 0011)',
-    household_size   TINYINT      NULL                            COMMENT '가구원수(1 이상)',
-    education        CHAR(7)      NULL                            COMMENT '학력(schoolCd 0049)',
-    mrg_stts_cd      CHAR(7)      NULL                            COMMENT '결혼상태(mrgSttsCd 0055)',
-    profile_img_path VARCHAR(255) NULL                            COMMENT '프로필이미지경로(경로/URL만 저장)',
-    updated_at       DATETIME     NULL DEFAULT NULL               COMMENT '수정일시(MyBatis UPDATE로 갱신)',
-    PRIMARY KEY (member_no),
-    CONSTRAINT fk_member_profile_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_member_profile_region FOREIGN KEY (region_code)
-        REFERENCES region (zip_cd),
-    CONSTRAINT fk_member_profile_job    FOREIGN KEY (employ_status) REFERENCES common_code (code),
-    CONSTRAINT fk_member_profile_major  FOREIGN KEY (major)         REFERENCES common_code (code),
-    CONSTRAINT fk_member_profile_school FOREIGN KEY (education)     REFERENCES common_code (code),
-    CONSTRAINT fk_member_profile_mrg    FOREIGN KEY (mrg_stts_cd)   REFERENCES common_code (code),
+                                member_no        INT          NOT NULL                        COMMENT '회원번호(PK이자 FK, 자동채번 아님)',
+                                birth_date       DATE         NULL                            COMMENT '생년월일(나이 자격 판정)',
+                                region_code      CHAR(5)      NULL                            COMMENT '지역코드',
+                                income           INT          NULL                            COMMENT '소득(실제값)',
+                                employ_status    CHAR(7)      NULL                            COMMENT '취업상태(jobCd 0013)',
+                                major            CHAR(7)      NULL                            COMMENT '전공(plcyMajorCd 0011)',
+                                household_size   TINYINT      NULL                            COMMENT '가구원수(1 이상)',
+                                education        CHAR(7)      NULL                            COMMENT '학력(schoolCd 0049)',
+                                mrg_stts_cd      CHAR(7)      NULL                            COMMENT '결혼상태(mrgSttsCd 0055)',
+                                profile_img_path VARCHAR(255) NULL                            COMMENT '프로필이미지경로(경로/URL만 저장)',
+                                updated_at       DATETIME     NULL DEFAULT NULL               COMMENT '수정일시(MyBatis UPDATE로 갱신)',
+                                PRIMARY KEY (member_no),
+                                CONSTRAINT fk_member_profile_member FOREIGN KEY (member_no)
+                                    REFERENCES member (member_no),
+                                CONSTRAINT fk_member_profile_region FOREIGN KEY (region_code)
+                                    REFERENCES region (zip_cd),
+                                CONSTRAINT fk_member_profile_job    FOREIGN KEY (employ_status) REFERENCES common_code (code),
+                                CONSTRAINT fk_member_profile_major  FOREIGN KEY (major)         REFERENCES common_code (code),
+                                CONSTRAINT fk_member_profile_school FOREIGN KEY (education)     REFERENCES common_code (code),
+                                CONSTRAINT fk_member_profile_mrg    FOREIGN KEY (mrg_stts_cd)   REFERENCES common_code (code),
     -- LIKE : 통합 코드테이블이라 FK가 코드군을 못 보므로 코드군을 강제
     -- <>   : '제한없음'은 혜택의 조건값일 뿐 사람의 상태가 될 수 없으므로 회원 측만 차단
     -- NULL은 CHECK 평가 결과가 UNKNOWN이라 통과 → 프로필 미입력 허용과 충돌하지 않음
-    CONSTRAINT chk_member_profile_job    CHECK (employ_status LIKE '0013%' AND employ_status <> '0013010'),
-    CONSTRAINT chk_member_profile_major  CHECK (major         LIKE '0011%' AND major         <> '0011009'),
-    CONSTRAINT chk_member_profile_school CHECK (education     LIKE '0049%' AND education     <> '0049010'),
-    CONSTRAINT chk_member_profile_mrg    CHECK (mrg_stts_cd   LIKE '0055%' AND mrg_stts_cd   <> '0055003'),
-    CONSTRAINT chk_member_profile_household CHECK (household_size IS NULL OR household_size >= 1)
+                                CONSTRAINT chk_member_profile_job    CHECK (employ_status LIKE '0013%' AND employ_status <> '0013010'),
+                                CONSTRAINT chk_member_profile_major  CHECK (major         LIKE '0011%' AND major         <> '0011009'),
+                                CONSTRAINT chk_member_profile_school CHECK (education     LIKE '0049%' AND education     <> '0049010'),
+                                CONSTRAINT chk_member_profile_mrg    CHECK (mrg_stts_cd   LIKE '0055%' AND mrg_stts_cd   <> '0055003'),
+                                CONSTRAINT chk_member_profile_household CHECK (household_size IS NULL OR household_size >= 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='회원 프로필';
 
 
@@ -307,18 +315,18 @@ CREATE TABLE member_profile (
 --  11. member_terms_agree : 회원 약관동의
 -- =====================================================================
 CREATE TABLE member_terms_agree (
-    agree_no   INT      NOT NULL AUTO_INCREMENT                    COMMENT '동의번호',
-    member_no  INT      NOT NULL                                  COMMENT '회원번호',
-    terms_no   INT      NOT NULL                                  COMMENT '약관번호',
-    is_agreed  CHAR(1)  NOT NULL                                  COMMENT '동의여부 Y/N',
-    agreed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '동의일시',
-    PRIMARY KEY (agree_no),
-    CONSTRAINT uk_member_terms_agree UNIQUE (member_no, terms_no),
-    CONSTRAINT fk_member_terms_agree_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_member_terms_agree_terms  FOREIGN KEY (terms_no)
-        REFERENCES terms (terms_no),
-    CONSTRAINT chk_member_terms_agree CHECK (is_agreed IN ('Y','N'))
+                                    agree_no   INT      NOT NULL AUTO_INCREMENT                    COMMENT '동의번호',
+                                    member_no  INT      NOT NULL                                  COMMENT '회원번호',
+                                    terms_no   INT      NOT NULL                                  COMMENT '약관번호',
+                                    is_agreed  CHAR(1)  NOT NULL                                  COMMENT '동의여부 Y/N',
+                                    agreed_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '동의일시',
+                                    PRIMARY KEY (agree_no),
+                                    CONSTRAINT uk_member_terms_agree UNIQUE (member_no, terms_no),
+                                    CONSTRAINT fk_member_terms_agree_member FOREIGN KEY (member_no)
+                                        REFERENCES member (member_no),
+                                    CONSTRAINT fk_member_terms_agree_terms  FOREIGN KEY (terms_no)
+                                        REFERENCES terms (terms_no),
+                                    CONSTRAINT chk_member_terms_agree CHECK (is_agreed IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='회원 약관동의';
 
 
@@ -326,14 +334,15 @@ CREATE TABLE member_terms_agree (
 --  12. goal : 목표
 -- =====================================================================
 CREATE TABLE goal (
-    goal_no    INT      NOT NULL AUTO_INCREMENT                    COMMENT '목표번호',
-    member_no  INT      NOT NULL                                  COMMENT '회원번호',
-    goal_type  ENUM('INDEPENDENCE','EMPLOYMENT','STARTUP','MARRIAGE','STUDY_ABROAD') NOT NULL
-                                                                  COMMENT '목표유형(독립/취업/창업/결혼/유학)',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '설정일시',
-    PRIMARY KEY (goal_no),
-    CONSTRAINT fk_goal_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no)
+                      goal_no    INT      NOT NULL AUTO_INCREMENT                    COMMENT '목표번호',
+                      member_no  INT      NOT NULL                                  COMMENT '회원번호',
+                      goal_type  ENUM('INDEPENDENCE','EMPLOYMENT','STARTUP','MARRIAGE','STUDY_ABROAD') NOT NULL
+                          COMMENT '목표유형(독립/취업/창업/결혼/유학)',
+                      created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '설정일시',
+                      PRIMARY KEY (goal_no),
+                      CONSTRAINT uk_goal_member UNIQUE (member_no),
+                      CONSTRAINT fk_goal_member FOREIGN KEY (member_no)
+                          REFERENCES member (member_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='목표';
 
 
@@ -341,17 +350,17 @@ CREATE TABLE goal (
 --  13. notification : 알림
 -- =====================================================================
 CREATE TABLE notification (
-    noti_no    INT      NOT NULL AUTO_INCREMENT                    COMMENT '알림번호',
-    member_no  INT      NOT NULL                                  COMMENT '회원번호',
-    noti_type  ENUM('DEADLINE','SPENDING','NEW_BENEFIT','ACCOUNT') NOT NULL
-                                                                  COMMENT '알림유형(마감임박/소비분석/신규혜택/계정·정보수정)',
-    content    TEXT     NOT NULL                                  COMMENT '내용',
-    is_read    CHAR(1)  NOT NULL DEFAULT 'N'                      COMMENT '읽음여부 Y/N',
-    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '생성일시',
-    PRIMARY KEY (noti_no),
-    CONSTRAINT fk_notification_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT chk_notification_is_read CHECK (is_read IN ('Y','N'))
+                              noti_no    INT      NOT NULL AUTO_INCREMENT                    COMMENT '알림번호',
+                              member_no  INT      NOT NULL                                  COMMENT '회원번호',
+                              noti_type  ENUM('DEADLINE','SPENDING','NEW_BENEFIT','ACCOUNT') NOT NULL
+                                  COMMENT '알림유형(마감임박/소비분석/신규혜택/계정·정보수정)',
+                              content    TEXT     NOT NULL                                  COMMENT '내용',
+                              is_read    CHAR(1)  NOT NULL DEFAULT 'N'                      COMMENT '읽음여부 Y/N',
+                              created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP        COMMENT '생성일시',
+                              PRIMARY KEY (noti_no),
+                              CONSTRAINT fk_notification_member FOREIGN KEY (member_no)
+                                  REFERENCES member (member_no),
+                              CONSTRAINT chk_notification_is_read CHECK (is_read IN ('Y','N'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='알림';
 
 
@@ -359,15 +368,15 @@ CREATE TABLE notification (
 --  14. account : 계좌
 -- =====================================================================
 CREATE TABLE account (
-    account_id INT         NOT NULL AUTO_INCREMENT                 COMMENT '식별번호',
-    member_no  INT         NOT NULL                               COMMENT '회원번호',
-    bank_name  VARCHAR(50) NOT NULL                               COMMENT '은행명',
-    account_no VARCHAR(30) NOT NULL                               COMMENT '계좌번호',
-    balance    BIGINT      NOT NULL DEFAULT 0                     COMMENT '잔액',
-    PRIMARY KEY (account_id),
-    CONSTRAINT uk_account_no UNIQUE (account_no),
-    CONSTRAINT fk_account_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no)
+                         account_id INT         NOT NULL AUTO_INCREMENT                 COMMENT '식별번호',
+                         member_no  INT         NOT NULL                               COMMENT '회원번호',
+                         bank_name  VARCHAR(50) NOT NULL                               COMMENT '은행명',
+                         account_no VARCHAR(30) NOT NULL                               COMMENT '계좌번호',
+                         balance    BIGINT      NOT NULL DEFAULT 0                     COMMENT '잔액',
+                         PRIMARY KEY (account_id),
+                         CONSTRAINT uk_account_no UNIQUE (account_no),
+                         CONSTRAINT fk_account_member FOREIGN KEY (member_no)
+                             REFERENCES member (member_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='계좌';
 
 
@@ -375,17 +384,17 @@ CREATE TABLE account (
 --  15. member_finance_product : 사용자 금융 상품
 -- =====================================================================
 CREATE TABLE member_finance_product (
-    link_no       INT    NOT NULL AUTO_INCREMENT                  COMMENT '연결번호',
-    member_no     INT    NOT NULL                                COMMENT '회원번호',
-    product_no    INT    NOT NULL                                COMMENT '상품번호',
-    hold_amount   BIGINT NOT NULL DEFAULT 0                      COMMENT '보유금액',
-    join_date     DATE   NULL                                    COMMENT '가입일',
-    maturity_date DATE   NULL                                    COMMENT '만기일',
-    PRIMARY KEY (link_no),
-    CONSTRAINT fk_member_finance_product_member  FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_member_finance_product_product FOREIGN KEY (product_no)
-        REFERENCES finance_product (product_no)
+                                        link_no       INT    NOT NULL AUTO_INCREMENT                  COMMENT '연결번호',
+                                        member_no     INT    NOT NULL                                COMMENT '회원번호',
+                                        product_no    INT    NOT NULL                                COMMENT '상품번호',
+                                        hold_amount   BIGINT NOT NULL DEFAULT 0                      COMMENT '보유금액',
+                                        join_date     DATE   NULL                                    COMMENT '가입일',
+                                        maturity_date DATE   NULL                                    COMMENT '만기일',
+                                        PRIMARY KEY (link_no),
+                                        CONSTRAINT fk_member_finance_product_member  FOREIGN KEY (member_no)
+                                            REFERENCES member (member_no),
+                                        CONSTRAINT fk_member_finance_product_product FOREIGN KEY (product_no)
+                                            REFERENCES finance_product (product_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='사용자 금융 상품';
 
 
@@ -393,24 +402,24 @@ CREATE TABLE member_finance_product (
 --  16. spending : 소비 내역
 -- =====================================================================
 CREATE TABLE spending (
-    spending_no   INT          NOT NULL AUTO_INCREMENT            COMMENT '소비번호',
-    account_id    INT          NOT NULL                          COMMENT '식별번호(계좌)',
-    member_no     INT          NOT NULL                          COMMENT '회원번호',
-    category_no   INT          NOT NULL                          COMMENT '카테고리번호',
-    spending_date DATE         NOT NULL                          COMMENT '소비일자',
-    amount        BIGINT       NOT NULL                          COMMENT '소비금액',
-    merchant      VARCHAR(100) NULL                              COMMENT '사용처',
-    pay_method    ENUM('CASH','CHECK_CARD','CREDIT_CARD','EASY_PAY','TRANSFER') NOT NULL
-                                                                 COMMENT '결제수단(현금/체크카드/신용카드/간편결제/계좌이체)',
-    memo          VARCHAR(200) NULL                              COMMENT '메모',
-    PRIMARY KEY (spending_no),
-    CONSTRAINT fk_spending_account  FOREIGN KEY (account_id)
-        REFERENCES account (account_id),
-    CONSTRAINT fk_spending_member   FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_spending_category FOREIGN KEY (category_no)
-        REFERENCES spending_category (category_no),
-    INDEX idx_spending_member_date (member_no, spending_date)
+                          spending_no   INT          NOT NULL AUTO_INCREMENT            COMMENT '소비번호',
+                          account_id    INT          NOT NULL                          COMMENT '식별번호(계좌)',
+                          member_no     INT          NOT NULL                          COMMENT '회원번호',
+                          category_no   INT          NOT NULL                          COMMENT '카테고리번호',
+                          spending_date DATE         NOT NULL                          COMMENT '소비일자',
+                          amount        BIGINT       NOT NULL                          COMMENT '소비금액',
+                          merchant      VARCHAR(100) NULL                              COMMENT '사용처',
+                          pay_method    ENUM('CASH','CHECK_CARD','CREDIT_CARD','EASY_PAY','TRANSFER') NOT NULL
+                              COMMENT '결제수단(현금/체크카드/신용카드/간편결제/계좌이체)',
+                          memo          VARCHAR(200) NULL                              COMMENT '메모',
+                          PRIMARY KEY (spending_no),
+                          CONSTRAINT fk_spending_account  FOREIGN KEY (account_id)
+                              REFERENCES account (account_id),
+                          CONSTRAINT fk_spending_member   FOREIGN KEY (member_no)
+                              REFERENCES member (member_no),
+                          CONSTRAINT fk_spending_category FOREIGN KEY (category_no)
+                              REFERENCES spending_category (category_no),
+                          INDEX idx_spending_member_date (member_no, spending_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='소비 내역';
 
 
@@ -418,22 +427,22 @@ CREATE TABLE spending (
 --  17. expected_spending : 예상 소비
 -- =====================================================================
 CREATE TABLE expected_spending (
-    expected_no     INT          NOT NULL AUTO_INCREMENT          COMMENT '예상소비번호',
-    account_id      INT          NOT NULL                        COMMENT '식별번호(계좌)',
-    member_no       INT          NOT NULL                        COMMENT '회원번호',
-    category_no     INT          NOT NULL                        COMMENT '카테고리번호',
-    expected_date   DATE         NOT NULL                        COMMENT '소비예정일',
-    expected_amount BIGINT       NOT NULL                        COMMENT '예상금액',
-    merchant        VARCHAR(100) NULL                            COMMENT '사용처',
-    memo            VARCHAR(200) NULL                            COMMENT '메모',
-    PRIMARY KEY (expected_no),
-    CONSTRAINT fk_expected_spending_account  FOREIGN KEY (account_id)
-        REFERENCES account (account_id),
-    CONSTRAINT fk_expected_spending_member   FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_expected_spending_category FOREIGN KEY (category_no)
-        REFERENCES spending_category (category_no),
-    INDEX idx_expected_spending_member_date (member_no, expected_date)
+                                   expected_no     INT          NOT NULL AUTO_INCREMENT          COMMENT '예상소비번호',
+                                   account_id      INT          NOT NULL                        COMMENT '식별번호(계좌)',
+                                   member_no       INT          NOT NULL                        COMMENT '회원번호',
+                                   category_no     INT          NOT NULL                        COMMENT '카테고리번호',
+                                   expected_date   DATE         NOT NULL                        COMMENT '소비예정일',
+                                   expected_amount BIGINT       NOT NULL                        COMMENT '예상금액',
+                                   merchant        VARCHAR(100) NULL                            COMMENT '사용처',
+                                   memo            VARCHAR(200) NULL                            COMMENT '메모',
+                                   PRIMARY KEY (expected_no),
+                                   CONSTRAINT fk_expected_spending_account  FOREIGN KEY (account_id)
+                                       REFERENCES account (account_id),
+                                   CONSTRAINT fk_expected_spending_member   FOREIGN KEY (member_no)
+                                       REFERENCES member (member_no),
+                                   CONSTRAINT fk_expected_spending_category FOREIGN KEY (category_no)
+                                       REFERENCES spending_category (category_no),
+                                   INDEX idx_expected_spending_member_date (member_no, expected_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='예상 소비';
 
 
@@ -441,16 +450,16 @@ CREATE TABLE expected_spending (
 --  18. favorite_benefit : 관심혜택  (UNIQUE(member_no, benefit_no))
 -- =====================================================================
 CREATE TABLE favorite_benefit (
-    favorite_no INT      NOT NULL AUTO_INCREMENT                  COMMENT '관심혜택번호',
-    member_no   INT      NOT NULL                                COMMENT '회원번호',
-    benefit_no  INT      NOT NULL                                COMMENT '혜택번호',
-    saved_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP      COMMENT '저장일시',
-    PRIMARY KEY (favorite_no),
-    CONSTRAINT uk_favorite_benefit_member_benefit UNIQUE (member_no, benefit_no),
-    CONSTRAINT fk_favorite_benefit_member  FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_favorite_benefit_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no)
+                                  favorite_no INT      NOT NULL AUTO_INCREMENT                  COMMENT '관심혜택번호',
+                                  member_no   INT      NOT NULL                                COMMENT '회원번호',
+                                  benefit_no  INT      NOT NULL                                COMMENT '혜택번호',
+                                  saved_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP      COMMENT '저장일시',
+                                  PRIMARY KEY (favorite_no),
+                                  CONSTRAINT uk_favorite_benefit_member_benefit UNIQUE (member_no, benefit_no),
+                                  CONSTRAINT fk_favorite_benefit_member  FOREIGN KEY (member_no)
+                                      REFERENCES member (member_no),
+                                  CONSTRAINT fk_favorite_benefit_benefit FOREIGN KEY (benefit_no)
+                                      REFERENCES benefit (benefit_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='관심혜택';
 
 
@@ -458,13 +467,13 @@ CREATE TABLE favorite_benefit (
 --  19. benefit_region : 혜택지역 매핑 (복합 PK)
 -- =====================================================================
 CREATE TABLE benefit_region (
-    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
-    zip_cd   CHAR(5) NOT NULL                                  COMMENT '지역코드',
-    PRIMARY KEY (benefit_no, zip_cd),
-    CONSTRAINT fk_benefit_region_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_region_region  FOREIGN KEY (zip_cd)
-        REFERENCES region (zip_cd)
+                                benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+                                zip_cd   CHAR(5) NOT NULL                                  COMMENT '지역코드',
+                                PRIMARY KEY (benefit_no, zip_cd),
+                                CONSTRAINT fk_benefit_region_benefit FOREIGN KEY (benefit_no)
+                                    REFERENCES benefit (benefit_no),
+                                CONSTRAINT fk_benefit_region_region  FOREIGN KEY (zip_cd)
+                                    REFERENCES region (zip_cd)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택지역 매핑';
 
 
@@ -472,14 +481,14 @@ CREATE TABLE benefit_region (
 --  19-2. benefit_major : 혜택 전공요건 매핑 (복합 PK)
 -- =====================================================================
 CREATE TABLE benefit_major (
-    benefit_no   INT     NOT NULL                                COMMENT '혜택번호',
-    plcy_major_cd CHAR(7) NOT NULL                               COMMENT '전공요건코드(0011 계열)',
-    PRIMARY KEY (benefit_no, plcy_major_cd),
-    CONSTRAINT fk_benefit_major_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_major_code FOREIGN KEY (plcy_major_cd)
-        REFERENCES common_code (code),
-    CONSTRAINT chk_benefit_major_group CHECK (plcy_major_cd LIKE '0011%')
+                               benefit_no   INT     NOT NULL                                COMMENT '혜택번호',
+                               plcy_major_cd CHAR(7) NOT NULL                               COMMENT '전공요건코드(0011 계열)',
+                               PRIMARY KEY (benefit_no, plcy_major_cd),
+                               CONSTRAINT fk_benefit_major_benefit FOREIGN KEY (benefit_no)
+                                   REFERENCES benefit (benefit_no),
+                               CONSTRAINT fk_benefit_major_code FOREIGN KEY (plcy_major_cd)
+                                   REFERENCES common_code (code),
+                               CONSTRAINT chk_benefit_major_group CHECK (plcy_major_cd LIKE '0011%')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 전공요건 매핑';
 
 
@@ -487,14 +496,14 @@ CREATE TABLE benefit_major (
 --  19-3. benefit_school : 혜택 학력요건 매핑 (복합 PK)
 -- =====================================================================
 CREATE TABLE benefit_school (
-    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
-    school_cd  CHAR(7) NOT NULL                                  COMMENT '학력요건코드(0049 계열)',
-    PRIMARY KEY (benefit_no, school_cd),
-    CONSTRAINT fk_benefit_school_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_school_code FOREIGN KEY (school_cd)
-        REFERENCES common_code (code),
-    CONSTRAINT chk_benefit_school_group CHECK (school_cd LIKE '0049%')
+                                benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+                                school_cd  CHAR(7) NOT NULL                                  COMMENT '학력요건코드(0049 계열)',
+                                PRIMARY KEY (benefit_no, school_cd),
+                                CONSTRAINT fk_benefit_school_benefit FOREIGN KEY (benefit_no)
+                                    REFERENCES benefit (benefit_no),
+                                CONSTRAINT fk_benefit_school_code FOREIGN KEY (school_cd)
+                                    REFERENCES common_code (code),
+                                CONSTRAINT chk_benefit_school_group CHECK (school_cd LIKE '0049%')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 학력요건 매핑';
 
 
@@ -502,14 +511,14 @@ CREATE TABLE benefit_school (
 --  19-4. benefit_job : 혜택 취업요건 매핑 (복합 PK)
 -- =====================================================================
 CREATE TABLE benefit_job (
-    benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
-    job_cd     CHAR(7) NOT NULL                                  COMMENT '취업요건코드(0013 계열)',
-    PRIMARY KEY (benefit_no, job_cd),
-    CONSTRAINT fk_benefit_job_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_benefit_job_code FOREIGN KEY (job_cd)
-        REFERENCES common_code (code),
-    CONSTRAINT chk_benefit_job_group CHECK (job_cd LIKE '0013%')
+                             benefit_no INT     NOT NULL                                  COMMENT '혜택번호',
+                             job_cd     CHAR(7) NOT NULL                                  COMMENT '취업요건코드(0013 계열)',
+                             PRIMARY KEY (benefit_no, job_cd),
+                             CONSTRAINT fk_benefit_job_benefit FOREIGN KEY (benefit_no)
+                                 REFERENCES benefit (benefit_no),
+                             CONSTRAINT fk_benefit_job_code FOREIGN KEY (job_cd)
+                                 REFERENCES common_code (code),
+                             CONSTRAINT chk_benefit_job_group CHECK (job_cd LIKE '0013%')
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 취업요건 매핑';
 
 
@@ -517,16 +526,16 @@ CREATE TABLE benefit_job (
 --  20. applied_benefit : 신청 혜택 내역 (UNIQUE(member_no, benefit_no))
 -- =====================================================================
 CREATE TABLE applied_benefit (
-    applied_no INT      NOT NULL AUTO_INCREMENT                   COMMENT '신청혜택번호',
-    member_no  INT      NOT NULL                                 COMMENT '회원번호',
-    benefit_no INT      NOT NULL                                 COMMENT '혜택번호',
-    applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP       COMMENT '신청일시',
-    PRIMARY KEY (applied_no),
-    CONSTRAINT uk_applied_benefit_member_benefit UNIQUE (member_no, benefit_no),
-    CONSTRAINT fk_applied_benefit_member  FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT fk_applied_benefit_benefit FOREIGN KEY (benefit_no)
-        REFERENCES benefit (benefit_no)
+                                 applied_no INT      NOT NULL AUTO_INCREMENT                   COMMENT '신청혜택번호',
+                                 member_no  INT      NOT NULL                                 COMMENT '회원번호',
+                                 benefit_no INT      NOT NULL                                 COMMENT '혜택번호',
+                                 applied_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP       COMMENT '신청일시',
+                                 PRIMARY KEY (applied_no),
+                                 CONSTRAINT uk_applied_benefit_member_benefit UNIQUE (member_no, benefit_no),
+                                 CONSTRAINT fk_applied_benefit_member  FOREIGN KEY (member_no)
+                                     REFERENCES member (member_no),
+                                 CONSTRAINT fk_applied_benefit_benefit FOREIGN KEY (benefit_no)
+                                     REFERENCES benefit (benefit_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='신청 혜택 내역';
 
 
@@ -536,27 +545,27 @@ CREATE TABLE applied_benefit (
 --      trigger NULL = 외부 제도 경고 / 내부쌍은 trigger < target
 -- =====================================================================
 CREATE TABLE benefit_conflict_rule (
-    rule_no            INT          NOT NULL AUTO_INCREMENT        COMMENT '규칙번호',
-    trigger_benefit_no INT          NULL                          COMMENT '기준혜택번호(NULL=외부제도 경고)',
-    target_benefit_no  INT          NOT NULL                      COMMENT '대상혜택번호',
-    conflict_type      VARCHAR(20)  NOT NULL                      COMMENT '제한유형(중복불가/일부제한/확인필요)',
-    rule_text          VARCHAR(500) NOT NULL                      COMMENT '규칙내용(표시 문구)',
-    detection_type     VARCHAR(20)  NOT NULL DEFAULT '관리자입력'  COMMENT '탐지유형(관리자입력/키워드자동탐지)',
-    confirm_status     VARCHAR(20)  NOT NULL DEFAULT '검수필요'    COMMENT '확정여부(확정/검수필요)',
-    is_active          CHAR(1)      NOT NULL DEFAULT 'Y'          COMMENT '활성화여부 Y/N',
-    created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
-    updated_at         DATETIME     NULL     DEFAULT NULL         COMMENT '수정일시(MyBatis UPDATE로 갱신)',
-    PRIMARY KEY (rule_no),
-    CONSTRAINT uk_conflict_rule_pair UNIQUE (trigger_benefit_no, target_benefit_no),
-    CONSTRAINT fk_conflict_rule_trigger FOREIGN KEY (trigger_benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT fk_conflict_rule_target  FOREIGN KEY (target_benefit_no)
-        REFERENCES benefit (benefit_no),
-    CONSTRAINT chk_conflict_rule_active CHECK (is_active IN ('Y','N')),
-    CONSTRAINT chk_conflict_rule_order  CHECK (trigger_benefit_no IS NULL OR trigger_benefit_no < target_benefit_no),
-    CONSTRAINT chk_conflict_rule_type   CHECK (conflict_type   IN ('중복불가','일부제한','확인필요')),
-    CONSTRAINT chk_conflict_rule_detect CHECK (detection_type  IN ('관리자입력','키워드자동탐지')),
-    CONSTRAINT chk_conflict_rule_status CHECK (confirm_status  IN ('확정','검수필요'))
+                                       rule_no            INT          NOT NULL AUTO_INCREMENT        COMMENT '규칙번호',
+                                       trigger_benefit_no INT          NULL                          COMMENT '기준혜택번호(NULL=외부제도 경고)',
+                                       target_benefit_no  INT          NOT NULL                      COMMENT '대상혜택번호',
+                                       conflict_type      VARCHAR(20)  NOT NULL                      COMMENT '제한유형(중복불가/일부제한/확인필요)',
+                                       rule_text          VARCHAR(500) NOT NULL                      COMMENT '규칙내용(표시 문구)',
+                                       detection_type     VARCHAR(20)  NOT NULL DEFAULT '관리자입력'  COMMENT '탐지유형(관리자입력/키워드자동탐지)',
+                                       confirm_status     VARCHAR(20)  NOT NULL DEFAULT '검수필요'    COMMENT '확정여부(확정/검수필요)',
+                                       is_active          CHAR(1)      NOT NULL DEFAULT 'Y'          COMMENT '활성화여부 Y/N',
+                                       created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '등록일시',
+                                       updated_at         DATETIME     NULL     DEFAULT NULL         COMMENT '수정일시(MyBatis UPDATE로 갱신)',
+                                       PRIMARY KEY (rule_no),
+                                       CONSTRAINT uk_conflict_rule_pair UNIQUE (trigger_benefit_no, target_benefit_no),
+                                       CONSTRAINT fk_conflict_rule_trigger FOREIGN KEY (trigger_benefit_no)
+                                           REFERENCES benefit (benefit_no),
+                                       CONSTRAINT fk_conflict_rule_target  FOREIGN KEY (target_benefit_no)
+                                           REFERENCES benefit (benefit_no),
+                                       CONSTRAINT chk_conflict_rule_active CHECK (is_active IN ('Y','N')),
+                                       CONSTRAINT chk_conflict_rule_order  CHECK (trigger_benefit_no IS NULL OR trigger_benefit_no < target_benefit_no),
+                                       CONSTRAINT chk_conflict_rule_type   CHECK (conflict_type   IN ('중복불가','일부제한','확인필요')),
+                                       CONSTRAINT chk_conflict_rule_detect CHECK (detection_type  IN ('관리자입력','키워드자동탐지')),
+                                       CONSTRAINT chk_conflict_rule_status CHECK (confirm_status  IN ('확정','검수필요'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 중복수혜 제한';
 
 
@@ -565,22 +574,47 @@ CREATE TABLE benefit_conflict_rule (
 --      exec_type A=자동/M=수동, result_status S/P/F
 -- =====================================================================
 CREATE TABLE sync_log (
-    log_no        INT          NOT NULL AUTO_INCREMENT            COMMENT '로그번호',
-    executed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실행일시',
-    exec_type     ENUM('A','M') NOT NULL                         COMMENT '실행방식(A=자동/M=수동)',
-    result_status ENUM('S','P','F') NOT NULL                     COMMENT '결과상태(성공/부분/실패)',
-    total_cnt     INT          NOT NULL DEFAULT 0                COMMENT '전체수집건수',
-    insert_cnt    INT          NOT NULL DEFAULT 0                COMMENT '신규추가건수',
-    update_cnt    INT          NOT NULL DEFAULT 0                COMMENT '업데이트건수',
-    skip_cnt      INT          NOT NULL DEFAULT 0                COMMENT '스킵건수',
-    error_msg     VARCHAR(500) NULL                              COMMENT '오류내용(S면 보통 NULL)',
-    duration_ms   INT          NULL                              COMMENT '소요시간(ms)',
-    member_no     INT          NULL                              COMMENT '실행 관리자(A면 NULL, M이면 ADMIN member_no)',
-    PRIMARY KEY (log_no),
-    CONSTRAINT fk_sync_log_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT chk_sync_log_counts CHECK (
-        total_cnt  >= 0 AND insert_cnt >= 0 AND update_cnt >= 0 AND skip_cnt >= 0
-        AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
-    CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
+                          log_no        INT          NOT NULL AUTO_INCREMENT            COMMENT '로그번호',
+                          executed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실행일시',
+                          exec_type     ENUM('A','M') NOT NULL                         COMMENT '실행방식(A=자동/M=수동)',
+                          sync_start_date DATE       NULL                              COMMENT '동기화 대상 등록일 시작(기간 미지정이면 NULL)',
+                          sync_end_date   DATE       NULL                              COMMENT '동기화 대상 등록일 종료(기간 미지정이면 NULL)',
+                          result_status ENUM('S','P','F') NOT NULL                     COMMENT '결과상태(성공/부분/실패)',
+                          total_cnt     INT          NOT NULL DEFAULT 0                COMMENT '전체수집건수',
+                          insert_cnt    INT          NOT NULL DEFAULT 0                COMMENT '신규추가건수',
+                          update_cnt    INT          NOT NULL DEFAULT 0                COMMENT '업데이트건수',
+                          skip_cnt      INT          NOT NULL DEFAULT 0                COMMENT '스킵건수',
+                          error_msg     VARCHAR(500) NULL                              COMMENT '오류내용(S면 보통 NULL)',
+                          duration_ms   INT          NULL                              COMMENT '소요시간(ms)',
+                          member_no     INT          NULL                              COMMENT '실행 관리자(A면 NULL, M이면 ADMIN member_no)',
+                          PRIMARY KEY (log_no),
+                          CONSTRAINT fk_sync_log_member FOREIGN KEY (member_no)
+                              REFERENCES member (member_no),
+                          CONSTRAINT chk_sync_log_counts CHECK (
+                              total_cnt  >= 0 AND insert_cnt >= 0 AND update_cnt >= 0 AND skip_cnt >= 0
+                                  AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
+                          CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동기화 로그';
+
+
+-- ---------------------------------------------------------------------
+-- 27. sync_log_detail : 동기화 처리 내역
+--     sync_log는 '몇 건 처리했다'는 집계만 남기므로 어떤 혜택이 들어왔는지 알 수 없다.
+--     관리자가 갱신 내역을 확인할 수 있도록 처리된 혜택을 건별로 기록한다.
+--     동기화는 대상 혜택을 매번 덮어쓰므로 action_type='U'가 곧 값이 바뀌었다는 뜻은 아니다.
+--     실제로 무엇이 달라졌는지는 changed_summary에 요약해 둔다.
+-- ---------------------------------------------------------------------
+CREATE TABLE sync_log_detail (
+                                 detail_no   INT     NOT NULL AUTO_INCREMENT COMMENT '상세번호',
+                                 log_no      INT     NOT NULL                COMMENT '동기화 실행 이력',
+                                 benefit_no  INT     NOT NULL                COMMENT '처리된 혜택',
+                                 action_type CHAR(1) NOT NULL                COMMENT '처리구분(I=신규/U=기존)',
+                                 changed_summary VARCHAR(500) NULL          COMMENT '변경 내용 요약(신규거나 값이 그대로면 NULL)',
+                                 PRIMARY KEY (detail_no),
+                                 CONSTRAINT fk_sync_detail_log FOREIGN KEY (log_no)
+                                     REFERENCES sync_log (log_no),
+                                 CONSTRAINT fk_sync_detail_benefit FOREIGN KEY (benefit_no)
+                                     REFERENCES benefit (benefit_no),
+                                 CONSTRAINT chk_sync_detail_action CHECK (action_type IN ('I','U')),
+                                 KEY idx_sync_detail_log (log_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동기화 처리 내역';

@@ -26,4 +26,17 @@ public interface BenefitService {
 
     //전공 필터
     List<BenefitMajorResDTO> findBenefitMajors();
+
+    //학력 필터
+    List<BenefitSchoolResDTO> findBenefitSchools();
+
+    //직업 필터
+    List<BenefitJobResDTO> findBenefitJobs();
+
+    //혼인 필터
+    List<BenefitMarriageResDTO> findBenefitMarriage();
+    // 관리자 기간별 동기화 (처리 내역 포함)
+    SyncDetailResultDTO syncByFrstRegDtWithDetail(String startDate, String endDate);
+
+
 }
