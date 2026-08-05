@@ -3,12 +3,19 @@ package org.scoula.benefit.controller;
 import lombok.RequiredArgsConstructor;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.service.BenefitService;
+import org.scoula.member.mapper.MemberMapper;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.security.Principal;
+import java.util.Collections;
+import org.springframework.data.redis.core.StringRedisTemplate;
+
+import java.time.Duration;
+import java.util.Collections;
 
 import static io.jsonwebtoken.Jwts.header;
 
@@ -18,6 +25,7 @@ import static io.jsonwebtoken.Jwts.header;
 public class BenefitController {
 
     private final BenefitService benefitService;
+    private final MemberMapper memberMapper;
 
     @GetMapping(
             value = "/external/youth-center/raw",
@@ -97,6 +105,7 @@ public class BenefitController {
                 benefitService.findBenefit(filter)
         );
     }
+
     //카테고리 필터
     @GetMapping("/categories")
     public ResponseEntity<List<BenefitCategoryResDTO>> getBenefitCategories() {
@@ -151,5 +160,117 @@ public class BenefitController {
         return ResponseEntity.ok(
                 benefitService.findBenefitMarriage()
         );
+    }
+
+    // 추천 검색어 조회
+    @GetMapping("/search/recommended")
+    public ResponseEntity<List<RecommendedKeywordResDTO>>
+    getRecommendedKeywords() {
+
+        return ResponseEntity.ok(
+                benefitService.findRecommendedKeywords()
+        );
+    }
+
+    // 최근 검색어 조회
+    @GetMapping("/search/recent")
+    public ResponseEntity<List<String>> getRecentKeywords(
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity.ok(
+                    Collections.emptyList()
+            );
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo == null) {
+            return ResponseEntity.ok(
+                    Collections.emptyList()
+            );
+        }
+
+        return ResponseEntity.ok(
+                benefitService.findRecentKeywords(
+                        memberNo
+                )
+        );
+    }
+
+    // 최근 검색어 저장
+    @PostMapping("/search/recent")
+    public ResponseEntity<Void> saveRecentKeyword(
+            @RequestBody RecentKeywordReqDTO requestDTO,
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo != null) {
+            benefitService.saveRecentKeyword(
+                    memberNo,
+                    requestDTO.getKeyword()
+            );
+        }
+
+        return ResponseEntity.noContent().build();
+    }
+
+    // 최근 검색어 한 개 삭제
+    @DeleteMapping("/search/recent")
+    public ResponseEntity<Void> deleteRecentKeyword(
+            @RequestParam String keyword,
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo != null) {
+            benefitService.deleteRecentKeyword(
+                    memberNo,
+                    keyword
+            );
+        }
+
+        return ResponseEntity.noContent().build();
+    }
+
+    // 최근 검색어 전체 삭제
+    @DeleteMapping("/search/recent/all")
+    public ResponseEntity<Void> deleteAllRecentKeywords(
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity.noContent().build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo != null) {
+            benefitService.deleteAllRecentKeywords(
+                    memberNo
+            );
+        }
+
+        return ResponseEntity.noContent().build();
     }
 }

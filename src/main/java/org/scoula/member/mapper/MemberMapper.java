@@ -18,4 +18,9 @@ public interface MemberMapper {
 
     int withdraw(int memberNo);
 
+    //추천키워드 용 멤버 조회
+    Integer findMemberNoByLoginId(
+            String loginId
+    );
+
 }

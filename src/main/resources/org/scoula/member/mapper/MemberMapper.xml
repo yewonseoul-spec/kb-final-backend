@@ -62,4 +62,15 @@
           AND status = 'Y'
     </update>
 
+<!-- 최근키워드검색 관련   -->
+    <select id="findMemberNoByLoginId"
+            parameterType="string"
+            resultType="int">
+
+        SELECT member_no
+        FROM member
+        WHERE login_id = #{loginId}
+          AND status = 'Y'
+
+    </select>
 </mapper>

@@ -465,6 +465,21 @@
         b.benefit_no DESC
     </select>
 
+    <!-- 추천 검색어 조회 -->
+    <select id="findRecommendedKeywords"
+            resultType="org.scoula.benefit.dto.RecommendedKeywordResDTO">
+
+        SELECT
+        keyword_code AS keywordCode,
+        keyword_name AS keywordName,
+        display_order AS displayOrder
+        FROM recommend_keyword
+        WHERE is_active = 'Y'
+        ORDER BY
+        display_order ASC,
+        keyword_code ASC
+
+    </select>
     <!-- 동기화 전후 비교용 기존 행 조회 -->
     <select id="findBenefitByPlcyNo" resultType="org.scoula.benefit.domain.BenefitVO">
         SELECT
