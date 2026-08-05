@@ -10,6 +10,7 @@
         plcy_no,
         plcy_nm,
         category_code,
+        detail_category_code,
         sprvsn_inst_cd_nm,
         target_desc,
         plcy_sprt_cn,
@@ -40,6 +41,7 @@
         #{plcyNo},
         #{plcyNm},
         #{categoryCode},
+        #{detailCategoryCode},
         #{sprvsnInstCdNm},
         #{targetDesc},
         #{plcySprtCn},
@@ -68,6 +70,7 @@
         ON DUPLICATE KEY UPDATE
         plcy_nm = VALUES(plcy_nm),
         category_code = VALUES(category_code),
+        detail_category_code = VALUES(detail_category_code),
         sprvsn_inst_cd_nm = VALUES(sprvsn_inst_cd_nm),
         target_desc = VALUES(target_desc),
         plcy_sprt_cn = VALUES(plcy_sprt_cn),

@@ -9,6 +9,7 @@ public class BenefitVO {
     private String plcyNo;
     private String plcyNm;
     private String categoryCode;
+    private String detailCategoryCode;
     private String sprvsnInstCdNm;
 
     private String targetDesc;
