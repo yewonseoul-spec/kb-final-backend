@@ -1003,4 +1003,32 @@ public class BenefitServiceImpl implements BenefitService {
         return (value == null) ? "" : String.valueOf(value);
     }
 
+// 혜택 상세페이지
+@Override
+public BenefitDetailResDTO findBenefitDetail(
+        Integer benefitNo
+) {if (benefitNo == null) {
+        throw new IllegalArgumentException(
+                "혜택 번호가 필요합니다.");}
+
+    BenefitDetailResDTO detail =
+            benefitMapper.findBenefitDetail(
+                    benefitNo);
+    if (detail == null) {
+        throw new IllegalArgumentException(
+                "존재하지 않는 혜택입니다.");}
+
+//    detail.setRegionNames(
+//            benefitMapper.findBenefitRegionNames(
+//                    benefitNo));
+//    detail.setMajorNames(
+//            benefitMapper.findBenefitMajorNames(
+//                    benefitNo));
+//    detail.setSchoolNames(
+//            benefitMapper.findBenefitSchoolNames(
+//                    benefitNo));
+//    detail.setJobNames(
+//            benefitMapper.findBenefitJobNames(
+//                    benefitNo));
+    return detail;}
 }
