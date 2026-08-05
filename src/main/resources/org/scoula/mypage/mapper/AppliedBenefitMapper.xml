@@ -26,4 +26,11 @@
         ORDER BY ab.applied_at DESC, ab.applied_no DESC
     </select>
 
+    <!-- 토큰의 member_no 를 반드시 함께 건다. benefit_no 만으로 지우면 남의 이력이 지워진다. -->
+    <delete id="delete">
+        DELETE FROM applied_benefit
+        WHERE member_no  = #{memberNo}
+          AND benefit_no = #{benefitNo}
+    </delete>
+
 </mapper>

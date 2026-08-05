@@ -93,4 +93,13 @@ public class MypageServiceImpl implements MypageService {
     public List<AppliedBenefitDTO> getAppliedBenefits(int memberNo) {
         return appliedBenefitMapper.findByMemberNo(memberNo);
     }
+
+    // 대상이 없으면 404. 목록이 낡았다는 뜻이므로 조용히 성공시키지 않는다.
+    @Transactional
+    @Override
+    public void deleteAppliedBenefit(int memberNo, int benefitNo) {
+        if (appliedBenefitMapper.delete(memberNo, benefitNo) == 0) {
+            throw new NoSuchElementException();
+        }
+    }
 }

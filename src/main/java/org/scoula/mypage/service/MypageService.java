@@ -18,4 +18,5 @@ public interface MypageService {
     void deleteGoal(int memberNo);
 
     List<AppliedBenefitDTO> getAppliedBenefits(int memberNo);
+    void deleteAppliedBenefit(int memberNo, int benefitNo);
 }
