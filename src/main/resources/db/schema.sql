@@ -3,6 +3,10 @@
 -- =====================================================================
 
 -- =====================================================================
+-- [v1.6] sync_log에 sync_start_date, sync_end_date 추가 (관리자 기간별 동기화 대상 기간)
+--        sync_log_detail 테이블 신설 (동기화가 어떤 혜택을 어떻게 처리했는지 기록)
+-- =====================================================================
+-- =====================================================================
 -- [v1.5] goal 테이블에 member_no unique 제약 추가
 -- =====================================================================
 -- =====================================================================
@@ -40,6 +44,7 @@ SET NAMES utf8mb4;
 --  초기화 (재실행 대비) — 자식 → 부모 역순 DROP
 -- ---------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS sync_log_detail;
 DROP TABLE IF EXISTS sync_log;
 DROP TABLE IF EXISTS benefit_conflict_rule;
 DROP TABLE IF EXISTS applied_benefit;
@@ -287,6 +292,7 @@ CREATE TABLE benefit (
     INDEX idx_benefit_apply_end (apply_end_date),
     INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
+
 
 -- =====================================================================
 --  10. member_profile : 회원 프로필 (member와 1:1, member_no = PK+FK)
@@ -605,3 +611,26 @@ CREATE TABLE sync_log (
         AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
     CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동기화 로그';
+
+
+-- ---------------------------------------------------------------------
+-- 27. sync_log_detail : 동기화 처리 내역
+--     sync_log는 '몇 건 처리했다'는 집계만 남기므로 어떤 혜택이 들어왔는지 알 수 없다.
+--     관리자가 갱신 내역을 확인할 수 있도록 처리된 혜택을 건별로 기록한다.
+--     동기화는 대상 혜택을 매번 덮어쓰므로 action_type='U'가 곧 값이 바뀌었다는 뜻은 아니다.
+--     실제로 무엇이 달라졌는지는 changed_summary에 요약해 둔다.
+-- ---------------------------------------------------------------------
+CREATE TABLE sync_log_detail (
+                                 detail_no   INT     NOT NULL AUTO_INCREMENT COMMENT '상세번호',
+                                 log_no      INT     NOT NULL                COMMENT '동기화 실행 이력',
+                                 benefit_no  INT     NOT NULL                COMMENT '처리된 혜택',
+                                 action_type CHAR(1) NOT NULL                COMMENT '처리구분(I=신규/U=기존)',
+                                 changed_summary VARCHAR(500) NULL          COMMENT '변경 내용 요약(신규거나 값이 그대로면 NULL)',
+                                 PRIMARY KEY (detail_no),
+                                 CONSTRAINT fk_sync_detail_log FOREIGN KEY (log_no)
+                                     REFERENCES sync_log (log_no),
+                                 CONSTRAINT fk_sync_detail_benefit FOREIGN KEY (benefit_no)
+                                     REFERENCES benefit (benefit_no),
+                                 CONSTRAINT chk_sync_detail_action CHECK (action_type IN ('I','U')),
+                                 KEY idx_sync_detail_log (log_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='동기화 처리 내역';

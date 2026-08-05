@@ -13,5 +13,6 @@ public interface ConsumptionService {
     void updateExpected(Long expectedNo, ExpectedReqDTO request);
 
     void deleteExpected(Long expectedNo);
-    
+
+    void detectRecurringSpending(Long memberNo);
 }
