@@ -5,6 +5,13 @@
 
 <mapper namespace="org.scoula.mypage.mapper.AppliedBenefitMapper">
 
+    <!-- 관심 혜택과 달리 멱등 처리하지 않는다. 상세 화면의 명시적 단발 액션이라
+     이미 담긴 혜택이면 409 로 알려주는 것이 맞는 피드백이다. -->
+    <insert id="insert">
+        INSERT INTO applied_benefit (member_no, benefit_no)
+        VALUES (#{memberNo}, #{benefitNo})
+    </insert>
+
     <!-- 본인의 신청 이력이므로 is_active·마감일로 거르지 않는다.
          거르면 지난 신청 기록이 조용히 사라진다. -->
     <select id="findByMemberNo" resultType="org.scoula.mypage.dto.AppliedBenefitDTO">

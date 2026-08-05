@@ -5,6 +5,15 @@
 
 <mapper namespace="org.scoula.mypage.mapper.FavoriteBenefitMapper">
 
+    <!-- 하트는 토글이라 연타·두 탭에서 같은 요청이 겹친다. 사용자 잘못이 아니므로
+  UNIQUE(uk_favorite_benefit_member_benefit) 충돌을 409 로 내보내지 않고 멱등 처리한다.
+  member_no = member_no 는 아무것도 바꾸지 않는 no-op 이다. -->
+    <insert id="insert">
+        INSERT INTO favorite_benefit (member_no, benefit_no)
+        VALUES (#{memberNo}, #{benefitNo})
+            ON DUPLICATE KEY UPDATE member_no = member_no
+    </insert>
+
     <!-- 본인이 담아둔 목록이므로 is_active·마감일로 거르지 않는다.
          마감이 지난 혜택도 남아 있어야 사용자가 직접 지울 수 있다. -->
     <select id="findByMemberNo" resultType="org.scoula.mypage.dto.FavoriteBenefitDTO">

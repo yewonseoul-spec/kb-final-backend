@@ -3,10 +3,7 @@ package org.scoula.mypage.controller;
 import lombok.RequiredArgsConstructor;
 import org.scoula.member.dto.ChangePasswordDTO;
 import org.scoula.member.service.MemberService;
-import org.scoula.mypage.dto.AppliedBenefitDTO;
-import org.scoula.mypage.dto.FavoriteBenefitDTO;
-import org.scoula.mypage.dto.GoalDTO;
-import org.scoula.mypage.dto.ProfileDTO;
+import org.scoula.mypage.dto.*;
 import org.scoula.mypage.service.MypageService;
 import org.scoula.security.account.domain.CustomUser;
 import org.springframework.http.HttpStatus;
@@ -167,5 +164,33 @@ public class MypageController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("관심 혜택이 삭제되었습니다.");
+    }
+
+    // 신청 혜택 등록 (혜택 상세 화면)
+    @PostMapping("/applied")
+    public ResponseEntity<String> createAppliedBenefit(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody BenefitRegisterDTO dto) {
+
+        service.createAppliedBenefit(user.getMember().getMemberNo(), dto.getBenefitNo());
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("신청한 혜택에 추가되었습니다.");
+    }
+
+    // 관심 혜택 등록 (혜택 검색 결과의 하트)
+    // 201 이 아니라 200 이다 — 멱등이라 '새로 만들어졌는지'를 응답으로 구분하지 않는다.
+    @PostMapping("/favorite")
+    public ResponseEntity<String> createFavoriteBenefit(
+            @AuthenticationPrincipal CustomUser user,
+            @RequestBody BenefitRegisterDTO dto) {
+
+        service.createFavoriteBenefit(user.getMember().getMemberNo(), dto.getBenefitNo());
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("관심 혜택에 저장되었습니다.");
     }
 }

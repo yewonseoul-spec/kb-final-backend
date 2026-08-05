@@ -90,6 +90,13 @@ public class MypageServiceImpl implements MypageService {
         goalMapper.delete(memberNo);
     }
 
+    // 이미 담긴 혜택이면 DuplicateKeyException → 409. 매퍼 주석 참고.
+    @Transactional
+    @Override
+    public void createAppliedBenefit(int memberNo, int benefitNo) {
+        appliedBenefitMapper.insert(memberNo, benefitNo);
+    }
+
     // 빈 목록은 오류가 아니다. 안내 문구는 화면이 처리한다.
     @Transactional(readOnly = true)
     @Override
@@ -104,6 +111,13 @@ public class MypageServiceImpl implements MypageService {
         if (appliedBenefitMapper.delete(memberNo, benefitNo) == 0) {
             throw new NoSuchElementException();
         }
+    }
+
+    // 멱등이다. 이미 담겨 있어도 성공으로 본다.
+    @Transactional
+    @Override
+    public void createFavoriteBenefit(int memberNo, int benefitNo) {
+        favoriteBenefitMapper.insert(memberNo, benefitNo);
     }
 
     // 빈 목록은 오류가 아니다. 안내 문구는 화면이 처리한다.
