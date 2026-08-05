@@ -1,4 +1,8 @@
 -- =====================================================================
+-- [v1.7] benefit 테이블에 mclsf_nm 컬럼 추가, 4-2 benefit_detail_category 매핑테이블 추가
+-- =====================================================================
+
+-- =====================================================================
 -- [v1.5] goal 테이블에 member_no unique 제약 추가
 -- =====================================================================
 -- =====================================================================
@@ -161,6 +165,17 @@ CREATE TABLE benefit_category (
     CONSTRAINT uk_benefit_category_lclsf_nm UNIQUE (lclsf_nm)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택카테고리(API 대분류 1:1)';
 
+-- =====================================================================
+--  4-2  benefit_detail_categorg : 혜택 중분류 카테고리
+-- =====================================================================
+CREATE TABLE benefit_detail_category (
+   detail_category_code CHAR(2) NOT NULL                       COMMENT '중분류카테고리코드',
+   detail_category_name VARCHAR(50) NOT NULL                   COMMENT '중분류카테고리명',
+   mclsf_nm VARCHAR(50) NOT NULL                               COMMENT '정책대분류명',
+   display_order INT NOT NULL                                  COMMENT '표시순서',
+    PRIMARY KEY (detail_category_code),
+    CONSTRAINT uk_benefit_detail_category_mclsf_nm UNIQUE (mclsf_nm)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='혜택 중분류 카테고리';
 
 -- =====================================================================
 --  5. spending_category : 소비 카테고리
@@ -228,6 +243,7 @@ CREATE TABLE benefit (
     plcy_no             VARCHAR(30)  NULL                          COMMENT '외부정책ID(plcyNo, 동기화 매칭키)',
     plcy_nm             TEXT         NOT NULL                      COMMENT '혜택명(plcyNm)',
     category_code       CHAR(2)      NOT NULL                      COMMENT '카테고리코드',
+    detail_category_code CHAR(2) NOT NULL                       COMMENT '중분류카테고리코드',
     sprvsn_inst_cd_nm   VARCHAR(100) NULL                          COMMENT '주관기관명(sprvsnInstCdNm)',
     target_desc         TEXT         NULL                          COMMENT '지원대상',
     plcy_sprt_cn        TEXT         NULL                          COMMENT '지원내용(plcySprtCn)',
@@ -257,6 +273,8 @@ CREATE TABLE benefit (
     CONSTRAINT uk_benefit_plcy_no UNIQUE (plcy_no),
     CONSTRAINT fk_benefit_category FOREIGN KEY (category_code)
         REFERENCES benefit_category (category_code),
+    CONSTRAINT fk_benefit_detail_category FOREIGN KEY (detail_category_code)
+        REFERENCES benefit_detail_category (detail_category_code),
     CONSTRAINT fk_benefit_mrg      FOREIGN KEY (mrg_stts_cd)    REFERENCES common_code (code),
     CONSTRAINT fk_benefit_earn_cnd FOREIGN KEY (earn_cnd_se_cd) REFERENCES common_code (code),
     CONSTRAINT fk_benefit_aply_prd_se_cd FOREIGN KEY (aply_prd_se_cd) REFERENCES common_code (code),
@@ -269,7 +287,6 @@ CREATE TABLE benefit (
     INDEX idx_benefit_apply_end (apply_end_date),
     INDEX idx_benefit_is_active (is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='청년지원혜택';
-
 
 -- =====================================================================
 --  10. member_profile : 회원 프로필 (member와 1:1, member_no = PK+FK)
