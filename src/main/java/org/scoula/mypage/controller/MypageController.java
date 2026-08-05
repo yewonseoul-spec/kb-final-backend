@@ -3,6 +3,7 @@ package org.scoula.mypage.controller;
 import lombok.RequiredArgsConstructor;
 import org.scoula.member.dto.ChangePasswordDTO;
 import org.scoula.member.service.MemberService;
+import org.scoula.mypage.dto.AppliedBenefitDTO;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
 import org.scoula.mypage.service.MypageService;
@@ -11,6 +12,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/mypage")
@@ -119,5 +122,27 @@ public class MypageController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("목표가 해제되었습니다.");
+    }
+
+    // 신청 혜택 목록
+    @GetMapping("/applied")
+    public ResponseEntity<List<AppliedBenefitDTO>> getAppliedBenefits(
+            @AuthenticationPrincipal CustomUser user) {
+
+        return ResponseEntity.ok(
+                service.getAppliedBenefits(user.getMember().getMemberNo()));
+    }
+
+    // 신청 혜택 삭제
+    @DeleteMapping("/applied/{benefitNo}")
+    public ResponseEntity<String> deleteAppliedBenefit(
+            @AuthenticationPrincipal CustomUser user,
+            @PathVariable int benefitNo) {
+
+        service.deleteAppliedBenefit(user.getMember().getMemberNo(), benefitNo);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("신청 혜택이 삭제되었습니다.");
     }
 }
