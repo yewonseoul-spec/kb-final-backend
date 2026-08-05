@@ -18,8 +18,10 @@ public interface MypageService {
     void updateGoal(int memberNo, GoalDTO dto);
     void deleteGoal(int memberNo);
 
+    void createAppliedBenefit(int memberNo, int benefitNo);
     List<AppliedBenefitDTO> getAppliedBenefits(int memberNo);
     void deleteAppliedBenefit(int memberNo, int benefitNo);
+    void createFavoriteBenefit(int memberNo, int benefitNo);
     List<FavoriteBenefitDTO> getFavoriteBenefits(int memberNo);
     void deleteFavoriteBenefit(int memberNo, int benefitNo);
 }

@@ -9,4 +9,6 @@ public interface AppliedBenefitMapper {
     List<AppliedBenefitDTO> findByMemberNo(int memberNo);
 
     int delete(@Param("memberNo") int memberNo, @Param("benefitNo") int benefitNo);
+
+    int insert(@Param("memberNo") int memberNo, @Param("benefitNo") int benefitNo);
 }
