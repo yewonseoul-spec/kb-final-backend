@@ -18,4 +18,8 @@ public interface ConsumptionMapper {
     void deleteExpected(Long expectedNo);
 
     void replaceExpected();
+
+    List<SpendingVO> selectRecentSpendingWithMerchant(Long memberNo);
+    
+    int countExpectedByCondition(ExpectedSpendingVO condition);
 }

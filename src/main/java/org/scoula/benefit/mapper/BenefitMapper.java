@@ -12,7 +12,7 @@ public interface BenefitMapper {
     int upsertBenefit(BenefitVO benefit);
 
     Integer findBenefitNoByPlcyNo(String plcyNo);
-
+    BenefitVO findBenefitByPlcyNo(String plcyNo);
     int deleteBenefitRegions(Integer benefitNo);
     int deleteBenefitMajors(Integer benefitNo);
     int deleteBenefitSchools(Integer benefitNo);

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.asset.mapper.AssetMapper">
+
+    <resultMap id="accountResultMap" type="org.scoula.asset.dto.AccountDTO">
+        <id property="accountId" column="account_id"></id>
+        <result property="bankName" column="bank_name"></result>
+        <result property="accountNo" column="account_no"></result>
+        <result property="balance" column="balance"></result>
+    </resultMap>
+
+    <resultMap id="maturityResultMap" type="org.scoula.asset.dto.MaturityDTO">
+        <id property="linkNo" column="link_no"></id>
+        <result property="productName" column="product_name"></result>
+        <result property="orgName" column="org_name"></result>
+        <result property="maturityDate" column="maturity_date"></result>
+    </resultMap>
+
+    <!-- 총 자산 조회 -->
+    <select id="selectTotalAsset" resultType="long">
+        SELECT IFNULL((SELECT SUM(balance) FROM account WHERE member_no = #{memberNo}), 0)
+                   + IFNULL((SELECT SUM(hold_amount) FROM member_finance_product WHERE member_no = #{memberNo}), 0)
+    </select>
+
+    <!-- 계좌별 잔액 조회 -->
+    <select id="selectAccounts" resultMap="accountResultMap">
+        SELECT account_id, bank_name, account_no, balance
+        FROM account
+        WHERE member_no = #{memberNo}
+        ORDER BY account_id
+    </select>
+
+    <!-- 가입 금융 상품 만기일 조회 -->
+    <select id="selectMaturities" resultMap="maturityResultMap">
+        SELECT mfp.link_no                                AS link_no,
+               fp.product_name                            AS product_name,
+               fp.org_name                                AS org_name,
+               DATE_FORMAT(mfp.maturity_date, '%Y-%m-%d') AS maturity_date
+        FROM member_finance_product mfp
+                 INNER JOIN finance_product fp
+                            ON mfp.product_no = fp.product_no
+        WHERE mfp.member_no = #{memberNo}
+          AND mfp.maturity_date IS NOT NULL
+        ORDER BY mfp.maturity_date
+    </select>
+
+</mapper>

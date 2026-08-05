@@ -58,5 +58,8 @@ public interface BenefitService {
     void deleteAllRecentKeywords(
             Integer memberNo
     );
+    // 관리자 기간별 동기화 (처리 내역 포함)
+    SyncDetailResultDTO syncByFrstRegDtWithDetail(String startDate, String endDate);
+
 
 }

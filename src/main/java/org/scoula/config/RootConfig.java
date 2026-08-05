@@ -12,8 +12,8 @@ import org.springframework.context.annotation.*;
 import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
 import org.springframework.core.io.Resource;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
 
 import javax.sql.DataSource;
 import java.util.ArrayList;
@@ -28,7 +28,10 @@ import java.util.List;
         "org.scoula.engine.mapper",
         "org.scoula.consumption.mapper",
         "org.scoula.terms.mapper",
-        "org.scoula.mypage.mapper"
+        "org.scoula.mypage.mapper",
+        "org.scoula.asset.mapper",
+        "org.scoula.admin.mapper",
+        "org.scoula.home.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
@@ -38,7 +41,10 @@ import java.util.List;
         "org.scoula.engine.service",
         "org.scoula.consumption.service",
         "org.scoula.terms.service",
-        "org.scoula.mypage.service"
+        "org.scoula.mypage.service",
+        "org.scoula.asset.service",
+        "org.scoula.admin.service",
+        "org.scoula.home.service"
 })
 
 @EnableScheduling
@@ -89,6 +95,7 @@ public class RootConfig {
         resources.addAll(Arrays.asList(
                 applicationContext.getResources("classpath*:/org/scoula/engine/mapper/**/*.xml")
         ));
+
 
         sqlSessionFactory.setMapperLocations(resources.toArray(new Resource[0]));
 
