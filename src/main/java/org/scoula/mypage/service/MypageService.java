@@ -1,6 +1,7 @@
 package org.scoula.mypage.service;
 
 import org.scoula.mypage.dto.AppliedBenefitDTO;
+import org.scoula.mypage.dto.FavoriteBenefitDTO;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
 
@@ -19,4 +20,6 @@ public interface MypageService {
 
     List<AppliedBenefitDTO> getAppliedBenefits(int memberNo);
     void deleteAppliedBenefit(int memberNo, int benefitNo);
+    List<FavoriteBenefitDTO> getFavoriteBenefits(int memberNo);
+    void deleteFavoriteBenefit(int memberNo, int benefitNo);
 }

@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.scoula.member.dto.ChangePasswordDTO;
 import org.scoula.member.service.MemberService;
 import org.scoula.mypage.dto.AppliedBenefitDTO;
+import org.scoula.mypage.dto.FavoriteBenefitDTO;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
 import org.scoula.mypage.service.MypageService;
@@ -144,5 +145,27 @@ public class MypageController {
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("신청 혜택이 삭제되었습니다.");
+    }
+
+    // 관심 혜택 목록
+    @GetMapping("/favorite")
+    public ResponseEntity<List<FavoriteBenefitDTO>> getFavoriteBenefits(
+            @AuthenticationPrincipal CustomUser user) {
+
+        return ResponseEntity.ok(
+                service.getFavoriteBenefits(user.getMember().getMemberNo()));
+    }
+
+    // 관심 혜택 삭제
+    @DeleteMapping("/favorite/{benefitNo}")
+    public ResponseEntity<String> deleteFavoriteBenefit(
+            @AuthenticationPrincipal CustomUser user,
+            @PathVariable int benefitNo) {
+
+        service.deleteFavoriteBenefit(user.getMember().getMemberNo(), benefitNo);
+
+        return ResponseEntity.ok()
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("관심 혜택이 삭제되었습니다.");
     }
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.mypage.mapper.FavoriteBenefitMapper">
+
+    <!-- 본인이 담아둔 목록이므로 is_active·마감일로 거르지 않는다.
+         마감이 지난 혜택도 남아 있어야 사용자가 직접 지울 수 있다. -->
+    <select id="findByMemberNo" resultType="org.scoula.mypage.dto.FavoriteBenefitDTO">
+        SELECT
+        fb.benefit_no    AS benefitNo,
+        b.plcy_nm        AS plcyNm,
+        bc.category_name AS categoryName,
+        b.apply_end_date AS applyEndDate,
+        fb.saved_at      AS savedAt
+
+        FROM favorite_benefit fb
+        JOIN benefit b
+        ON b.benefit_no = fb.benefit_no
+        JOIN benefit_category bc
+        ON bc.category_code = b.category_code
+
+        WHERE fb.member_no = #{memberNo}
+
+        <!-- 마감 임박순은 기본 정렬로 두지 않는다. apply_end_date 가 NULL(상시)이거나
+             이미 지난 건을 어디에 놓을지 정해야 해서, 정렬 컨트롤(RQ-FAV-09)과 함께 설계한다. -->
+        ORDER BY fb.saved_at DESC, fb.favorite_no DESC
+    </select>
+
+    <!-- 토큰의 member_no 를 반드시 함께 건다. benefit_no 만으로 지우면 남의 항목이 지워진다. -->
+    <delete id="delete">
+        DELETE FROM favorite_benefit
+        WHERE member_no  = #{memberNo}
+          AND benefit_no = #{benefitNo}
+    </delete>
+
+</mapper>
