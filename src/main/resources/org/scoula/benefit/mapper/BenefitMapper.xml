@@ -10,6 +10,7 @@
         plcy_no,
         plcy_nm,
         category_code,
+        detail_category_code,
         sprvsn_inst_cd_nm,
         target_desc,
         plcy_sprt_cn,
@@ -40,6 +41,7 @@
         #{plcyNo},
         #{plcyNm},
         #{categoryCode},
+        #{detailCategoryCode},
         #{sprvsnInstCdNm},
         #{targetDesc},
         #{plcySprtCn},
@@ -68,6 +70,7 @@
         ON DUPLICATE KEY UPDATE
         plcy_nm = VALUES(plcy_nm),
         category_code = VALUES(category_code),
+        detail_category_code = VALUES(detail_category_code),
         sprvsn_inst_cd_nm = VALUES(sprvsn_inst_cd_nm),
         target_desc = VALUES(target_desc),
         plcy_sprt_cn = VALUES(plcy_sprt_cn),
@@ -465,6 +468,21 @@
         b.benefit_no DESC
     </select>
 
+    <!-- 추천 검색어 조회 -->
+    <select id="findRecommendedKeywords"
+            resultType="org.scoula.benefit.dto.RecommendedKeywordResDTO">
+
+        SELECT
+        keyword_code AS keywordCode,
+        keyword_name AS keywordName,
+        display_order AS displayOrder
+        FROM recommend_keyword
+        WHERE is_active = 'Y'
+        ORDER BY
+        display_order ASC,
+        keyword_code ASC
+
+    </select>
     <!-- 동기화 전후 비교용 기존 행 조회 -->
     <select id="findBenefitByPlcyNo" resultType="org.scoula.benefit.domain.BenefitVO">
         SELECT

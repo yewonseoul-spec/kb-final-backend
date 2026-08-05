@@ -142,6 +142,35 @@ ON DUPLICATE KEY UPDATE
                      lclsf_nm = VALUES(lclsf_nm),
                      display_order = VALUES(display_order);
 
+INSERT INTO benefit_detail_category (
+    detail_category_code,
+    detail_category_name,
+    mclsf_nm,
+    display_order
+)
+VALUES
+    ('01', '취업', '취업', 1),
+    ('02', '재직자', '재직자', 2),
+    ('03', '창업', '창업', 3),
+    ('04', '주택 및 거주지', '주택 및 거주지', 4),
+    ('05', '기숙사', '기숙사', 5),
+    ('06', '전월세 및 주거급여 지원', '전월세 및 주거급여 지원', 6),
+    ('07', '미래역량강화', '미래역량강화', 7),
+    ('08', '교육비지원', '교육비지원', 8),
+    ('09', '온라인교육', '온라인교육', 9),
+    ('10', '취약계층 및 금융지원', '취약계층 및 금융지원', 10),
+    ('11', '건강', '건강', 11),
+    ('12', '예술인지원', '예술인지원', 12),
+    ('13', '문화활동', '문화활동', 13),
+    ('14', '청년참여', '청년참여', 14),
+    ('15', '정책인프라구축', '정책인프라구축', 15),
+    ('16', '청년국제교류', '청년국제교류', 16),
+    ('17', '권익보호', '권익보호', 17)
+ON DUPLICATE KEY UPDATE
+                     detail_category_name = VALUES(detail_category_name),
+                     mclsf_nm = VALUES(mclsf_nm),
+                     display_order = VALUES(display_order);
+
 -- 법정동코드 전체자료 기준 region 초기 데이터
 -- 추출 기준: 폐지여부='존재' AND 법정동코드 뒤 5자리='00000'
 -- zip_cd: 법정동코드 앞 5자리

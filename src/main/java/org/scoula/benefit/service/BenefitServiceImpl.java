@@ -7,9 +7,11 @@ import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -290,6 +292,7 @@ public class BenefitServiceImpl implements BenefitService {
         vo.setPlcyNo(item.getPlcyNo());
         vo.setPlcyNm(item.getPlcyNm());
         vo.setCategoryCode(mapCategoryCode(item.getLclsfNm()));
+        vo.setDetailCategoryCode(mapDetailCategoryCode(item.getMclsfNm()));
         vo.setSprvsnInstCdNm(item.getSprvsnInstCdNm());
 
         vo.setTargetDesc(makeTargetDesc(item));
@@ -378,6 +381,34 @@ public class BenefitServiceImpl implements BenefitService {
         }
 
         return "0";
+    }
+
+    private String mapDetailCategoryCode(String mclsfNm) {
+        if (mclsfNm == null || mclsfNm.trim().isEmpty()) {
+            return null;
+        }
+
+        String value = mclsfNm.trim();
+
+        if (value.contains("취업")) return "01";
+        if (value.contains("재직자")) return "02";
+        if (value.contains("창업")) return "03";
+        if (value.contains("주택") || value.contains("거주지")) return "04";
+        if (value.contains("기숙사")) return "05";
+        if (value.contains("전월세") || value.contains("주거급여")) return "06";
+        if (value.contains("미래역량강화")) return "07";
+        if (value.contains("교육비")) return "08";
+        if (value.contains("온라인교육")) return "09";
+        if (value.contains("취약계층") || value.contains("금융지원")) return "10";
+        if (value.contains("건강")) return "11";
+        if (value.contains("예술인")) return "12";
+        if (value.contains("문화활동")) return "13";
+        if (value.contains("청년참여")) return "14";
+        if (value.contains("정책인프라")) return "15";
+        if (value.contains("청년국제교류")) return "16";
+        if (value.contains("권익보호")) return "17";
+
+        return null;
     }
 
     private Integer toInteger(String value) {
@@ -684,6 +715,142 @@ public class BenefitServiceImpl implements BenefitService {
     public List<BenefitMarriageResDTO> findBenefitMarriage() {
         return benefitMapper.findBenefitMarriage();
     }
+
+    //검색창
+    private final StringRedisTemplate redisTemplate;
+
+    private static final String RECENT_KEY_PREFIX =
+            "benefit:recent-search:";
+
+    private static final int MAX_RECENT_COUNT = 10;
+
+    private static final Duration RECENT_TTL =
+            Duration.ofDays(30);
+
+    @Override
+    public List<RecommendedKeywordResDTO>
+    findRecommendedKeywords() {
+
+        return benefitMapper.findRecommendedKeywords();
+    }
+
+    @Override
+    public List<String> findRecentKeywords(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            return Collections.emptyList();
+        }
+
+        List<String> keywords =
+                redisTemplate
+                        .opsForList()
+                        .range(
+                                createRecentSearchKey(memberNo),
+                                0,
+                                MAX_RECENT_COUNT - 1
+                        );
+
+        return keywords != null
+                ? keywords
+                : Collections.emptyList();
+    }
+
+    @Override
+    public void saveRecentKeyword(
+            Integer memberNo,
+            String keyword
+    ) {
+        if (
+                memberNo == null
+                        || !hasText(keyword)
+        ) {
+            return;
+        }
+
+        String redisKey =
+                createRecentSearchKey(memberNo);
+
+        String normalizedKeyword =
+                normalizeKeyword(keyword);
+
+        redisTemplate
+                .opsForList()
+                .remove(
+                        redisKey,
+                        0,
+                        normalizedKeyword
+                );
+
+        redisTemplate
+                .opsForList()
+                .leftPush(
+                        redisKey,
+                        normalizedKeyword
+                );
+
+        redisTemplate
+                .opsForList()
+                .trim(
+                        redisKey,
+                        0,
+                        MAX_RECENT_COUNT - 1
+                );
+
+        redisTemplate.expire(
+                redisKey,
+                RECENT_TTL
+        );
+    }
+
+    @Override
+    public void deleteRecentKeyword(
+            Integer memberNo,
+            String keyword
+    ) {
+        if (
+                memberNo == null
+                        || !hasText(keyword)
+        ) {
+            return;
+        }
+
+        redisTemplate
+                .opsForList()
+                .remove(
+                        createRecentSearchKey(memberNo),
+                        0,
+                        normalizeKeyword(keyword)
+                );
+    }
+
+    @Override
+    public void deleteAllRecentKeywords(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            return;
+        }
+
+        redisTemplate.delete(
+                createRecentSearchKey(memberNo)
+        );
+    }
+
+    private String createRecentSearchKey(
+            Integer memberNo
+    ) {
+        return RECENT_KEY_PREFIX + memberNo;
+    }
+    private String normalizeKeyword(
+            String keyword
+    ) {
+        return keyword
+                .trim()
+                .replaceAll("\\s+", " ");
+    }
+
+
     // ══════════════════════════════════════════════════════════════════════
 // BenefitServiceImpl.java 에 넣을 내용
 // 기존 syncYouthPoliciesByFrstRegDt 는 그대로 두고 아래를 추가한다.
