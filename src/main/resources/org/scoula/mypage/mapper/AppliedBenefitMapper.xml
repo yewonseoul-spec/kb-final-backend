@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.mypage.mapper.AppliedBenefitMapper">
+
+    <!-- 본인의 신청 이력이므로 is_active·마감일로 거르지 않는다.
+         거르면 지난 신청 기록이 조용히 사라진다. -->
+    <select id="findByMemberNo" resultType="org.scoula.mypage.dto.AppliedBenefitDTO">
+        SELECT
+            ab.benefit_no    AS benefitNo,
+            b.plcy_nm        AS plcyNm,
+            bc.category_name AS categoryName,
+            b.apply_end_date AS applyEndDate,
+            ab.applied_at    AS appliedAt
+
+        FROM applied_benefit ab
+                 JOIN benefit b
+                      ON b.benefit_no = ab.benefit_no
+                 JOIN benefit_category bc
+                      ON bc.category_code = b.category_code
+
+        WHERE ab.member_no = #{memberNo}
+
+        ORDER BY ab.applied_at DESC, ab.applied_no DESC
+    </select>
+
+</mapper>
