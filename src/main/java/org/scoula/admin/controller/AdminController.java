@@ -12,6 +12,8 @@ import org.scoula.admin.dto.SyncResultResDto;
 import org.scoula.admin.service.AdminService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.scoula.security.account.domain.CustomUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import java.util.List;
 
@@ -115,17 +117,20 @@ public class AdminController {
     /**
      * admin-01: 관리자 수동 동기화 실행 (페이지 범위)
      * 화면에서는 제거했고 개발 확인용으로만 남겨둔다.
+     *
+     * 실행자는 파라미터로 받지 않는다. SecurityConfig가 ADMIN 권한을 이미 확인했고,
+     * 토큰에서 꺼내야 남의 이름으로 기록을 남길 수 없다.
      */
     @PostMapping("/sync")
     public ResponseEntity<SyncResultResDto> executeSync(
+            @AuthenticationPrincipal CustomUser user,
             @RequestParam(defaultValue = "1") Integer pageNum,
-            @RequestParam(defaultValue = "100") Integer pageSize,
-            @RequestParam(required = false) Integer memberNo) {
+            @RequestParam(defaultValue = "100") Integer pageSize) {
 
-        SyncResultResDto result = adminService.executeSync(pageNum, pageSize, memberNo);
+        SyncResultResDto result =
+                adminService.executeSync(pageNum, pageSize, user.getMember().getMemberNo());
         return ResponseEntity.ok(result);
     }
-
     /**
      * admin-01: 관리자 기간별 동기화 실행
      * 기준은 정책의 최초등록일(frst_reg_dt)이며 신청 기간이 아니다.
@@ -133,11 +138,12 @@ public class AdminController {
      */
     @PostMapping("/sync/period")
     public ResponseEntity<SyncResultResDto> executeSyncByPeriod(
+            @AuthenticationPrincipal CustomUser user,
             @RequestParam String startDate,
-            @RequestParam String endDate,
-            @RequestParam(required = false) Integer memberNo) {
+            @RequestParam String endDate) {
 
-        SyncResultResDto result = adminService.executeSyncByPeriod(startDate, endDate, memberNo);
+        SyncResultResDto result =
+                adminService.executeSyncByPeriod(startDate, endDate, user.getMember().getMemberNo());
         return ResponseEntity.ok(result);
     }
 }
