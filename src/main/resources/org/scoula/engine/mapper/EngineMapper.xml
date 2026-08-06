@@ -37,6 +37,7 @@
         SELECT
         b.benefit_no,
         b.plcy_no,
+        b.aply_url_addr,
         b.inq_cnt,
         b.plcy_nm,
         b.category_code,
@@ -55,7 +56,6 @@
         <!-- 신청기간 구분이 '마감'(0057003)이면 후보에서 제외
            상시(0057002)는 apply_end_date가 NULL이므로 아래 조건에서 통과된다 -->
         AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd &lt;&gt; '0057003')
-        AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
         <!-- 마감일이 지난 정책은 신규 추천 후보에서 제외
              (동기화가 마감 시 is_active를 N으로 갱신하지 않아 직접 걸러낸다) -->
         AND (b.apply_end_date IS NULL OR b.apply_end_date >= CURDATE())
@@ -101,21 +101,32 @@
         OR EXISTS (SELECT 1 FROM benefit_major bm WHERE bm.benefit_no = b.benefit_no AND bm.plcy_major_cd = '0011009')
         )
         <!-- 지역 조건 (룰북 미포함, 데이터 확인 후 추가)
-           매핑이 없으면 전국 정책으로 보고 통과.
-           회원과 정책의 지역 단위가 달라(회원=광역시도, 정책=시군구 등)
-           region.parent_region_code로 상위·하위 관계까지 비교한다. -->
+             매핑이 없으면 전국 정책으로 보고 통과.
+
+             region은 시도 → 시군구 → 구 3단계이고 benefit_region에는 최하위 코드만 들어온다.
+             (온통청년이 정책 지역을 항상 최하위 행정구역으로 펼쳐 제공)
+             따라서 회원 지역 단위에 따라 정책까지의 거리가 달라진다.
+               41111 장안구 회원 → 0단계 (정확히 일치)
+               41110 수원시 회원 → 1단계 아래
+               41000 경기도 회원 → 2단계 아래
+             한 단계만 비교하면 광역시도를 고른 회원이 지역 정책을 하나도 못 받으므로
+             두 단계까지 위·아래를 모두 본다. -->
         AND (
         NOT EXISTS (SELECT 1 FROM benefit_region br WHERE br.benefit_no = b.benefit_no)
         OR EXISTS (
         SELECT 1
         FROM benefit_region br
-        LEFT JOIN region pr ON pr.zip_cd = br.zip_cd
-        LEFT JOIN region mr ON mr.zip_cd = #{regionCode}
+        LEFT JOIN region pr  ON pr.zip_cd  = br.zip_cd
+        LEFT JOIN region pr2 ON pr2.zip_cd = pr.parent_region_code
+        LEFT JOIN region mr  ON mr.zip_cd  = #{regionCode}
+        LEFT JOIN region mr2 ON mr2.zip_cd = mr.parent_region_code
         WHERE br.benefit_no = b.benefit_no
         AND (
         br.zip_cd = #{regionCode}
-        OR pr.parent_region_code = #{regionCode}
+        OR pr.parent_region_code  = #{regionCode}
+        OR pr2.parent_region_code = #{regionCode}
         OR br.zip_cd = mr.parent_region_code
+        OR br.zip_cd = mr2.parent_region_code
         )
         )
         )
@@ -203,6 +214,7 @@
           AND r.confirm_status = '확정'
           AND r.is_active = 'Y'
     </select>
+
     <!-- engine-06: 조합 내부 충돌 검사용 내부 규칙 전체 조회
          조합마다 SQL을 부르지 않도록 한 번에 가져와 Java에서 검사한다 -->
     <select id="findConfirmedInternalRules"
