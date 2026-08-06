@@ -4,6 +4,8 @@ import org.scoula.benefit.dto.*;
 
 import java.util.List;
 
+import org.scoula.benefit.dto.BenefitDetailResDTO;
+
 public interface BenefitService {
     String getYouthPolicyRaw(YouthPolicyRequestDTO requestDTO);
 
@@ -61,5 +63,8 @@ public interface BenefitService {
     // 관리자 기간별 동기화 (처리 내역 포함)
     SyncDetailResultDTO syncByFrstRegDtWithDetail(String startDate, String endDate);
 
-
+//혜택 상세페이지
+BenefitDetailResDTO findBenefitDetail(
+        Integer benefitNo
+);
 }

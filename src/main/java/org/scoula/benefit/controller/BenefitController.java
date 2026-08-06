@@ -255,22 +255,28 @@ public class BenefitController {
     @DeleteMapping("/search/recent/all")
     public ResponseEntity<Void> deleteAllRecentKeywords(
             Principal principal
-    ) {
-        if (principal == null) {
-            return ResponseEntity.noContent().build();
-        }
+    ) {if (principal == null) {
+            return ResponseEntity.noContent().build();}
 
         Integer memberNo =
                 memberMapper.findMemberNoByLoginId(
-                        principal.getName()
-                );
-
+                        principal.getName());
         if (memberNo != null) {
             benefitService.deleteAllRecentKeywords(
-                    memberNo
-            );
-        }
+                    memberNo);}
+        return ResponseEntity.noContent().build();}
 
-        return ResponseEntity.noContent().build();
+    // 혜택 상세 조회
+    @GetMapping("/{benefitNo}")
+    public ResponseEntity<BenefitDetailResDTO>
+    getBenefitDetail(
+            @PathVariable Integer benefitNo
+    ) {
+        return ResponseEntity.ok(
+                benefitService.findBenefitDetail(
+                        benefitNo
+                )
+        );
     }
+
 }

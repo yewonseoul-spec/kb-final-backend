@@ -505,4 +505,141 @@
         WHERE plcy_no = #{plcyNo}
     </select>
 
+<!-- 혜택 상세페이지   -->
+    <!-- 혜택 상세 조회 -->
+    <select id="findBenefitDetail"
+            parameterType="int"
+            resultType="org.scoula.benefit.dto.BenefitDetailResDTO">
+
+        SELECT
+        b.benefit_no AS benefitNo,
+        b.plcy_no AS plcyNo,
+        b.plcy_nm AS plcyNm,
+
+        b.category_code AS categoryCode,
+        bc.category_name AS categoryName,
+
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        b.target_desc AS targetDesc,
+
+        b.plcy_expln_cn AS plcyExplnCn,
+        b.plcy_sprt_cn AS plcySprtCn,
+        b.support_amount AS supportAmount,
+
+        b.plcy_aply_mthd_cn AS plcyAplyMthdCn,
+        b.sbmsn_dcmnt_cn AS sbmsnDcmntCn,
+
+        b.apply_start_date AS applyStartDate,
+        b.apply_end_date AS applyEndDate,
+        b.aply_ymd AS aplyYmd,
+        b.aply_prd_se_cd AS aplyPrdSeCd,
+        b.aply_url_addr AS aplyUrlAddr,
+
+        b.sprt_trgt_min_age AS sprtTrgtMinAge,
+        b.sprt_trgt_max_age AS sprtTrgtMaxAge,
+
+        b.earn_cnd_se_cd AS earnCndSeCd,
+        b.earn_min_amt AS earnMinAmt,
+        b.earn_max_amt AS earnMaxAmt,
+        b.earn_etc_cn AS earnEtcCn,
+
+        b.mrg_stts_cd AS mrgSttsCd,
+        b.inq_cnt AS inqCnt,
+        b.is_active AS isActive,
+
+        CASE
+        WHEN b.apply_end_date IS NULL
+        THEN 'ALWAYS'
+
+        WHEN b.apply_end_date &lt; CURDATE()
+        THEN 'CLOSED'
+
+        ELSE 'OPEN'
+        END AS benefitStatus
+
+        FROM benefit b
+
+        LEFT JOIN benefit_category bc
+        ON bc.category_code = b.category_code
+
+        WHERE b.benefit_no = #{benefitNo}
+
+    </select>
+
+<!--&lt;!&ndash;  상세 적용지역&ndash;&gt;-->
+<!--    <select id="findBenefitRegionNames"-->
+<!--            parameterType="java.lang.Integer"-->
+<!--            resultType="java.lang.String">-->
+
+<!--        SELECT DISTINCT-->
+<!--        r.region_name-->
+<!--        FROM benefit_region br-->
+<!--        JOIN region r-->
+<!--        ON r.zip_cd = br.zip_cd-->
+<!--        WHERE br.benefit_no = #{benefitNo}-->
+<!--        ORDER BY r.region_name ASC-->
+
+<!--    </select>-->
+<!--&lt;!&ndash;상세 전공&ndash;&gt;-->
+<!--    <select id="findBenefitMajorNames"-->
+<!--            parameterType="int"-->
+<!--            resultType="string">-->
+
+<!--        SELECT DISTINCT-->
+<!--        cc.code_name-->
+
+<!--        FROM benefit_major bm-->
+
+<!--        JOIN common_code cc-->
+<!--        ON cc.code = bm.plcy_major_cd-->
+
+<!--        WHERE bm.benefit_no = #{benefitNo}-->
+<!--        AND cc.api_field = 'plcyMajorCd'-->
+<!--        AND cc.is_active = 'Y'-->
+
+<!--        ORDER BY cc.display_order ASC-->
+
+<!--    </select>-->
+
+<!--&lt;!&ndash;    상세학력&ndash;&gt;-->
+<!--    <select id="findBenefitSchoolNames"-->
+<!--            parameterType="int"-->
+<!--            resultType="string">-->
+
+<!--        SELECT DISTINCT-->
+<!--        cc.code_name-->
+
+<!--        FROM benefit_school bs-->
+
+<!--        JOIN common_code cc-->
+<!--        ON cc.code = bs.school_cd-->
+
+<!--        WHERE bs.benefit_no = #{benefitNo}-->
+<!--        AND cc.api_field = 'schoolCd'-->
+<!--        AND cc.is_active = 'Y'-->
+
+<!--        ORDER BY cc.display_order ASC-->
+
+<!--    </select>-->
+
+<!--&lt;!&ndash; 상세 취업   &ndash;&gt;-->
+<!--    <select id="findBenefitJobNames"-->
+<!--            parameterType="int"-->
+<!--            resultType="string">-->
+
+<!--        SELECT DISTINCT-->
+<!--        cc.code_name-->
+
+<!--        FROM benefit_job bj-->
+
+<!--        JOIN common_code cc-->
+<!--        ON cc.code = bj.job_cd-->
+
+<!--        WHERE bj.benefit_no = #{benefitNo}-->
+<!--        AND cc.api_field = 'jobCd'-->
+<!--        AND cc.is_active = 'Y'-->
+
+<!--        ORDER BY cc.display_order ASC-->
+
+<!--    </select>-->
 </mapper>

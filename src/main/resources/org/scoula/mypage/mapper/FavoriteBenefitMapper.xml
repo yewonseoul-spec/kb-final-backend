@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.mypage.mapper.FavoriteBenefitMapper">
+
+    <!-- 하트는 토글이라 연타·두 탭에서 같은 요청이 겹친다. 사용자 잘못이 아니므로
+  UNIQUE(uk_favorite_benefit_member_benefit) 충돌을 409 로 내보내지 않고 멱등 처리한다.
+  member_no = member_no 는 아무것도 바꾸지 않는 no-op 이다. -->
+    <insert id="insert">
+        INSERT INTO favorite_benefit (member_no, benefit_no)
+        VALUES (#{memberNo}, #{benefitNo})
+            ON DUPLICATE KEY UPDATE member_no = member_no
+    </insert>
+
+    <!-- 본인이 담아둔 목록이므로 is_active·마감일로 거르지 않는다.
+         마감이 지난 혜택도 남아 있어야 사용자가 직접 지울 수 있다.
+         컬럼 구성은 BenefitCard 가 읽는 필드에 맞춘 것으로,
+         BenefitMapper.xml 의 목록 조회와 같은 형태다. -->
+    <select id="findByMemberNo" resultType="org.scoula.mypage.dto.FavoriteBenefitDTO">
+        SELECT
+            fb.benefit_no       AS benefitNo,
+            b.plcy_no           AS plcyNo,
+            b.plcy_nm           AS plcyNm,
+            b.category_code     AS categoryCode,
+            bc.category_name    AS categoryName,
+            b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+            b.apply_start_date  AS applyStartDate,
+            b.apply_end_date    AS applyEndDate,
+            b.aply_prd_se_cd    AS aplyPrdSeCd,
+            b.is_active         AS isActive,
+
+            CASE
+                WHEN b.apply_end_date IS NULL       THEN 'ALWAYS'
+                WHEN b.apply_end_date &lt; CURDATE() THEN 'CLOSED'
+                ELSE 'OPEN'
+                END AS benefitStatus,
+
+            fb.saved_at         AS savedAt
+
+        FROM favorite_benefit fb
+                 JOIN benefit b
+                      ON b.benefit_no = fb.benefit_no
+                 JOIN benefit_category bc
+                      ON bc.category_code = b.category_code
+
+        WHERE fb.member_no = #{memberNo}
+
+        ORDER BY fb.saved_at DESC, fb.favorite_no DESC
+    </select>
+
+    <!-- 토큰의 member_no 를 반드시 함께 건다. benefit_no 만으로 지우면 남의 항목이 지워진다. -->
+    <delete id="delete">
+        DELETE FROM favorite_benefit
+        WHERE member_no  = #{memberNo}
+          AND benefit_no = #{benefitNo}
+    </delete>
+
+</mapper>
