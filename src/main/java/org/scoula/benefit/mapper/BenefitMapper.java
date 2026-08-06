@@ -4,6 +4,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
+import org.scoula.benefit.dto.BenefitDetailResDTO;
 
 import java.util.List;
 
@@ -69,4 +70,25 @@ public interface BenefitMapper {
     //검색창 키워드
     List<RecommendedKeywordResDTO>
     findRecommendedKeywords();
+
+    //혜택 상세페이지
+    BenefitDetailResDTO findBenefitDetail(
+            Integer benefitNo
+    );
+
+    List<String> findBenefitRegionNames(
+            @Param("benefitNo") Integer benefitNo
+    );
+
+    List<String> findBenefitMajorNames(
+            @Param("benefitNo") Integer benefitNo
+    );
+
+    List<String> findBenefitSchoolNames(
+            @Param("benefitNo") Integer benefitNo
+    );
+
+    List<String> findBenefitJobNames(
+            @Param("benefitNo") Integer benefitNo
+    );
 }

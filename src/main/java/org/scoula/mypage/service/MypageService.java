@@ -1,7 +1,11 @@
 package org.scoula.mypage.service;
 
+import org.scoula.mypage.dto.AppliedBenefitDTO;
+import org.scoula.mypage.dto.FavoriteBenefitDTO;
 import org.scoula.mypage.dto.GoalDTO;
 import org.scoula.mypage.dto.ProfileDTO;
+
+import java.util.List;
 
 public interface MypageService {
     void createProfile(int memberNo, ProfileDTO dto);
@@ -13,4 +17,11 @@ public interface MypageService {
     GoalDTO getGoal(int memberNo);
     void updateGoal(int memberNo, GoalDTO dto);
     void deleteGoal(int memberNo);
+
+    void createAppliedBenefit(int memberNo, int benefitNo);
+    List<AppliedBenefitDTO> getAppliedBenefits(int memberNo);
+    void deleteAppliedBenefit(int memberNo, int benefitNo);
+    void createFavoriteBenefit(int memberNo, int benefitNo);
+    List<FavoriteBenefitDTO> getFavoriteBenefits(int memberNo);
+    void deleteFavoriteBenefit(int memberNo, int benefitNo);
 }
