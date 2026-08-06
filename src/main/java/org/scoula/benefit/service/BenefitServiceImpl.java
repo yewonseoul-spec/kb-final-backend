@@ -1031,4 +1031,29 @@ public BenefitDetailResDTO findBenefitDetail(
 //            benefitMapper.findBenefitJobNames(
 //                    benefitNo));
     return detail;}
+
+    //사용자 프로필 조건기반 혜택추천
+    @Override
+    public BenefitProfileFilterResDTO findBenefitProfileFilter(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            throw new IllegalArgumentException(
+                    "회원 번호가 필요합니다."
+            );
+        }
+
+        BenefitProfileFilterResDTO profileFilter =
+                benefitMapper.findBenefitProfileFilter(
+                        memberNo
+                );
+
+        if (profileFilter == null) {
+            throw new IllegalArgumentException(
+                    "회원 프로필이 존재하지 않습니다."
+            );
+        }
+
+        return profileFilter;
+    }
 }

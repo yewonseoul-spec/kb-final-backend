@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.dto.BenefitDetailResDTO;
+import org.scoula.benefit.dto.BenefitProfileFilterResDTO;
 
 import java.util.List;
 
@@ -90,5 +91,10 @@ public interface BenefitMapper {
 
     List<String> findBenefitJobNames(
             @Param("benefitNo") Integer benefitNo
+    );
+
+    //사용자프로필 조건기반 혜택 추천
+    BenefitProfileFilterResDTO findBenefitProfileFilter(
+            @Param("memberNo") Integer memberNo
     );
 }
