@@ -23,4 +23,8 @@ public class MemberProfileVO {
     private String mrgSttsCd;
     private String profileImgPath;  // 이미지 업로드는 별도 작업, 지금은 항상 null
     private Date updatedAt;
+
+    // 테이블 컬럼이 아니라 region JOIN 으로 채우는 조회 전용 필드.
+    // insert/update 는 참조하지 않는다.
+    private String regionName;
 }

@@ -25,11 +25,18 @@
         updated_at     = NOW()
         WHERE member_no = #{memberNo}
     </update>
+    <!-- region_code 는 미입력 허용이므로 LEFT JOIN 이다.
+         INNER JOIN 이면 지역을 안 넣은 프로필이 통째로 조회되지 않아 404 가 난다.
+         region.region_name 은 이미 전체 지역명('경기도 수원시 장안구')이라
+         상위 지역을 따로 조합할 필요가 없다. -->
     <select id="get" resultType="org.scoula.mypage.domain.MemberProfileVO">
-        SELECT member_no, birth_date, region_code, income,
-               employ_status, major, household_size, education,
-               mrg_stts_cd, profile_img_path, updated_at
-        FROM member_profile
-        WHERE member_no = #{memberNo}
+        SELECT mp.member_no, mp.birth_date, mp.region_code, mp.income,
+               mp.employ_status, mp.major, mp.household_size, mp.education,
+               mp.mrg_stts_cd, mp.profile_img_path, mp.updated_at,
+               r.region_name
+        FROM member_profile mp
+                 LEFT JOIN region r
+                           ON r.zip_cd = mp.region_code
+        WHERE mp.member_no = #{memberNo}
     </select>
 </mapper>
