@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="org.scoula.mypage.mapper.AppliedBenefitMapper">
+
+    <!-- 관심 혜택과 달리 멱등 처리하지 않는다. 상세 화면의 명시적 단발 액션이라
+     이미 담긴 혜택이면 409 로 알려주는 것이 맞는 피드백이다. -->
+    <insert id="insert">
+        INSERT INTO applied_benefit (member_no, benefit_no)
+        VALUES (#{memberNo}, #{benefitNo})
+    </insert>
+
+    <!-- 본인의 신청 이력이므로 is_active·마감일로 거르지 않는다.
+         거르면 지난 신청 기록이 조용히 사라진다. -->
+    <select id="findByMemberNo" resultType="org.scoula.mypage.dto.AppliedBenefitDTO">
+        SELECT
+            ab.benefit_no       AS benefitNo,
+            b.plcy_no           AS plcyNo,
+            b.plcy_nm           AS plcyNm,
+            b.category_code     AS categoryCode,
+            bc.category_name    AS categoryName,
+            b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+            b.apply_start_date  AS applyStartDate,
+            b.apply_end_date    AS applyEndDate,
+            b.aply_prd_se_cd    AS aplyPrdSeCd,
+            b.is_active         AS isActive,
+
+            CASE
+                WHEN b.apply_end_date IS NULL       THEN 'ALWAYS'
+                WHEN b.apply_end_date &lt; CURDATE() THEN 'CLOSED'
+                ELSE 'OPEN'
+                END AS benefitStatus,
+
+            ab.applied_at       AS appliedAt
+
+        FROM applied_benefit ab
+                 JOIN benefit b
+                      ON b.benefit_no = ab.benefit_no
+                 JOIN benefit_category bc
+                      ON bc.category_code = b.category_code
+
+        WHERE ab.member_no = #{memberNo}
+
+        ORDER BY ab.applied_at DESC, ab.applied_no DESC
+    </select>
+    <!-- 토큰의 member_no 를 반드시 함께 건다. benefit_no 만으로 지우면 남의 이력이 지워진다. -->
+    <delete id="delete">
+        DELETE FROM applied_benefit
+        WHERE member_no  = #{memberNo}
+          AND benefit_no = #{benefitNo}
+    </delete>
+
+</mapper>

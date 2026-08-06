@@ -10,10 +10,10 @@ import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.jdbc.UncategorizedSQLException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.sql.SQLException;
@@ -65,6 +65,15 @@ public class ApiExceptionAdvice {
                 .status(HttpStatus.BAD_REQUEST)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("필수 파라미터가 누락되었습니다: " + e.getParameterName());
+    }
+
+    // 400 에러 - 입력 타입 에러
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    protected ResponseEntity<String> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body("요청 형식이 올바르지 않습니다.");
     }
 
     // 409 에러 - UNIQUE 제약 위반 (아이디/이메일 중복)
