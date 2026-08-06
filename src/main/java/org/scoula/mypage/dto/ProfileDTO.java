@@ -27,7 +27,9 @@ public class ProfileDTO {
     private String education;
     private String mrgSttsCd;
 
-    private String profileImgPath; // 응답 전용 — toVo()에 포함 x
+    // 응답 전용 — toVo()에 포함 x
+    private String regionName;
+    private String profileImgPath;
 
     public MemberProfileVO toVo(int memberNo) {
         return MemberProfileVO.builder()
@@ -53,6 +55,7 @@ public class ProfileDTO {
                 .householdSize(vo.getHouseholdSize())
                 .education(vo.getEducation())
                 .mrgSttsCd(vo.getMrgSttsCd())
+                .regionName(vo.getRegionName())
                 .profileImgPath(vo.getProfileImgPath())
                 .build();
     }

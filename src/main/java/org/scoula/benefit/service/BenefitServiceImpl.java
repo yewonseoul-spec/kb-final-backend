@@ -10,6 +10,9 @@ import org.scoula.benefit.mapper.BenefitMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.scoula.admin.domain.SyncLogVO;
+import org.scoula.admin.mapper.AdminMapper;
+
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -185,6 +188,7 @@ public class BenefitServiceImpl implements BenefitService {
 
     private final YouthPolicyApiClient youthPolicyApiClient;
     private final BenefitMapper benefitMapper;
+    private final AdminMapper adminMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -486,9 +490,17 @@ public class BenefitServiceImpl implements BenefitService {
     @Override
     @Transactional
     public int syncDailyYouthPolicies() {
+        long startTime = System.currentTimeMillis();
+
         int pageNum = 1;
         int pageSize = 100;
         int count = 0;
+
+        // sync_log 기록용 카운터. 세 값의 합이 count 와 같아야 CHECK 제약을 통과한다
+        int insertCnt = 0;
+        int updateCnt = 0;
+        int skipCnt = 0;
+        String errorMsg = null;
 
         List<String> apiPlcyNoList = new ArrayList<>();
 
@@ -504,6 +516,7 @@ public class BenefitServiceImpl implements BenefitService {
                 json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
             } catch (Exception e) {
                 e.printStackTrace();
+                errorMsg = "API 호출 실패 (pageNum=" + pageNum + "): " + e.getMessage();
                 break;
             }
 
@@ -522,6 +535,7 @@ public class BenefitServiceImpl implements BenefitService {
                 }
 
                 System.out.println("[실패 사유] " + e.getMessage());
+                errorMsg = "응답 파싱 실패 (pageNum=" + pageNum + "): " + e.getMessage();
                 break;
             }
 
@@ -553,14 +567,17 @@ public class BenefitServiceImpl implements BenefitService {
                     if (benefitNo != null) {
                         saveBenefitMappings(benefitNo, item);
                     }
+                    insertCnt++;
                 } else {
                     if (shouldUpdateStatus(benefit)) {
                         // 기존 혜택 중 시작 전, 진행 중, 상시 혜택만 갱신
                         System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
                         benefitMapper.updateBenefitStatusOnly(benefit);
+                        updateCnt++;
                     } else {
                         // 마감된 혜택은 갱신 제외
                         System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
+                        skipCnt++;
                     }
                 }
 
@@ -573,7 +590,52 @@ public class BenefitServiceImpl implements BenefitService {
 //                break;
 //            }
         }
+
+        // 관리자 화면 '동기화 로그'에 자동 실행 이력을 남긴다.
+        // 수동 동기화(AdminService)와 달리 실행자가 사람이 아니므로 member_no 는 NULL 이다.
+        int durationMs = (int) (System.currentTimeMillis() - startTime);
+        String resultStatus;
+
+        if (errorMsg == null) {
+            resultStatus = "S";
+        } else if (count > 0) {
+            resultStatus = "P";   // 일부 페이지까지는 처리됨
+        } else {
+            resultStatus = "F";
+        }
+
+        saveAutoSyncLog(resultStatus, count, insertCnt, updateCnt, skipCnt, errorMsg, durationMs);
+
         return count;
+    }
+
+    /**
+     * 자동 동기화 이력 기록.
+     * 로그 기록이 실패해도 동기화 자체는 성공으로 두기 위해 예외를 밖으로 올리지 않는다.
+     */
+    private void saveAutoSyncLog(String resultStatus, int totalCnt, int insertCnt,
+                                 int updateCnt, int skipCnt, String errorMsg, int durationMs) {
+        try {
+            SyncLogVO log = new SyncLogVO();
+            log.setExecType("A");
+            log.setSyncStartDate(null);   // 전체 동기화라 기간 조건이 없다
+            log.setSyncEndDate(null);
+            log.setResultStatus(resultStatus);
+            log.setTotalCnt(totalCnt);
+            log.setInsertCnt(insertCnt);
+            log.setUpdateCnt(updateCnt);
+            log.setSkipCnt(skipCnt);
+            log.setErrorMsg(errorMsg == null || errorMsg.length() <= 500
+                    ? errorMsg
+                    : errorMsg.substring(0, 500));
+            log.setDurationMs(durationMs);
+            log.setMemberNo(null);        // 스케줄러 실행이라 관리자가 없다
+
+            adminMapper.insertSyncLog(log);
+
+        } catch (Exception e) {
+            System.out.println("자동 동기화 이력 기록 실패: " + e.getMessage());
+        }
     }
 
     //관리자 기간별 동기화 api
@@ -1031,4 +1093,29 @@ public BenefitDetailResDTO findBenefitDetail(
 //            benefitMapper.findBenefitJobNames(
 //                    benefitNo));
     return detail;}
+
+    //사용자 프로필 조건기반 혜택추천
+    @Override
+    public BenefitProfileFilterResDTO findBenefitProfileFilter(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            throw new IllegalArgumentException(
+                    "회원 번호가 필요합니다."
+            );
+        }
+
+        BenefitProfileFilterResDTO profileFilter =
+                benefitMapper.findBenefitProfileFilter(
+                        memberNo
+                );
+
+        if (profileFilter == null) {
+            throw new IllegalArgumentException(
+                    "회원 프로필이 존재하지 않습니다."
+            );
+        }
+
+        return profileFilter;
+    }
 }

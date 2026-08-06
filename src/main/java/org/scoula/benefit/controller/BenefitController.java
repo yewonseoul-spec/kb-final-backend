@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.service.BenefitService;
 import org.scoula.member.mapper.MemberMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -275,6 +276,36 @@ public class BenefitController {
         return ResponseEntity.ok(
                 benefitService.findBenefitDetail(
                         benefitNo
+                )
+        );
+    }
+
+    //사용자프로필 조건기반 혜택추천
+    @GetMapping("/profile-filter")
+    public ResponseEntity<BenefitProfileFilterResDTO>
+    getBenefitProfileFilter(
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo == null) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .build();
+        }
+
+        return ResponseEntity.ok(
+                benefitService.findBenefitProfileFilter(
+                        memberNo
                 )
         );
     }
