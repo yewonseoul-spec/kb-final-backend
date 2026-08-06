@@ -22,7 +22,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
     private final ConsumptionMapper consumptionMapper;
 
     @Override
-    public ConsumptionCalendarDTO getCal(Long memberNo, String yearMonth) {
+    public ConsumptionCalendarDTO getCal(Integer memberNo, String yearMonth) {
 
         // 달력을 조회할 때마다 예정일이 지난 예상 소비 삭제
         consumptionMapper.replaceExpected();
@@ -136,7 +136,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
     // 예상 소비 추가
     @Override
-    public void addExpected(Long memberNo, ExpectedReqDTO request) {
+    public void addExpected(Integer memberNo, ExpectedReqDTO request) {
         ExpectedSpendingVO vo = new ExpectedSpendingVO();
         vo.setMemberNo(memberNo);
         vo.setCategoryNo(request.getCategoryNo());
@@ -170,7 +170,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
     // 정기적 예상 소비 감지하여 자동 등록
     @Override
-    public void detectRecurringSpending(Long memberNo) {
+    public void detectRecurringSpending(Integer memberNo) {
         // 소비처가 있는 최근 소비 내역들을 가져 온다
         List<SpendingVO> recentSpending = consumptionMapper.selectRecentSpendingWithMerchant(memberNo);
 
@@ -191,7 +191,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
     }
 
     // 소비처 + 카테고리가 같은 그룹 하나를 보고, 정기 지출이면 예상 소비로 등록
-    private void processGroup(Long memberNo, List<SpendingVO> sameGroupList, YearMonth thisMonth, YearMonth lastMonth) {
+    private void processGroup(Integer memberNo, List<SpendingVO> sameGroupList, YearMonth thisMonth, YearMonth lastMonth) {
         // 지난달에 있었던 것들 중 가장 최근 걸 기준(=예측의 기준)으로 삼는다
         SpendingVO latest = sameGroupList.stream()
                 .filter(v -> YearMonth.from(v.getSpendingDate()).equals(lastMonth))

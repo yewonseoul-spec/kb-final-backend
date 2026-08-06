@@ -2,11 +2,13 @@ package org.scoula.consumption.controller;
 
 import org.scoula.consumption.dto.ExpectedReqDTO;
 import org.scoula.consumption.service.ConsumptionService;
+import org.scoula.security.account.domain.CustomUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
-@RequestMapping("/consumption/expected")
+@RequestMapping("/api/consumption/expected")
 public class ExpectedController {
 
     private final ConsumptionService consumptionService;
@@ -17,8 +19,8 @@ public class ExpectedController {
 
     // 예상 소비 추가
     @PostMapping
-    public void addExpected(@RequestBody ExpectedReqDTO request) {
-        Long memberNo = 2L;
+    public void addExpected(@RequestBody ExpectedReqDTO request, @AuthenticationPrincipal CustomUser user) {
+        Integer memberNo = user.getMember().getMemberNo();
 
         consumptionService.addExpected(memberNo, request);
     }
