@@ -7,9 +7,9 @@ import java.util.List;
 
 public interface ConsumptionMapper {
 
-    List<SpendingVO> selectSpendingByMonth(Long memberNo, String yearMonth);
+    List<SpendingVO> selectSpendingByMonth(Integer memberNo, String yearMonth);
 
-    List<ExpectedSpendingVO> selectExpectedByMonth(Long memberNo, String yearMonth);
+    List<ExpectedSpendingVO> selectExpectedByMonth(Integer memberNo, String yearMonth);
 
     void insertExpected(ExpectedSpendingVO vo);
 
@@ -19,7 +19,7 @@ public interface ConsumptionMapper {
 
     void replaceExpected();
 
-    List<SpendingVO> selectRecentSpendingWithMerchant(Long memberNo);
-    
+    List<SpendingVO> selectRecentSpendingWithMerchant(Integer memberNo);
+
     int countExpectedByCondition(ExpectedSpendingVO condition);
 }

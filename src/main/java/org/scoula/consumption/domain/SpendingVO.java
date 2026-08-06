@@ -14,7 +14,7 @@ import java.time.LocalDate;
 public class SpendingVO {
 
     private Long spendingNo;
-    private Long memberNo;
+    private Integer memberNo;
 
     private Long categoryNo;
     private String categoryName;
