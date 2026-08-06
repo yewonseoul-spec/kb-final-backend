@@ -67,4 +67,9 @@ public interface BenefitService {
 BenefitDetailResDTO findBenefitDetail(
         Integer benefitNo
 );
+
+//사용자 프로필 조건기반 혜택추천
+BenefitProfileFilterResDTO findBenefitProfileFilter(
+        Integer memberNo
+);
 }

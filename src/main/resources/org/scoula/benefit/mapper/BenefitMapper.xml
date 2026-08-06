@@ -642,4 +642,62 @@
 <!--        ORDER BY cc.display_order ASC-->
 
 <!--    </select>-->
+
+    <!-- 로그인 회원의 혜택 기본 필터 조회 -->
+    <select id="findBenefitProfileFilter"
+            parameterType="java.lang.Integer"
+            resultType="org.scoula.benefit.dto.BenefitProfileFilterResDTO">
+
+        SELECT
+        mp.member_no AS memberNo,
+
+        TIMESTAMPDIFF(
+        YEAR,
+        mp.birth_date,
+        CURDATE()
+        ) AS age,
+
+        mp.region_code AS zipCd,
+        r.region_name AS regionName,
+
+        mp.major AS plcyMajorCd,
+        major_code.code_name AS majorName,
+
+        mp.education AS schoolCd,
+        school_code.code_name AS schoolName,
+
+        mp.employ_status AS jobCd,
+        job_code.code_name AS jobName,
+
+        mp.mrg_stts_cd AS mrgSttsCd,
+        marriage_code.code_name AS marriageName
+
+        FROM member_profile mp
+
+        LEFT JOIN region r
+        ON r.zip_cd = mp.region_code
+
+        LEFT JOIN common_code major_code
+        ON major_code.code = mp.major
+        AND major_code.api_field = 'plcyMajorCd'
+        AND major_code.is_active = 'Y'
+
+        LEFT JOIN common_code school_code
+        ON school_code.code = mp.education
+        AND school_code.api_field = 'schoolCd'
+        AND school_code.is_active = 'Y'
+
+        LEFT JOIN common_code job_code
+        ON job_code.code = mp.employ_status
+        AND job_code.api_field = 'jobCd'
+        AND job_code.is_active = 'Y'
+
+        LEFT JOIN common_code marriage_code
+        ON marriage_code.code = mp.mrg_stts_cd
+        AND marriage_code.api_field = 'mrgSttsCd'
+        AND marriage_code.is_active = 'Y'
+
+        WHERE mp.member_no = #{memberNo}
+
+    </select>
 </mapper>

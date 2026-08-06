@@ -21,6 +21,7 @@ public class BenefitResDto {
     private String isActive;
     private Date applyEndDate;
     private String plcyNo;              // 온통청년 정책 고유번호
+    private String aplyUrlAddr;         // 신청 URL (없거나 형식이 깨진 값이 많아 화면에서 방어 필요)
     private Integer inqCnt;             // 조회수 (engine-05 인기도 점수)
     private int score;                  // engine-05: 추천 점수 (0~100)
     private List<String> scoreDetail;   // engine-05: 매칭 근거 (항목별 표시용)
