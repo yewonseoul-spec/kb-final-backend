@@ -16,11 +16,24 @@
          거르면 지난 신청 기록이 조용히 사라진다. -->
     <select id="findByMemberNo" resultType="org.scoula.mypage.dto.AppliedBenefitDTO">
         SELECT
-            ab.benefit_no    AS benefitNo,
-            b.plcy_nm        AS plcyNm,
-            bc.category_name AS categoryName,
-            b.apply_end_date AS applyEndDate,
-            ab.applied_at    AS appliedAt
+            ab.benefit_no       AS benefitNo,
+            b.plcy_no           AS plcyNo,
+            b.plcy_nm           AS plcyNm,
+            b.category_code     AS categoryCode,
+            bc.category_name    AS categoryName,
+            b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+            b.apply_start_date  AS applyStartDate,
+            b.apply_end_date    AS applyEndDate,
+            b.aply_prd_se_cd    AS aplyPrdSeCd,
+            b.is_active         AS isActive,
+
+            CASE
+                WHEN b.apply_end_date IS NULL       THEN 'ALWAYS'
+                WHEN b.apply_end_date &lt; CURDATE() THEN 'CLOSED'
+                ELSE 'OPEN'
+                END AS benefitStatus,
+
+            ab.applied_at       AS appliedAt
 
         FROM applied_benefit ab
                  JOIN benefit b
@@ -32,7 +45,6 @@
 
         ORDER BY ab.applied_at DESC, ab.applied_no DESC
     </select>
-
     <!-- 토큰의 member_no 를 반드시 함께 건다. benefit_no 만으로 지우면 남의 이력이 지워진다. -->
     <delete id="delete">
         DELETE FROM applied_benefit
