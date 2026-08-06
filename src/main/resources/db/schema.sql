@@ -667,26 +667,27 @@ CREATE TABLE benefit_conflict_rule
 --  22. sync_log : 동기화 로그
 --      exec_type A=자동/M=수동, result_status S/P/F
 -- =====================================================================
-CREATE TABLE sync_log
-(
-    log_no        INT                NOT NULL AUTO_INCREMENT COMMENT '로그번호',
-    executed_at   DATETIME           NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실행일시',
-    exec_type     ENUM ('A','M')     NOT NULL COMMENT '실행방식(A=자동/M=수동)',
-    result_status ENUM ('S','P','F') NOT NULL COMMENT '결과상태(성공/부분/실패)',
-    total_cnt     INT                NOT NULL DEFAULT 0 COMMENT '전체수집건수',
-    insert_cnt    INT                NOT NULL DEFAULT 0 COMMENT '신규추가건수',
-    update_cnt    INT                NOT NULL DEFAULT 0 COMMENT '업데이트건수',
-    skip_cnt      INT                NOT NULL DEFAULT 0 COMMENT '스킵건수',
-    error_msg     VARCHAR(500)       NULL COMMENT '오류내용(S면 보통 NULL)',
-    duration_ms   INT                NULL COMMENT '소요시간(ms)',
-    member_no     INT                NULL COMMENT '실행 관리자(A면 NULL, M이면 ADMIN member_no)',
-    PRIMARY KEY (log_no),
-    CONSTRAINT fk_sync_log_member FOREIGN KEY (member_no)
-        REFERENCES member (member_no),
-    CONSTRAINT chk_sync_log_counts CHECK (
-        total_cnt >= 0 AND insert_cnt >= 0 AND update_cnt >= 0 AND skip_cnt >= 0
-            AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
-    CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
+CREATE TABLE sync_log (
+                          log_no        INT          NOT NULL AUTO_INCREMENT            COMMENT '로그번호',
+                          executed_at   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '실행일시',
+                          exec_type     ENUM('A','M') NOT NULL                         COMMENT '실행방식(A=자동/M=수동)',
+                          sync_start_date DATE       NULL                              COMMENT '동기화 대상 등록일 시작(기간 미지정이면 NULL)',
+                          sync_end_date   DATE       NULL                              COMMENT '동기화 대상 등록일 종료(기간 미지정이면 NULL)',
+                          result_status ENUM('S','P','F') NOT NULL                     COMMENT '결과상태(성공/부분/실패)',
+                          total_cnt     INT          NOT NULL DEFAULT 0                COMMENT '전체수집건수',
+                          insert_cnt    INT          NOT NULL DEFAULT 0                COMMENT '신규추가건수',
+                          update_cnt    INT          NOT NULL DEFAULT 0                COMMENT '업데이트건수',
+                          skip_cnt      INT          NOT NULL DEFAULT 0                COMMENT '스킵건수',
+                          error_msg     VARCHAR(500) NULL                              COMMENT '오류내용(S면 보통 NULL)',
+                          duration_ms   INT          NULL                              COMMENT '소요시간(ms)',
+                          member_no     INT          NULL                              COMMENT '실행 관리자(A면 NULL, M이면 ADMIN member_no)',
+                          PRIMARY KEY (log_no),
+                          CONSTRAINT fk_sync_log_member FOREIGN KEY (member_no)
+                              REFERENCES member (member_no),
+                          CONSTRAINT chk_sync_log_counts CHECK (
+                              total_cnt  >= 0 AND insert_cnt >= 0 AND update_cnt >= 0 AND skip_cnt >= 0
+                                  AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
+                          CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='동기화 로그';
