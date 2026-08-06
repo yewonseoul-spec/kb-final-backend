@@ -348,11 +348,18 @@
         b.is_active AS isActive,
 
         CASE
+        WHEN b.is_active = 'N'
+        THEN 'CLOSED'
+
+        WHEN b.aply_prd_se_cd = '0057003'
+        THEN 'CLOSED'
+
+        WHEN b.apply_end_date IS NOT NULL
+        AND b.apply_end_date &lt; CURDATE()
+        THEN 'CLOSED'
+
         WHEN b.apply_end_date IS NULL
         THEN 'ALWAYS'
-
-        WHEN b.apply_end_date &lt; CURDATE()
-        THEN 'CLOSED'
 
         ELSE 'OPEN'
         END AS benefitStatus
@@ -449,18 +456,27 @@
 <!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
         ORDER BY
         CASE
-        WHEN b.apply_end_date IS NOT NULL
+        -- 신청 가능한 기간제 혜택
+        WHEN b.is_active = 'Y'
+        AND b.aply_prd_se_cd != '0057003'
+        AND b.apply_end_date IS NOT NULL
         AND b.apply_end_date &gt;= CURDATE()
         THEN 0
 
-        WHEN b.apply_end_date IS NULL
+        -- 신청 가능한 상시 혜택
+        WHEN b.is_active = 'Y'
+        AND b.aply_prd_se_cd != '0057003'
+        AND b.apply_end_date IS NULL
         THEN 1
 
+        -- 비활성 또는 마감 혜택
         ELSE 2
         END ASC,
 
         CASE
-        WHEN b.apply_end_date IS NOT NULL
+        WHEN b.is_active = 'Y'
+        AND b.aply_prd_se_cd != '0057003'
+        AND b.apply_end_date IS NOT NULL
         AND b.apply_end_date &gt;= CURDATE()
         THEN b.apply_end_date
         END ASC,
@@ -548,11 +564,18 @@
         b.is_active AS isActive,
 
         CASE
+        WHEN b.is_active = 'N'
+        THEN 'CLOSED'
+
+        WHEN b.aply_prd_se_cd = '0057003'
+        THEN 'CLOSED'
+
+        WHEN b.apply_end_date IS NOT NULL
+        AND b.apply_end_date &lt; CURDATE()
+        THEN 'CLOSED'
+
         WHEN b.apply_end_date IS NULL
         THEN 'ALWAYS'
-
-        WHEN b.apply_end_date &lt; CURDATE()
-        THEN 'CLOSED'
 
         ELSE 'OPEN'
         END AS benefitStatus
