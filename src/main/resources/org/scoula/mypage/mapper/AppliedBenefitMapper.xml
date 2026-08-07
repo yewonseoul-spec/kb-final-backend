@@ -13,33 +13,40 @@
     </insert>
 
     <!-- 본인의 신청 이력이므로 is_active·마감일로 거르지 않는다.
-         거르면 지난 신청 기록이 조용히 사라진다. -->
+         거르면 지난 신청 기록이 조용히 사라진다.
+         목록에 남기는 것과 상태를 옳게 보여주는 것은 별개라, 마감은 마감으로 표시한다. -->
     <select id="findByMemberNo" resultType="org.scoula.mypage.dto.AppliedBenefitDTO">
         SELECT
-            ab.benefit_no       AS benefitNo,
-            b.plcy_no           AS plcyNo,
-            b.plcy_nm           AS plcyNm,
-            b.category_code     AS categoryCode,
-            bc.category_name    AS categoryName,
-            b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
-            b.apply_start_date  AS applyStartDate,
-            b.apply_end_date    AS applyEndDate,
-            b.aply_prd_se_cd    AS aplyPrdSeCd,
-            b.is_active         AS isActive,
+        ab.benefit_no AS benefitNo,
+        b.plcy_no AS plcyNo,
+        b.plcy_nm AS plcyNm,
+        b.category_code AS categoryCode,
+        bc.category_name AS categoryName,
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        b.apply_start_date AS applyStartDate,
+        b.apply_end_date AS applyEndDate,
+        b.aply_prd_se_cd AS aplyPrdSeCd,
+        b.is_active AS isActive,
 
-            CASE
-                WHEN b.apply_end_date IS NULL       THEN 'ALWAYS'
-                WHEN b.apply_end_date &lt; CURDATE() THEN 'CLOSED'
-                ELSE 'OPEN'
-                END AS benefitStatus,
+        <!-- 판정 순서는 BenefitMapper.xml 과 같게 유지한다. 마감이 상시보다 앞에
+             와야 종료일 없이 마감된 혜택이 '상시'로 새지 않는다.
+             0057003 = 신청기간구분코드 '마감' (data_0_code.sql:55) -->
+        CASE
+        WHEN b.is_active = 'N' THEN 'CLOSED'
+        WHEN b.aply_prd_se_cd = '0057003' THEN 'CLOSED'
+        WHEN b.apply_end_date IS NOT NULL
+        AND b.apply_end_date &lt; CURDATE() THEN 'CLOSED'
+        WHEN b.apply_end_date IS NULL THEN 'ALWAYS'
+        ELSE 'OPEN'
+        END AS benefitStatus,
 
-            ab.applied_at       AS appliedAt
+        ab.applied_at AS appliedAt
 
         FROM applied_benefit ab
-                 JOIN benefit b
-                      ON b.benefit_no = ab.benefit_no
-                 JOIN benefit_category bc
-                      ON bc.category_code = b.category_code
+        JOIN benefit b
+        ON b.benefit_no = ab.benefit_no
+        JOIN benefit_category bc
+        ON bc.category_code = b.category_code
 
         WHERE ab.member_no = #{memberNo}
 

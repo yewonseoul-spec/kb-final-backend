@@ -8,24 +8,28 @@
     <!-- 마감된 혜택이 '인기'로 뜨면 안 되므로 진행 중인 것만 -->
     <select id="findPopularBenefits" resultType="org.scoula.home.dto.PopularBenefitDTO">
         SELECT
-            b.benefit_no AS benefitNo,
-            b.plcy_nm AS plcyNm,
-            bc.category_name AS categoryName,
-            b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
-            b.inq_cnt AS inqCnt
+        b.benefit_no AS benefitNo,
+        b.plcy_nm AS plcyNm,
+        bc.category_name AS categoryName,
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+        b.inq_cnt AS inqCnt
 
         FROM benefit b
-                 JOIN benefit_category bc
-                      ON b.category_code = bc.category_code
+        JOIN benefit_category bc
+        ON b.category_code = bc.category_code
 
+        <!-- aply_prd_se_cd 는 NULL 을 허용한다(schema.sql:295). IS NULL 을 빼면
+             코드가 없는 혜택이 통째로 사라지는데, 인기 목록이 조용히 비어도
+             에러가 안 나서 알아채기 어렵다. -->
         WHERE b.is_active = 'Y'
-          AND (
-            b.apply_end_date IS NULL
-                OR b.apply_end_date &gt;= CURDATE()
-            )
+        AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd != '0057003')
+        AND (
+        b.apply_end_date IS NULL
+        OR b.apply_end_date &gt;= CURDATE()
+        )
 
         ORDER BY b.inq_cnt DESC, b.benefit_no DESC
-            LIMIT #{limit}
+        LIMIT #{limit}
     </select>
 
 </mapper>
