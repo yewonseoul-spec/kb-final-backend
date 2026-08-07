@@ -27,7 +27,7 @@ public interface AdminMapper {
     @Select("SELECT COUNT(*) FROM benefit")
     int countBenefits();
 
-    // 추천 가능 정책 수. 마감·미도래를 뺀 실제 노출 대상
+    // 추천 가능 정책 수. 마감·미도래를 뺀 실제 추천 대상
     @Select("SELECT COUNT(*) FROM benefit WHERE is_active = 'Y'")
     int countActiveBenefits();
 
@@ -172,6 +172,12 @@ public interface AdminMapper {
      *
      * hasConflict 는 그룹형(conflict_group_code)뿐 아니라 개별쌍 규칙에만 걸린 혜택도
      * 함께 잡는다. 둘 중 하나만 보면 '중복수혜 관리 대상'이 반쪽만 나온다.
+     *
+     * 정렬은 서버에서 한다. 목록이 2,700건인데 화면에는 20건만 내려가므로
+     * 화면에서 정렬하면 '마감 임박순'이 전체 기준이 아니게 되어 틀린 결과가 된다.
+     *
+     * sort·order 는 화면에서 오는 값이라 SQL에 문자열로 이어붙이지 않는다.
+     * 허용한 값만 <when> 으로 분기하고, 그 밖의 값은 기본 정렬로 떨어진다.
      */
     @Select("<script>"
             + "SELECT benefit_no, plcy_no, plcy_nm, category_code, sprvsn_inst_cd_nm, "
@@ -206,7 +212,40 @@ public interface AdminMapper {
             + "         ))"
             + "  </if>"
             + "</where>"
-            + "ORDER BY frst_reg_dt DESC, benefit_no DESC "
+
+            // 마감일이 NULL 인 혜택(상시 모집·기간 미정)은 어느 방향이든 맨 뒤로 보낸다.
+            // 'apply_end_date IS NULL ASC' 는 값이 있는 행(0)을 먼저, NULL(1)을 뒤로 놓는다.
+            // 어느 기준이든 benefit_no 를 마지막에 넣어 같은 값일 때 순서가 흔들리지 않게 한다.
+            + "<choose>"
+            + "  <when test='sort == \"plcyNm\"'>"
+            + "    <choose>"
+            + "      <when test='order == \"desc\"'>ORDER BY plcy_nm DESC, benefit_no DESC </when>"
+            + "      <otherwise>ORDER BY plcy_nm ASC, benefit_no DESC </otherwise>"
+            + "    </choose>"
+            + "  </when>"
+            + "  <when test='sort == \"sprvsnInstCdNm\"'>"
+            + "    <choose>"
+            + "      <when test='order == \"desc\"'>ORDER BY sprvsn_inst_cd_nm DESC, benefit_no DESC </when>"
+            + "      <otherwise>ORDER BY sprvsn_inst_cd_nm ASC, benefit_no DESC </otherwise>"
+            + "    </choose>"
+            + "  </when>"
+            + "  <when test='sort == \"deadline\"'>"
+            + "    <choose>"
+            + "      <when test='order == \"desc\"'>"
+            + "        ORDER BY apply_end_date IS NULL ASC, apply_end_date DESC, benefit_no DESC </when>"
+            + "      <otherwise>"
+            + "        ORDER BY apply_end_date IS NULL ASC, apply_end_date ASC, benefit_no DESC </otherwise>"
+            + "    </choose>"
+            + "  </when>"
+            + "  <when test='sort == \"inqCnt\"'>"
+            + "    <choose>"
+            + "      <when test='order == \"desc\"'>ORDER BY inq_cnt DESC, benefit_no DESC </when>"
+            + "      <otherwise>ORDER BY inq_cnt ASC, benefit_no DESC </otherwise>"
+            + "    </choose>"
+            + "  </when>"
+            + "  <otherwise>ORDER BY frst_reg_dt DESC, benefit_no DESC </otherwise>"
+            + "</choose>"
+
             + "LIMIT #{offset}, #{size}"
             + "</script>")
     List<AdminBenefitListResDto> findBenefitList(AdminBenefitSearchReqDto search);
@@ -262,7 +301,7 @@ public interface AdminMapper {
     AdminBenefitDetailResDto findBenefitDetail(@Param("benefitNo") int benefitNo);
 
     /**
-     * 혜택 노출 상태 변경.
+     * 혜택 활성 상태 변경.
      * 물리 삭제는 benefit_region 등 7개 테이블이 FK로 참조하고 있어 불가능하다.
      */
     @Update("UPDATE benefit SET is_active = #{isActive}, last_mdfcn_dt = NOW() " +

@@ -11,6 +11,13 @@ public class AdminBenefitSearchReqDto {
     private Boolean deadlineSoon;   // true면 30일 이내 마감만
     private Boolean hasConflict;    // true면 중복수혜 관리 대상만
 
+    // 정렬 기준. 화면에서 컬럼 헤더를 눌러 보낸다.
+    //   plcyNm / sprvsnInstCdNm / deadline / inqCnt
+    // 값을 SQL에 문자열로 이어붙이지 않고 매퍼에서 <choose>로 분기하므로,
+    // 허용 목록에 없는 값이 들어오면 기본 정렬(최신 등록순)로 떨어진다.
+    private String sort;
+    private String order;           // asc / desc
+
     private Integer page;           // 1부터
     private Integer size;
     private Integer offset;         // 서비스에서 계산해 채운다
