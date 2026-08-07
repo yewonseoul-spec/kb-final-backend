@@ -4,8 +4,9 @@
 ================================================================================
  파일명   : engine_test_data.sql
  작성자   : 박상호 (engine)
- 최종수정 : 2026-07-31 (v1)
- 실행순서 : schema.sql → data_0_code.sql → data_1_base.sql → data_2_benefit_real.sql → 이 파일
+ 최종수정 : 2026-08-06 (v2.2)
+ 실행순서 : schema.sql → data_0_code.sql → data_1_base.sql → 혜택 동기화 → 이 파일
+            (data_2_benefit_real.sql 은 더 이상 실행하지 않는다. 동기화가 대신한다)
 --------------------------------------------------------------------------------
  목적
    온통청년 OPEN API는 정책 간 중복수혜 관계를 구조화된 데이터로 제공하지 않는다.
@@ -25,7 +26,7 @@
    발표·문서에서 실제 규정처럼 인용하면 안 된다.
    그래서 일부 규칙은 confirm_status='검수필요' 로 남겨 관리자 검수 대기 상태를 재현한다.
 
- ★ 충돌 유형별 처리 (v2.1에서 정정)
+ ★ 충돌 유형별 처리
    중복불가   후보 또는 조합에서 제거
    일부제한   유지 + 경고 + 추천점수 20점 미부여
    확인필요   유지 + 경고 + 추천점수 20점 미부여
@@ -40,6 +41,7 @@
    - confirm_status='확정' AND is_active='Y' 인 규칙만 엔진이 적용한다.
    - DB 데이터만 바꾸므로 서버 재시작은 필요 없다.
    - 운영 데이터가 있는 DB에서 실행하지 말 것.
+   - 혜택 동기화를 먼저 끝내야 한다. benefit 테이블이 비어 있으면 아무것도 안 들어간다.
 
 --------------------------------------------------------------------------------
  변경 이력
@@ -51,11 +53,16 @@
    2026-07-31 v2.1  검증 중 확인필요 규칙의 점수 처리가 주석과 다른 것을 발견해 정정.
                     '확인필요 = 감점 없음'은 틀렸고 내부 경고이므로 20점을 받지 못한다.
                     코드는 룰북과 일관하며 주석 쪽이 잘못돼 있었다.
-                    검증 결과(후보 39건, 각 정책 실제 점수)를 하단에 기록.
+   2026-08-06 v2.2  다른 환경에서 규칙이 0건으로 적재되는 문제 대응.
+                    온통청년에서 사라진 정책이 있으면 변수가 NULL 이 되고,
+                    그 INSERT 에서 실행이 멈춰 뒤의 규칙이 전부 안 들어갔다.
+                    모든 INSERT 에 NULL 방어를 넣어, 못 찾은 정책은 건너뛰고
+                    나머지 규칙은 정상 적재되도록 바꿨다.
 ================================================================================
 */
 
 USE youthtapa;
+
 
 -- ==================================================================
 -- 0. 정책 번호 조회 (plcy_no 는 UNIQUE 라 환경이 달라도 동일하게 찾힌다)
@@ -93,10 +100,35 @@ SET @allow    = (SELECT benefit_no FROM benefit WHERE plcy_no = '202604290054002
 SET @suit     = (SELECT benefit_no FROM benefit WHERE plcy_no = '20260326005400212286'); -- 평택시 청년 면접정장 무료대여 서비스
 SET @portal   = (SELECT benefit_no FROM benefit WHERE plcy_no = '20260313005400212151'); -- 용인청년포털 청년e랑 운영
 
--- 하나라도 NULL 이면 정책 데이터가 안 들어간 것이므로 아래를 실행하지 말 것
-SELECT @sunshine, @miso, @dream, @debt, @startup, @interest, @credit, @funding,
-       @stay1, @stay2, @kium, @chung, @incu, @fee1, @fee2,
-       @future, @camp, @match, @ai, @allow, @suit, @portal;
+
+-- ------------------------------------------------------------------
+-- 진단 : 못 찾은 정책이 있는지 먼저 본다.
+--        온통청년에서 내려온 정책 목록은 시점에 따라 달라질 수 있다.
+--        benefit_no 가 NULL 인 줄이 있으면 그 정책은 이 DB 에 없다는 뜻이며,
+--        해당 정책이 걸린 규칙만 자동으로 건너뛴다. 나머지는 정상 적재된다.
+-- ------------------------------------------------------------------
+SELECT '햇살론유스' AS 정책, @sunshine AS benefit_no
+UNION ALL SELECT '미소금융 청년 미래이음 대출', @miso
+UNION ALL SELECT '청년주택드림청약통장',        @dream
+UNION ALL SELECT '학자금대출 장기연체자 지원',  @debt
+UNION ALL SELECT '평택 우수초기창업자',         @startup
+UNION ALL SELECT '평택 이차보전',               @interest
+UNION ALL SELECT '평택 청년창업자 금융지원',    @credit
+UNION ALL SELECT '평택 크라우드 펀딩',          @funding
+UNION ALL SELECT '금강장',                      @stay1
+UNION ALL SELECT '금수장',                      @stay2
+UNION ALL SELECT '청년키움지원센터',            @kium
+UNION ALL SELECT '청춘어람',                    @chung
+UNION ALL SELECT '청년인큐베이팅공유공간',      @incu
+UNION ALL SELECT '평택 중개보수 감면',          @fee1
+UNION ALL SELECT '용인 중개보수 감면',          @fee2
+UNION ALL SELECT '청년미래플러스',              @future
+UNION ALL SELECT '안성시 청년내일캠프',         @camp
+UNION ALL SELECT 'Match業',                     @match
+UNION ALL SELECT 'AI 전문인력 양성교육',        @ai
+UNION ALL SELECT '경기도 청년 면접수당',        @allow
+UNION ALL SELECT '평택 면접정장 대여',          @suit
+UNION ALL SELECT '용인청년포털',                @portal;
 
 
 -- ==================================================================
@@ -107,9 +139,12 @@ SELECT @sunshine, @miso, @dream, @debt, @startup, @interest, @credit, @funding,
 --   우수초기창업자 → 평택시 창업 자금 계열
 
 DELETE FROM applied_benefit WHERE member_no = 2;
-INSERT INTO applied_benefit (member_no, benefit_no) VALUES
-                                                        (2, @sunshine),
-                                                        (2, @startup);
+
+INSERT INTO applied_benefit (member_no, benefit_no)
+SELECT 2, @sunshine WHERE @sunshine IS NOT NULL;
+
+INSERT INTO applied_benefit (member_no, benefit_no)
+SELECT 2, @startup WHERE @startup IS NOT NULL;
 
 
 -- ==================================================================
@@ -149,6 +184,9 @@ UPDATE benefit SET conflict_group_code = 'G04' WHERE benefit_no IN (@fee1, @fee2
 -- ==================================================================
 -- 룰북 규칙: 순서 없는 관계이므로 작은 번호를 trigger, 큰 번호를 target 으로 저장
 -- schema v1.4 의 chk_conflict_rule_order CHECK 제약이 이 규칙을 강제한다.
+--
+-- v2.2: 모든 INSERT 를 VALUES 대신 SELECT ... WHERE 형태로 바꿨다.
+--       변수가 NULL 이면 그 한 줄만 조용히 건너뛰고 다음 규칙으로 넘어간다.
 
 DELETE FROM benefit_conflict_rule;
 
@@ -161,28 +199,31 @@ DELETE FROM benefit_conflict_rule;
 --           동일 연도에 창업 사업화 지원을 중복으로 받는 형태가 된다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@startup, @funding), GREATEST(@startup, @funding), '중복불가',
-        '평택시 우수초기창업자 지원사업 선정자는 같은 해 청년창업 크라우드 펀딩 지원사업에 중복 신청할 수 없습니다.',
-        '확정', 'Y');
+SELECT LEAST(@startup, @funding), GREATEST(@startup, @funding), '중복불가',
+       '평택시 우수초기창업자 지원사업 선정자는 같은 해 청년창업 크라우드 펀딩 지원사업에 중복 신청할 수 없습니다.',
+       '확정', 'Y'
+WHERE @startup IS NOT NULL AND @funding IS NOT NULL;
 
 -- (2) 보유 vs 후보 · 일부제한 → 후보에 남기고 경고 + 추천점수 20점 미부여
 --     근거: 햇살론유스는 상환 중 부채로 잡히며, 청약통장 연계 대출 심사 시
 --           우대 조건과 한도에 영향을 줄 수 있다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@sunshine, @dream), GREATEST(@sunshine, @dream), '일부제한',
-        '햇살론유스 상환 중에는 청년주택드림청약통장 연계 대출의 우대 조건이 일부 제한될 수 있습니다.',
-        '확정', 'Y');
+SELECT LEAST(@sunshine, @dream), GREATEST(@sunshine, @dream), '일부제한',
+       '햇살론유스 상환 중에는 청년주택드림청약통장 연계 대출의 우대 조건이 일부 제한될 수 있습니다.',
+       '확정', 'Y'
+WHERE @sunshine IS NOT NULL AND @dream IS NOT NULL;
 
 -- (3) 보유 vs 후보 · 확인필요 → 후보에서 제거하지는 않지만 경고가 붙고
---     내부 경고이므로 추천점수 20점을 받지 못한다. (v2.1 정정)
+--     내부 경고이므로 추천점수 20점을 받지 못한다.
 --     근거: 두 사업 모두 청년 채무 부담 완화를 목적으로 하며,
 --           채무조정 진행 상태에 따라 동시 이용 가능 여부가 달라진다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@sunshine, @debt), GREATEST(@sunshine, @debt), '확인필요',
-        '햇살론유스 상환 중 학자금대출 장기연체자 지원을 함께 신청하려면 채무조정 진행 상태를 먼저 확인해야 합니다.',
-        '확정', 'Y');
+SELECT LEAST(@sunshine, @debt), GREATEST(@sunshine, @debt), '확인필요',
+       '햇살론유스 상환 중 학자금대출 장기연체자 지원을 함께 신청하려면 채무조정 진행 상태를 먼저 확인해야 합니다.',
+       '확정', 'Y'
+WHERE @sunshine IS NOT NULL AND @debt IS NOT NULL;
 
 -- (4) 조합 내부 · 중복불가 → 두 정책 모두 후보에는 남고 같은 조합에만 못 들어감
 --     근거: 청년미래플러스(고용노동부)는 취업 컨설팅·맞춤형 직무교육·멘토링을,
@@ -190,33 +231,37 @@ VALUES (LEAST(@sunshine, @debt), GREATEST(@sunshine, @debt), '확인필요',
 --           지원 항목이 실질적으로 겹친다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@future, @camp), GREATEST(@future, @camp), '중복불가',
-        '청년미래플러스 구직청년 과정 참여 중에는 동일한 취업 컨설팅을 제공하는 안성시 청년내일캠프에 중복 참여할 수 없습니다.',
-        '확정', 'Y');
+SELECT LEAST(@future, @camp), GREATEST(@future, @camp), '중복불가',
+       '청년미래플러스 구직청년 과정 참여 중에는 동일한 취업 컨설팅을 제공하는 안성시 청년내일캠프에 중복 참여할 수 없습니다.',
+       '확정', 'Y'
+WHERE @future IS NOT NULL AND @camp IS NOT NULL;
 
 -- (5) 조합 내부 · 일부제한 → 조합에 함께 들어갈 수 있으나 경고 표시
 --     근거: 청년키움지원센터와 청춘어람 모두 의성군이 운영하는 청년 활동 공간으로
 --           프로그램 일부가 중복 편성된다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@kium, @chung), GREATEST(@kium, @chung), '일부제한',
-        '청년키움지원센터와 청춘어람은 일부 프로그램이 중복 운영되어 동일 프로그램은 한 곳에서만 참여할 수 있습니다.',
-        '확정', 'Y');
+SELECT LEAST(@kium, @chung), GREATEST(@kium, @chung), '일부제한',
+       '청년키움지원센터와 청춘어람은 일부 프로그램이 중복 운영되어 동일 프로그램은 한 곳에서만 참여할 수 있습니다.',
+       '확정', 'Y'
+WHERE @kium IS NOT NULL AND @chung IS NOT NULL;
 
 -- (6)(7) 외부 제도 경고 (trigger 가 NULL) → 안내만, 제거도 점수 영향도 없다.
 --     외부 제도는 청년타파가 추천하지 않는 제도라 비교 대상이 목록에 없다.
 --     사용자가 실제로 그 제도를 받는지 알 수 없으므로 순위에 반영하지 않는다.
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (NULL, @future, '확인필요',
-        '실업급여 수급 중에는 청년미래플러스 참여가 제한될 수 있습니다. 관할 고용센터에 확인하세요.',
-        '확정', 'Y');
+SELECT NULL, @future, '확인필요',
+       '실업급여 수급 중에는 청년미래플러스 참여가 제한될 수 있습니다. 관할 고용센터에 확인하세요.',
+       '확정', 'Y'
+WHERE @future IS NOT NULL;
 
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (NULL, @camp, '확인필요',
-        '국민취업지원제도 구직활동지원금을 받는 중이라면 안성시 청년내일캠프 참여 시 지원금 지급 요건을 먼저 확인하세요.',
-        '확정', 'Y');
+SELECT NULL, @camp, '확인필요',
+       '국민취업지원제도 구직활동지원금을 받는 중이라면 안성시 청년내일캠프 참여 시 지원금 지급 요건을 먼저 확인하세요.',
+       '확정', 'Y'
+WHERE @camp IS NOT NULL;
 
 -- ------------------------------------------------------------------
 -- 3-2. 검수필요 — 관리자 검수 대기 상태. 엔진이 적용하지 않아야 한다. (3건)
@@ -226,21 +271,24 @@ VALUES (NULL, @camp, '확인필요',
 
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@match, @ai), GREATEST(@match, @ai), '중복불가',
-        '동일 기간에 두 개 이상의 직업훈련 과정을 중복 수강할 수 없습니다.',
-        '검수필요', 'Y');
+SELECT LEAST(@match, @ai), GREATEST(@match, @ai), '중복불가',
+       '동일 기간에 두 개 이상의 직업훈련 과정을 중복 수강할 수 없습니다.',
+       '검수필요', 'Y'
+WHERE @match IS NOT NULL AND @ai IS NOT NULL;
 
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@allow, @suit), GREATEST(@allow, @suit), '일부제한',
-        '같은 면접 건에 대해 면접수당과 면접정장 대여를 함께 신청할 수 없습니다.',
-        '검수필요', 'Y');
+SELECT LEAST(@allow, @suit), GREATEST(@allow, @suit), '일부제한',
+       '같은 면접 건에 대해 면접수당과 면접정장 대여를 함께 신청할 수 없습니다.',
+       '검수필요', 'Y'
+WHERE @allow IS NOT NULL AND @suit IS NOT NULL;
 
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@incu, @kium), GREATEST(@incu, @kium), '중복불가',
-        '의성군 청년 공간은 1인 1개소만 이용할 수 있습니다.',
-        '검수필요', 'Y');
+SELECT LEAST(@incu, @kium), GREATEST(@incu, @kium), '중복불가',
+       '의성군 청년 공간은 1인 1개소만 이용할 수 있습니다.',
+       '검수필요', 'Y'
+WHERE @incu IS NOT NULL AND @kium IS NOT NULL;
 
 -- ------------------------------------------------------------------
 -- 3-3. 비활성 — 폐기된 규칙. 엔진이 적용하지 않아야 한다. (1건)
@@ -248,90 +296,22 @@ VALUES (LEAST(@incu, @kium), GREATEST(@incu, @kium), '중복불가',
 
 INSERT INTO benefit_conflict_rule
 (trigger_benefit_no, target_benefit_no, conflict_type, rule_text, confirm_status, is_active)
-VALUES (LEAST(@camp, @portal), GREATEST(@camp, @portal), '중복불가',
-        '2025년까지 적용되던 규칙으로 현재는 폐기되었습니다.',
-        '확정', 'N');
+SELECT LEAST(@camp, @portal), GREATEST(@camp, @portal), '중복불가',
+       '2025년까지 적용되던 규칙으로 현재는 폐기되었습니다.',
+       '확정', 'N'
+WHERE @camp IS NOT NULL AND @portal IS NOT NULL;
 
 
 -- ==================================================================
 -- 4. 적재 확인
 -- ==================================================================
+-- 아래 세 줄의 결과가 주석의 기대값과 다르면, 위 진단 SELECT 에서
+-- NULL 이었던 정책 때문에 그 정책이 걸린 규칙이 빠진 것이다.
+
 SELECT COUNT(*) AS applied_cnt FROM applied_benefit WHERE member_no = 2;            -- 2
+
 SELECT conflict_group_code, COUNT(*) AS cnt FROM benefit
 WHERE conflict_group_code IS NOT NULL GROUP BY conflict_group_code;                -- G01 2 / G02 3 / G03 2 / G04 2
+
 SELECT confirm_status, is_active, COUNT(*) AS cnt FROM benefit_conflict_rule
 GROUP BY confirm_status, is_active;                                                -- 확정·Y 7 / 검수필요·Y 3 / 확정·N 1
-
-
-/*
-================================================================================
- 검증 방법
-
-   GET /api/engine/benefits/2
-
- 건수보다 정책 이름으로 확인하는 것이 정확하다.
- 온통청년 동기화로 정책이 계속 늘어나 후보 총 건수는 달라질 수 있다.
-
---------------------------------------------------------------------------------
- 후보에서 제거되어야 하는 정책 (6건)
-
-   청년 자금지원을 위한 햇살론유스 운영             보유 중
-   2026년 평택시 우수초기창업자 지원사업 운영       보유 중
-   미소금융 청년 미래이음 대출                      G01 · 보유 정책과 같은 그룹
-   평택시 청년창업 금융지원사업 이차보전 지원       G02 · 보유 정책과 같은 그룹
-   2026년 평택시 청년창업자 금융지원사업            G02 · 보유 정책과 같은 그룹
-   평택시 청년창업자를 위한 크라우드 펀딩사업 지원   개별쌍 중복불가
-
---------------------------------------------------------------------------------
- 후보에 남되 경고가 붙어야 하는 정책
-
-   청년주택드림청약통장            warnings · 일부제한 · 20점 미부여
-   청년 학자금대출 장기연체자 지원  warnings · 확인필요 · 20점 미부여
-   청년미래플러스                  externalWarnings · 점수 영향 없음
-   안성시 청년내일캠프             externalWarnings · 점수 영향 없음
-
---------------------------------------------------------------------------------
- 조합에서만 배제되어야 하는 쌍
- (양쪽 다 후보·상위 목록에는 남아 있어야 한다)
-
-   청년단기주거공간(금강장) ↔ 청년복합주거공간(금수장)      G03
-   평택시 전월세 중개보수료 감면 ↔ 용인청년 중개보수 감면    G04
-   청년미래플러스 ↔ 안성시 청년내일캠프                      개별쌍 중복불가
-
---------------------------------------------------------------------------------
- 아무 영향도 주지 않아야 하는 규칙 (4건)
- 아래 8개 정책이 모두 후보에 남아 있어야 한다.
-
-   Match業 ↔ 인공지능 전문인력 양성교육          검수필요
-   경기도 청년 면접수당 ↔ 평택시 면접정장 대여    검수필요
-   청년인큐베이팅공유공간 ↔ 청년키움지원센터      검수필요
-   안성시 청년내일캠프 ↔ 용인청년포털 청년e랑     비활성
-
---------------------------------------------------------------------------------
- 2026-07-31 실측값 (benefit 2,696건 기준)
-
-   benefits                39건 (테스트 데이터 투입 전 45건에서 6건 제거)
-   warnings                2건
-   externalWarnings        2건
-   recommendedCombinations 안성시 청년내일캠프 + 청년예술인 적립계좌 + 청년키움지원센터
-
-   청년주택드림청약통장            65점  (85 - 20)
-   청년 학자금대출 장기연체자 지원  27점  (인기도 7 + 소득 10 + 마감 10 + 중복수혜 0)
-   청년미래플러스                  85점  외부 경고만 있어 감점 없음
-   안성시 청년내일캠프             94점  외부 경고만 있어 감점 없음
-
-   청년미래플러스은 85점으로 상위 후보인데도 조합에 들어가지 않았다.
-   94점인 안성시 청년내일캠프와 중복불가 관계이기 때문이며,
-   조합 내부 개별쌍 검사가 실제로 동작한 직접 증거다.
-
---------------------------------------------------------------------------------
- 핵심 설계 근거
-
-   보유 축 검사는 정책 자체를 제거하고, 조합 축 검사는 조합만 제외한다.
-   점수가 높은 정책을 미리 걸러내면 더 나은 조합을 놓치기 때문이다.
-
-     A1(100점, X와 충돌) / A2(90점) / X(90점) / Y(80점)   ※ A1과 A2는 같은 그룹
-       대표만 남기면      A1 + Y      = 180
-       조합에서 판단하면  A2 + X + Y  = 260
-================================================================================
-*/
