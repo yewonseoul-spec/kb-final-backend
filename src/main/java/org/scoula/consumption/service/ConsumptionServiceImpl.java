@@ -176,7 +176,7 @@ public class ConsumptionServiceImpl implements ConsumptionService {
 
         // 소비처 + 카테고리 번호가 같은 내역들끼리 묶는다
         Map<String, List<SpendingVO>> grouped = recentSpending.stream()
-                .collect(Collectors.groupingBy(v -> v.getMerchant() + "|" + v.getCategoryNo()));
+                .collect(Collectors.groupingBy(v -> v.getMerchant() + "|" + v.getCategoryNo() + "|" + v.getSpendingDate().getDayOfMonth()));
 
         YearMonth thisMonth = YearMonth.now();
         YearMonth lastMonth = thisMonth.minusMonths(1);
