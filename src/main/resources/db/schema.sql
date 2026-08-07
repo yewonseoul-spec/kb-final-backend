@@ -282,7 +282,7 @@ CREATE TABLE benefit
     plcy_no              VARCHAR(30)  NULL COMMENT '외부정책ID(plcyNo, 동기화 매칭키)',
     plcy_nm              TEXT         NOT NULL COMMENT '혜택명(plcyNm)',
     category_code        CHAR(2)      NOT NULL COMMENT '카테고리코드',
-    detail_category_code CHAR(2)      NOT NULL COMMENT '중분류카테고리코드',
+    detail_category_code CHAR(2)      NULL COMMENT '중분류카테고리코드',
     sprvsn_inst_cd_nm    VARCHAR(100) NULL COMMENT '주관기관명(sprvsnInstCdNm)',
     target_desc          TEXT         NULL COMMENT '지원대상',
     plcy_sprt_cn         TEXT         NULL COMMENT '지원내용(plcySprtCn)',
