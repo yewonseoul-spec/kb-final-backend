@@ -120,6 +120,20 @@ public class AdminController {
     }
 
     /**
+     * admin-02: 관리자 지정 신청 URL 저장·해제
+     *
+     * customApplyUrl을 비우거나 보내지 않으면 지정을 해제하고 원본 URL로 되돌린다.
+     * 원본은 지우지 않으므로 되돌리기가 항상 가능하다.
+     */
+    @PatchMapping("/benefits/{benefitNo}/apply-url")
+    public ResponseEntity<AdminBenefitDetailResDto> changeCustomApplyUrl(
+            @PathVariable int benefitNo,
+            @RequestParam(required = false) String customApplyUrl) {
+
+        return ResponseEntity.ok(adminService.changeCustomApplyUrl(benefitNo, customApplyUrl));
+    }
+
+    /**
      * admin-01: 관리자 수동 동기화 실행 (페이지 범위)
      * 화면에서는 제거했고 개발 확인용으로만 남겨둔다.
      *

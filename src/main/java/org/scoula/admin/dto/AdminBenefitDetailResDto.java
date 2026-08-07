@@ -18,7 +18,13 @@ public class AdminBenefitDetailResDto {
     private String plcyAplyMthdCn;   // 신청 방법
     private String sbmsnDcmntCn;     // 제출 서류
     private String plcyExplnCn;      // 혜택 설명
-    private String aplyUrlAddr;      // 신청 URL
+
+    // 신청 URL은 둘을 나란히 들고 있는다.
+    //   aplyUrlAddr    : 온통청년 원본. 동기화 때마다 덮인다
+    //   customApplyUrl : 관리자 지정. 동기화 대상이 아니라 보존된다
+    // 사용자에게는 지정값이 있으면 그것만 나가고, 원본은 이 관리 화면에서만 보인다.
+    private String aplyUrlAddr;
+    private String customApplyUrl;
 
     private Date applyStartDate;
     private Date applyEndDate;

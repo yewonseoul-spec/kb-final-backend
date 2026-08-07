@@ -32,12 +32,17 @@
     </select>
 
     <!-- engine-01·02 + 룰북 6번: 자격조건 필터링 + 그룹충돌 + 개별쌍 중복불가 -->
+    <!-- 관리자가 지정한 링크가 있으면 그것을, 없으면 온통청년 원본을 쓴다.
+            별칭을 원본 컬럼명 그대로 두어 DTO·프론트는 손대지 않는다. -->
     <select id="findEligibleBenefits"
             resultType="org.scoula.engine.dto.BenefitResDto">
         SELECT
         b.benefit_no,
         b.plcy_no,
-        b.aply_url_addr,
+        <!-- 관리자 지정 신청 URL이 있으면 그것을, 없으면 온통청년 원본을 쓴다.
+             별칭을 원본 컬럼명 그대로 두어 DTO와 프론트는 수정하지 않는다. -->
+        COALESCE(NULLIF(TRIM(b.custom_apply_url), ''),
+        b.aply_url_addr) AS aply_url_addr,
         b.inq_cnt,
         b.plcy_nm,
         b.category_code,

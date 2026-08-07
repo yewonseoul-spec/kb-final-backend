@@ -31,6 +31,9 @@ public interface AdminService {
     // admin-02: 혜택 노출 상태 변경
     AdminBenefitDetailResDto changeBenefitActive(int benefitNo, String isActive);
 
+    // admin-02: 관리자 지정 신청 URL 저장·해제 (null 또는 빈 값이면 해제)
+    AdminBenefitDetailResDto changeCustomApplyUrl(int benefitNo, String customApplyUrl);
+
     // admin-01: 관리자 수동 동기화 실행 (페이지 범위)
     SyncResultResDto executeSync(Integer pageNum, Integer pageSize, Integer memberNo);
 
