@@ -523,6 +523,12 @@
 
 <!-- 혜택 상세페이지   -->
     <!-- 혜택 상세 조회 -->
+    <!-- [상호] 관리자 지정 신청 URL 반영 (2026-08-07)
+            원본 aply_url_addr은 그대로 두고, benefit.custom_apply_url에 값이 있으면 그것을 쓴다.
+            INSERT·upsert 구문은 건드리지 않았으므로 동기화 동작에는 영향이 없다.  558번줄쪽에 있는
+            COALESCE(NULLIF(TRIM(b.custom_apply_url), ''), b.aply_url_addr) AS aplyUrlAddr,
+            이쪽이 수정사항이다 -->
+
     <select id="findBenefitDetail"
             parameterType="int"
             resultType="org.scoula.benefit.dto.BenefitDetailResDTO">
@@ -549,8 +555,8 @@
         b.apply_end_date AS applyEndDate,
         b.aply_ymd AS aplyYmd,
         b.aply_prd_se_cd AS aplyPrdSeCd,
-        b.aply_url_addr AS aplyUrlAddr,
-
+        COALESCE(NULLIF(TRIM(b.custom_apply_url), ''),
+        b.aply_url_addr) AS aplyUrlAddr,
         b.sprt_trgt_min_age AS sprtTrgtMinAge,
         b.sprt_trgt_max_age AS sprtTrgtMaxAge,
 

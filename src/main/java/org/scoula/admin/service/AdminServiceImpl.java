@@ -56,6 +56,10 @@ public class AdminServiceImpl implements AdminService {
     private static final int BENEFIT_PAGE_SIZE_DEFAULT = 20;
     private static final int BENEFIT_PAGE_SIZE_MAX = 100;
 
+    // 컬럼은 TEXT라 여유가 있지만, 이보다 긴 값은 사람이 붙여넣은 링크가 아니라
+    // 잘못 들어온 데이터일 가능성이 높아 입력 단계에서 막는다
+    private static final int CUSTOM_APPLY_URL_MAX_LENGTH = 500;
+
 
     /**
      * admin-01: 관리자 대시보드 운영 현황
@@ -189,6 +193,41 @@ public class AdminServiceImpl implements AdminService {
         }
 
         // 변경 결과를 그대로 돌려줘 프론트가 다시 조회하지 않아도 되게 한다
+        return adminMapper.findBenefitDetail(benefitNo);
+    }
+
+    /**
+     * admin-02: 관리자 지정 신청 URL 저장·해제
+     *
+     * 원본(aply_url_addr)은 건드리지 않는다. 동기화의 upsert는 이 컬럼을 모르므로
+     * 지정값이 덮이지 않고, 해제하면 다시 원본이 쓰이므로 언제든 되돌릴 수 있다.
+     *
+     * 형식을 검사하는 이유는 원본 데이터가 그렇지 않기 때문이다.
+     * aply_url_addr에는 '전화문의', '-', 스킴 없는 'www.…' 같은 값이 섞여 있는데,
+     * 관리자가 지정하는 값까지 그러면 사용자 화면에서 같은 문제가 반복된다.
+     * 여기서 막으면 지정값은 항상 열리는 주소임이 보장된다.
+     */
+    @Override
+    public AdminBenefitDetailResDto changeCustomApplyUrl(int benefitNo, String customApplyUrl) {
+        String value = (customApplyUrl == null) ? null : customApplyUrl.trim();
+
+        // 빈 값은 '해제'로 본다. 매퍼의 NULLIF와 의미를 맞춘다
+        if (value != null && !value.isEmpty()) {
+            if (!value.startsWith("http://") && !value.startsWith("https://")) {
+                throw new IllegalArgumentException(
+                        "신청 URL은 http:// 또는 https:// 로 시작해야 합니다. 입력값=" + value);
+            }
+            if (value.length() > CUSTOM_APPLY_URL_MAX_LENGTH) {
+                throw new IllegalArgumentException(
+                        "신청 URL이 너무 깁니다. " + CUSTOM_APPLY_URL_MAX_LENGTH + "자 이내로 입력해 주세요.");
+            }
+        }
+
+        int updated = adminMapper.updateCustomApplyUrl(benefitNo, value);
+        if (updated == 0) {
+            throw new IllegalArgumentException("존재하지 않는 혜택입니다. benefitNo=" + benefitNo);
+        }
+
         return adminMapper.findBenefitDetail(benefitNo);
     }
 

@@ -19,4 +19,14 @@ public class AdminBenefitListResDto {
     private Integer inqCnt;
     private String conflictGroupCode;
     private Date frstRegDt;
+
+    // 중복수혜 규칙 건수.
+    // 그룹형(conflict_group_code)만 보이던 것을 개별쌍까지 확장한다.
+    // 셋을 합치지 않고 나누는 이유는 성격이 다르기 때문이다.
+    //   pairRuleCount     : 정책끼리의 관계. 엔진이 실제로 적용한다
+    //   externalRuleCount : 외부 제도 안내. trigger_benefit_no가 NULL이고 점수에 영향이 없다
+    //   reviewRuleCount   : 아직 검수되지 않아 엔진이 무시하는 규칙. 관리자가 처리할 대상
+    private Integer pairRuleCount;
+    private Integer externalRuleCount;
+    private Integer reviewRuleCount;
 }
