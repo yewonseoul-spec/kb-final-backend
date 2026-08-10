@@ -1,4 +1,6 @@
 -- =====================================================================
+-- [v2.0]
+-- =====================================================================
 -- [v1.9] benefit 테이블에 custom_apply_url 컬럼 추가
 --        (관리자가 지정한 신청 링크. 동기화 upsert 대상에서 제외해 보존한다)
 -- =====================================================================
@@ -298,6 +300,7 @@ CREATE TABLE benefit
     aply_ymd             VARCHAR(200) NULL COMMENT '신청기간원문(aplyYmd)',
     aply_prd_se_cd       CHAR(7)      NULL COMMENT '신청기간구분코드(0057 계열)',
     aply_url_addr        TEXT         NULL COMMENT '신청URL(aplyUrlAddr)',
+    ref_url_addr1        TEXT         NULL COMMENT '참고 URL 1',
     custom_apply_url     TEXT         NULL COMMENT '관리자 지정 신청URL(동기화로 덮이지 않음)',
     sprt_trgt_min_age    INT          NULL COMMENT '최소연령(sprtTrgtMinAge)',
     sprt_trgt_max_age    INT          NULL COMMENT '최대연령(sprtTrgtMaxAge)',

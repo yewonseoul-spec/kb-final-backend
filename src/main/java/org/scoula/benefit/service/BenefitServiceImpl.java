@@ -320,6 +320,7 @@ public class BenefitServiceImpl implements BenefitService {
         );
 
         vo.setAplyUrlAddr(item.getAplyUrlAddr());
+        vo.setRefUrlAddr1(item.getRefUrlAddr1());
 
         vo.setSprtTrgtMinAge(toInteger(item.getSprtTrgtMinAge()));
         vo.setSprtTrgtMaxAge(toInteger(item.getSprtTrgtMaxAge()));

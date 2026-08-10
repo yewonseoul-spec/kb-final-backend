@@ -77,22 +77,6 @@ public interface BenefitMapper {
             Integer benefitNo
     );
 
-    List<String> findBenefitRegionNames(
-            @Param("benefitNo") Integer benefitNo
-    );
-
-    List<String> findBenefitMajorNames(
-            @Param("benefitNo") Integer benefitNo
-    );
-
-    List<String> findBenefitSchoolNames(
-            @Param("benefitNo") Integer benefitNo
-    );
-
-    List<String> findBenefitJobNames(
-            @Param("benefitNo") Integer benefitNo
-    );
-
     //사용자프로필 조건기반 혜택 추천
     BenefitProfileFilterResDTO findBenefitProfileFilter(
             @Param("memberNo") Integer memberNo

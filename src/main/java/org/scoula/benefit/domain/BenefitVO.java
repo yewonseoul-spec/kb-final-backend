@@ -24,6 +24,8 @@ public class BenefitVO {
     private String aplyYmd;
     private String aplyPrdSeCd;
     private String aplyUrlAddr;
+    private String refUrlAddr1;
+
 
 
     private Integer sprtTrgtMinAge;

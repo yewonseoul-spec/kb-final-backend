@@ -22,6 +22,7 @@
         aply_ymd,
         aply_prd_se_cd,
         aply_url_addr,
+        ref_url_addr1,
         sprt_trgt_min_age,
         sprt_trgt_max_age,
         earn_cnd_se_cd,
@@ -53,6 +54,7 @@
         #{aplyYmd},
         NULLIF(TRIM(#{aplyPrdSeCd}), ''),
         #{aplyUrlAddr},
+        #{refUrlAddr1},
         #{sprtTrgtMinAge},
         #{sprtTrgtMaxAge},
         NULLIF(TRIM(#{earnCndSeCd}), ''),
@@ -82,6 +84,7 @@
         aply_ymd = VALUES(aply_ymd),
         aply_prd_se_cd = NULLIF(TRIM(VALUES(aply_prd_se_cd)), ''),
         aply_url_addr = VALUES(aply_url_addr),
+        ref_url_addr1 = VALUES(ref_url_addr1),
         sprt_trgt_min_age = VALUES(sprt_trgt_min_age),
         sprt_trgt_max_age = VALUES(sprt_trgt_max_age),
         earn_cnd_se_cd = NULLIF(TRIM(VALUES(earn_cnd_se_cd)), ''),
@@ -557,6 +560,7 @@
         b.aply_prd_se_cd AS aplyPrdSeCd,
         COALESCE(NULLIF(TRIM(b.custom_apply_url), ''),
         b.aply_url_addr) AS aplyUrlAddr,
+        b.ref_url_addr1 AS refUrlAddr1,
         b.sprt_trgt_min_age AS sprtTrgtMinAge,
         b.sprt_trgt_max_age AS sprtTrgtMaxAge,
 
@@ -595,82 +599,6 @@
 
     </select>
 
-<!--&lt;!&ndash;  상세 적용지역&ndash;&gt;-->
-<!--    <select id="findBenefitRegionNames"-->
-<!--            parameterType="java.lang.Integer"-->
-<!--            resultType="java.lang.String">-->
-
-<!--        SELECT DISTINCT-->
-<!--        r.region_name-->
-<!--        FROM benefit_region br-->
-<!--        JOIN region r-->
-<!--        ON r.zip_cd = br.zip_cd-->
-<!--        WHERE br.benefit_no = #{benefitNo}-->
-<!--        ORDER BY r.region_name ASC-->
-
-<!--    </select>-->
-<!--&lt;!&ndash;상세 전공&ndash;&gt;-->
-<!--    <select id="findBenefitMajorNames"-->
-<!--            parameterType="int"-->
-<!--            resultType="string">-->
-
-<!--        SELECT DISTINCT-->
-<!--        cc.code_name-->
-
-<!--        FROM benefit_major bm-->
-
-<!--        JOIN common_code cc-->
-<!--        ON cc.code = bm.plcy_major_cd-->
-
-<!--        WHERE bm.benefit_no = #{benefitNo}-->
-<!--        AND cc.api_field = 'plcyMajorCd'-->
-<!--        AND cc.is_active = 'Y'-->
-
-<!--        ORDER BY cc.display_order ASC-->
-
-<!--    </select>-->
-
-<!--&lt;!&ndash;    상세학력&ndash;&gt;-->
-<!--    <select id="findBenefitSchoolNames"-->
-<!--            parameterType="int"-->
-<!--            resultType="string">-->
-
-<!--        SELECT DISTINCT-->
-<!--        cc.code_name-->
-
-<!--        FROM benefit_school bs-->
-
-<!--        JOIN common_code cc-->
-<!--        ON cc.code = bs.school_cd-->
-
-<!--        WHERE bs.benefit_no = #{benefitNo}-->
-<!--        AND cc.api_field = 'schoolCd'-->
-<!--        AND cc.is_active = 'Y'-->
-
-<!--        ORDER BY cc.display_order ASC-->
-
-<!--    </select>-->
-
-<!--&lt;!&ndash; 상세 취업   &ndash;&gt;-->
-<!--    <select id="findBenefitJobNames"-->
-<!--            parameterType="int"-->
-<!--            resultType="string">-->
-
-<!--        SELECT DISTINCT-->
-<!--        cc.code_name-->
-
-<!--        FROM benefit_job bj-->
-
-<!--        JOIN common_code cc-->
-<!--        ON cc.code = bj.job_cd-->
-
-<!--        WHERE bj.benefit_no = #{benefitNo}-->
-<!--        AND cc.api_field = 'jobCd'-->
-<!--        AND cc.is_active = 'Y'-->
-
-<!--        ORDER BY cc.display_order ASC-->
-
-<!--    </select>-->
 
     <!-- 로그인 회원의 혜택 기본 필터 조회 -->
     <select id="findBenefitProfileFilter"

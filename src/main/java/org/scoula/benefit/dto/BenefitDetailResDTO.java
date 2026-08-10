@@ -42,6 +42,7 @@ public class BenefitDetailResDTO {
     private String aplyYmd;
     private String aplyPrdSeCd;
     private String aplyUrlAddr;
+    private String refUrlAddr1;
 
     private Integer sprtTrgtMinAge;
     private Integer sprtTrgtMaxAge;
