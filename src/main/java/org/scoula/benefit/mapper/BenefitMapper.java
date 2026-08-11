@@ -46,6 +46,11 @@ public interface BenefitMapper {
 
     int updateBenefitStatusOnly(BenefitVO benefit);
 
+    //온통청년 사라진 혜택 관리
+    int deactivateBenefitsNotInApi(@Param("plcyNoList") List<String> plcyNoList);
+
+    int restoreBenefitFromApi(String plcyNo);
+
    //카테고리 필터
    List<BenefitCategoryResDTO> findBenefitCategories();
 
@@ -75,6 +80,7 @@ public interface BenefitMapper {
     //혜택 상세페이지
     BenefitDetailResDTO findBenefitDetail(
             Integer benefitNo
+
     );
 
     //사용자프로필 조건기반 혜택 추천

@@ -26,8 +26,6 @@ public class BenefitVO {
     private String aplyUrlAddr;
     private String refUrlAddr1;
 
-
-
     private Integer sprtTrgtMinAge;
     private Integer sprtTrgtMaxAge;
 
@@ -43,6 +41,8 @@ public class BenefitVO {
     private Integer inqCnt;
 
     private String isActive;
+    private String apiDeletedYn;
+    private String apiDeletedDt;
 
     private String frstRegDt;
     private String lastMdfcnDt;

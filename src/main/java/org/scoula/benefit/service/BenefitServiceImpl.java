@@ -497,13 +497,15 @@ public class BenefitServiceImpl implements BenefitService {
         int pageSize = 100;
         int count = 0;
 
-        // sync_log 기록용 카운터. 세 값의 합이 count 와 같아야 CHECK 제약을 통과한다
         int insertCnt = 0;
         int updateCnt = 0;
         int skipCnt = 0;
         String errorMsg = null;
 
         List<String> apiPlcyNoList = new ArrayList<>();
+
+        // 추가: API 전체 페이지를 끝까지 성공적으로 조회했는지 확인용
+        boolean completedSuccessfully = false;
 
         while (true) {
             YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
@@ -521,7 +523,6 @@ public class BenefitServiceImpl implements BenefitService {
                 break;
             }
 
-            // 스케쥴러 실패사유 기록추가
             List<YouthPolicyApiItemDTO> policyList;
 
             try {
@@ -542,14 +543,22 @@ public class BenefitServiceImpl implements BenefitService {
 
             if (policyList.isEmpty()) {
                 System.out.println("[온통청년 API 전체 조회 완료] pageNum = " + pageNum);
+
+                // 추가: 마지막 빈 페이지까지 정상 도달했을 때만 삭제 반영 허용
+                completedSuccessfully = true;
                 break;
             }
 
             for (YouthPolicyApiItemDTO item : policyList) {
+                if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
+                    skipCnt++;
+                    count++;
+                    continue;
+                }
+
                 apiPlcyNoList.add(item.getPlcyNo());
 
                 BenefitVO benefit = convertToBenefitVO(item);
-
 
                 int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
 
@@ -559,8 +568,8 @@ public class BenefitServiceImpl implements BenefitService {
                         + exists);
 
                 if (exists == 0) {
-                    // 신규 혜택이면 전체 저장 + 매핑 저장
                     System.out.println("[신규 저장 분기] " + item.getPlcyNo());
+
                     benefitMapper.upsertBenefit(benefit);
 
                     Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
@@ -568,16 +577,21 @@ public class BenefitServiceImpl implements BenefitService {
                     if (benefitNo != null) {
                         saveBenefitMappings(benefitNo, item);
                     }
+
                     insertCnt++;
                 } else {
+                    // 추가: DB에는 API 삭제 처리되어 있었더라도 이번 API에 다시 있으면 복구
+                    benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
+
                     if (shouldUpdateStatus(benefit)) {
-                        // 기존 혜택 중 시작 전, 진행 중, 상시 혜택만 갱신
                         System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
+
                         benefitMapper.updateBenefitStatusOnly(benefit);
+
                         updateCnt++;
                     } else {
-                        // 마감된 혜택은 갱신 제외
                         System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
+
                         skipCnt++;
                     }
                 }
@@ -586,21 +600,33 @@ public class BenefitServiceImpl implements BenefitService {
             }
 
             pageNum++;
-//            스케쥴러 테스트로 페이지 설정 테스트 확인후 삭제필요
-//            if (pageNum > 3) {
-//                break;
-//            }
         }
 
-        // 관리자 화면 '동기화 로그'에 자동 실행 이력을 남긴다.
-        // 수동 동기화(AdminService)와 달리 실행자가 사람이 아니므로 member_no 는 NULL 이다.
+        // 추가: Open API에서 사라진 혜택 반영
+        if (completedSuccessfully && !apiPlcyNoList.isEmpty()) {
+            int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(apiPlcyNoList);
+
+            System.out.println("[Open API 삭제 혜택 비활성화 완료] 건수 = " + deletedCnt);
+
+            /*
+             * sync_log CHECK 제약 때문에
+             * insertCnt + updateCnt + skipCnt = count 를 유지해야 함.
+             *
+             * API에서 사라진 혜택 비활성화도 DB update 작업이므로 updateCnt에 포함.
+             */
+            updateCnt += deletedCnt;
+            count += deletedCnt;
+        } else {
+            System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
+        }
+
         int durationMs = (int) (System.currentTimeMillis() - startTime);
         String resultStatus;
 
         if (errorMsg == null) {
             resultStatus = "S";
         } else if (count > 0) {
-            resultStatus = "P";   // 일부 페이지까지는 처리됨
+            resultStatus = "P";
         } else {
             resultStatus = "F";
         }

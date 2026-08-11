@@ -72,4 +72,6 @@ BenefitDetailResDTO findBenefitDetail(
 BenefitProfileFilterResDTO findBenefitProfileFilter(
         Integer memberNo
 );
+
+
 }
