@@ -17,8 +17,14 @@ public class BenefitProfileFilterResDTO {
 
     private Integer age;
 
-    private String zipCd;
-    private String regionName;
+    private String provinceCode;
+    private String provinceName;
+
+    private String cityCode;
+    private String cityName;
+
+    private String districtCode;
+    private String districtName;
 
     private String plcyMajorCd;
     private String majorName;
