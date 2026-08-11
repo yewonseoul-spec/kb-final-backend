@@ -785,10 +785,10 @@ public class BenefitServiceImpl implements BenefitService {
     private static final String RECENT_KEY_PREFIX =
             "benefit:recent-search:";
 
-    private static final int MAX_RECENT_COUNT = 10;
+    private static final int MAX_RECENT_COUNT = 6;
 
     private static final Duration RECENT_TTL =
-            Duration.ofDays(30);
+            Duration.ofHours(7);
 
     @Override
     public List<RecommendedKeywordResDTO>
@@ -837,6 +837,7 @@ public class BenefitServiceImpl implements BenefitService {
         String normalizedKeyword =
                 normalizeKeyword(keyword);
 
+        //같은 검색어가 있으면 기존 위치에서 제거
         redisTemplate
                 .opsForList()
                 .remove(
@@ -845,6 +846,7 @@ public class BenefitServiceImpl implements BenefitService {
                         normalizedKeyword
                 );
 
+        // 가장 최근 검색어를 맨 앞에 저장
         redisTemplate
                 .opsForList()
                 .leftPush(
@@ -852,6 +854,7 @@ public class BenefitServiceImpl implements BenefitService {
                         normalizedKeyword
                 );
 
+        // 최근 검색어 최대 6개만 유지
         redisTemplate
                 .opsForList()
                 .trim(
@@ -860,6 +863,7 @@ public class BenefitServiceImpl implements BenefitService {
                         MAX_RECENT_COUNT - 1
                 );
 
+        // 마지막 검색 시점부터 7시간 후 만료
         redisTemplate.expire(
                 redisKey,
                 RECENT_TTL
@@ -1081,18 +1085,6 @@ public BenefitDetailResDTO findBenefitDetail(
         throw new IllegalArgumentException(
                 "존재하지 않는 혜택입니다.");}
 
-//    detail.setRegionNames(
-//            benefitMapper.findBenefitRegionNames(
-//                    benefitNo));
-//    detail.setMajorNames(
-//            benefitMapper.findBenefitMajorNames(
-//                    benefitNo));
-//    detail.setSchoolNames(
-//            benefitMapper.findBenefitSchoolNames(
-//                    benefitNo));
-//    detail.setJobNames(
-//            benefitMapper.findBenefitJobNames(
-//                    benefitNo));
     return detail;}
 
     //사용자 프로필 조건기반 혜택추천
