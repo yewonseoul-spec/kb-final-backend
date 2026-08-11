@@ -2,6 +2,7 @@ package org.scoula.exception;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.ibatis.exceptions.PersistenceException;
+import org.scoula.member.exception.InvalidMemberFormatException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.springframework.core.annotation.Order;
@@ -43,6 +44,15 @@ public class ApiExceptionAdvice {
     // 400 에러 - 필수 약관 미동의
     @ExceptionHandler(RequiredTermsNotAgreedException.class)
     protected ResponseEntity<String> handleRequiredTermsNotAgreed(RequiredTermsNotAgreedException e) {
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body(e.getMessage());
+    }
+
+    // 400 에러 - 닉네임/아이디 형식 위반
+    @ExceptionHandler(InvalidMemberFormatException.class)
+    protected ResponseEntity<String> handleInvalidMemberFormat(InvalidMemberFormatException e) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .header("Content-Type", "text/plain;charset=UTF-8")

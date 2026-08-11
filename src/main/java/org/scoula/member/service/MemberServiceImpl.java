@@ -6,6 +6,7 @@ import org.scoula.member.dto.ChangePasswordDTO;
 import org.scoula.member.dto.MemberDTO;
 import org.scoula.member.dto.MemberJoinDTO;
 import org.scoula.member.dto.MemberUpdateDTO;
+import org.scoula.member.exception.InvalidMemberFormatException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.scoula.member.mapper.MemberMapper;
@@ -26,6 +27,13 @@ public class MemberServiceImpl implements MemberService {
     final PasswordEncoder passwordEncoder;
     final MemberMapper mapper;
     final TermsMapper termsMapper;
+
+    // 닉네임: 한글·영문·숫자 2~10자. 표시용이라 중복은 허용한다.
+    private static final String NICKNAME_RULE = "^[가-힣a-zA-Z0-9]{2,10}$";
+
+    // 아이디: 영문 소문자로 시작하는 영문 소문자·숫자 5~20자.
+    // login_id 컬럼 collation 이 ci 라 대문자를 허용하면 저장값과 조회값이 어긋나 보인다.
+    private static final String LOGIN_ID_RULE = "^[a-z][a-z0-9]{4,19}$";
 
     @Override
     public boolean checkDuplicate(String loginId) {
@@ -48,6 +56,8 @@ public class MemberServiceImpl implements MemberService {
     @Transactional
     @Override
     public MemberDTO join(MemberJoinDTO dto) {
+        validateFormat(dto);
+
         // SignUp 약관 목록
         List<TermsVO> signupTerms = termsMapper.getSignupTerms();
 
@@ -83,6 +93,21 @@ public class MemberServiceImpl implements MemberService {
         }
 
         return get(member.getLoginId());
+    }
+
+    // 프론트(SignUp.vue)와 같은 규칙을 쓴다. 한쪽만 바꾸면 통과한 값이 400 을 받는 구간이 생기므로 함께 고칠 것.
+    private void validateFormat(MemberJoinDTO dto) {
+        String loginId = dto.getLoginId();
+        if (loginId == null || !loginId.matches(LOGIN_ID_RULE)) {
+            throw new InvalidMemberFormatException("아이디 형식이 올바르지 않습니다.");
+        }
+
+        // 프론트는 이미 trim 해서 보내지만, API 를 직접 호출하는 경우까지 막는다
+        String realName = dto.getRealName() == null ? "" : dto.getRealName().trim();
+        if (!realName.matches(NICKNAME_RULE)) {
+            throw new InvalidMemberFormatException("닉네임 형식이 올바르지 않습니다.");
+        }
+        dto.setRealName(realName);
     }
 
     @Override
