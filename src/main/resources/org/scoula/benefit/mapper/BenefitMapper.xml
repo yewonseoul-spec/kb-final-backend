@@ -614,8 +614,101 @@
         CURDATE()
         ) AS age,
 
-        mp.region_code AS zipCd,
-        r.region_name AS regionName,
+        /*
+        * 지역 계층
+        *
+        * r  : 프로필에 저장된 지역
+        * p  : r의 상위 지역
+        * gp : p의 상위 지역
+        */
+
+        CASE
+        /* 프로필 지역이 시도인 경우 */
+        WHEN p.zip_cd IS NULL
+        OR p.zip_cd = '00000'
+        THEN r.zip_cd
+
+        /* 프로필 지역이 시군인 경우 */
+        WHEN gp.zip_cd IS NULL
+        OR gp.zip_cd = '00000'
+        THEN p.zip_cd
+
+        /* 프로필 지역이 구군인 경우 */
+        ELSE gp.zip_cd
+        END AS provinceCode,
+
+        CASE
+        WHEN p.zip_cd IS NULL
+        OR p.zip_cd = '00000'
+        THEN r.region_name
+
+        WHEN gp.zip_cd IS NULL
+        OR gp.zip_cd = '00000'
+        THEN p.region_name
+
+        ELSE gp.region_name
+        END AS provinceName,
+
+        CASE
+        /* 시도까지만 저장된 경우 시군은 없음 */
+        WHEN p.zip_cd IS NULL
+        OR p.zip_cd = '00000'
+        THEN NULL
+
+        /* 시군이 저장된 경우 */
+        WHEN gp.zip_cd IS NULL
+        OR gp.zip_cd = '00000'
+        THEN r.zip_cd
+
+        /* 구군이 저장된 경우 부모가 시군 */
+        ELSE p.zip_cd
+        END AS cityCode,
+
+        CASE
+        WHEN p.zip_cd IS NULL
+        OR p.zip_cd = '00000'
+        THEN NULL
+
+        WHEN gp.zip_cd IS NULL
+        OR gp.zip_cd = '00000'
+        THEN TRIM(
+        REPLACE(
+        r.region_name,
+        CONCAT(p.region_name, ' '),
+        ''
+        )
+        )
+
+        ELSE TRIM(
+        REPLACE(
+        p.region_name,
+        CONCAT(gp.region_name, ' '),
+        ''
+        )
+        )
+        END AS cityName,
+
+        CASE
+        /* 3단계 지역일 때만 구군 설정 */
+        WHEN gp.zip_cd IS NOT NULL
+        AND gp.zip_cd != '00000'
+        THEN r.zip_cd
+        ELSE NULL
+        END AS districtCode,
+
+        CASE
+        WHEN gp.zip_cd IS NOT NULL
+        AND gp.zip_cd != '00000'
+        THEN TRIM(
+        REPLACE(
+        r.region_name,
+        CONCAT(p.region_name, ' '),
+        ''
+        )
+        )
+
+        ELSE NULL
+        END AS districtName,
 
         mp.major AS plcyMajorCd,
         major_code.code_name AS majorName,
@@ -633,6 +726,12 @@
 
         LEFT JOIN region r
         ON r.zip_cd = mp.region_code
+
+        LEFT JOIN region p
+        ON p.zip_cd = r.parent_region_code
+
+        LEFT JOIN region gp
+        ON gp.zip_cd = p.parent_region_code
 
         LEFT JOIN common_code major_code
         ON major_code.code = mp.major
