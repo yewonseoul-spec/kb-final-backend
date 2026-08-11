@@ -1,5 +1,8 @@
+
 -- =====================================================================
--- [v2.0] benefit 테이블에 ref_url_addr1 컬럼 추가
+-- [v2.1] benefit 테이블 api_deleted_yn, api_deleted_dt 컬럼 추가
+-- =====================================================================
+-- [v2.0] benefit 테이블 ref_url_addr1 컬럼 추가
 -- =====================================================================
 -- [v1.9] benefit 테이블에 custom_apply_url 컬럼 추가
 --        (관리자가 지정한 신청 링크. 동기화 upsert 대상에서 제외해 보존한다)
@@ -312,6 +315,8 @@ CREATE TABLE benefit
     conflict_group_code  VARCHAR(50)  NULL COMMENT '중복수혜그룹코드',
     inq_cnt              INT          NOT NULL DEFAULT 0 COMMENT '조회수(초기값; 실시간은 Redis)',
     is_active            CHAR(1)      NOT NULL DEFAULT 'Y' COMMENT '활성화여부 Y/N(마감 경과 시 N)',
+    api_deleted_yn        CHAR(1)     NOT NULL DEFAULT 'N ' COMMENT '혜택 삭제 여부',
+    api_deleted_dt       DATETIME     NULL COMMENT '혜택 삭제 일시',
     frst_reg_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
     last_mdfcn_dt        DATETIME     NULL     DEFAULT NULL COMMENT '최종수정일시(lastMdfcnDt)',
     plcy_expln_cn        TEXT         NULL COMMENT '정책설명내용(plcyExplnCn)',
