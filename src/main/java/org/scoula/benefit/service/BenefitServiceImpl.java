@@ -7,6 +7,8 @@ import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
+import org.scoula.mypage.domain.GoalVO;
+import org.scoula.mypage.mapper.GoalMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -189,6 +191,7 @@ public class BenefitServiceImpl implements BenefitService {
     private final YouthPolicyApiClient youthPolicyApiClient;
     private final BenefitMapper benefitMapper;
     private final AdminMapper adminMapper;
+    private final GoalMapper goalMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -1136,5 +1139,118 @@ public BenefitDetailResDTO findBenefitDetail(
         }
 
         return profileFilter;
+    }
+
+    // 목표 기반 추천에서 섹션별로 보여 줄 최대 건수
+    private static final int PRIMARY_LIMIT = 100;
+    private static final int SECONDARY_LIMIT = 50;
+
+    @Override
+    public GoalRecommendResDTO findGoalRecommend(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            throw new IllegalArgumentException(
+                    "회원 번호가 필요합니다."
+            );
+        }
+
+        GoalRecommendResDTO result = new GoalRecommendResDTO();
+
+        result.setPrimaryBenefits(Collections.emptyList());
+        result.setSecondaryBenefits(Collections.emptyList());
+
+        GoalVO goal = goalMapper.get(memberNo);
+
+        /*
+         * goal 테이블 ENUM 에 '없음'이 없고 member_no 에 unique 가 걸려 있어,
+         * 목표 미설정은 값이 아니라 행 자체가 없는 상태로 나타난다.
+         */
+        if (goal == null || goal.getGoalType() == null) {
+            return result;
+        }
+
+        String goalType = goal.getGoalType().name();
+
+        result.setGoalType(goalType);
+
+        /*
+         * 프로필이 없으면 null 이 온다.
+         * 그때는 조건 필터 없이 목표 매핑만으로 보여 준다.
+         * (조건 기반 탭도 프로필 조회에 실패하면 전체 목록으로 물러난다)
+         */
+        BenefitProfileFilterResDTO profile =
+                benefitMapper.findBenefitProfileFilter(memberNo);
+
+        result.setPrimaryBenefits(
+                findBenefitByGoalPriority(
+                        goalType, 1, profile, PRIMARY_LIMIT
+                )
+        );
+
+        result.setSecondaryBenefits(
+                findBenefitByGoalPriority(
+                        goalType, 2, profile, SECONDARY_LIMIT
+                )
+        );
+
+        return result;
+    }
+
+    private List<BenefitListResDTO> findBenefitByGoalPriority(
+            String goalType,
+            int priority,
+            BenefitProfileFilterResDTO profile,
+            int limit
+    ) {
+        List<String> codes =
+                benefitMapper.findGoalCategoryCodes(
+                        goalType, priority
+                );
+
+        /*
+         * 🔴 매핑이 비면 조회하지 않고 바로 빈 목록을 돌려준다.
+         * 그대로 findBenefit 에 넘기면 IN 조건이 통째로 빠져
+         * 전체 혜택이 목표 추천으로 둔갑한다.
+         */
+        if (codes == null || codes.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        BenefitFilterReqDTO filter = new BenefitFilterReqDTO();
+
+        filter.setDetailCategoryCodes(codes);
+        filter.setLimit(limit);
+
+        if (profile != null) {
+            filter.setAge(profile.getAge());
+            filter.setZipCd(resolveZipCd(profile));
+            filter.setPlcyMajorCd(profile.getPlcyMajorCd());
+            filter.setSchoolCd(profile.getSchoolCd());
+            filter.setJobCd(profile.getJobCd());
+            filter.setMrgSttsCd(profile.getMrgSttsCd());
+        }
+
+        return benefitMapper.findBenefit(filter);
+    }
+
+    /*
+     * 구군 → 시군 → 시도 순으로 가장 좁은 지역을 쓴다.
+     * 조건 기반 탭이 프론트에서 하는 것과 같은 규칙이다.
+     */
+    private String resolveZipCd(
+            BenefitProfileFilterResDTO profile
+    ) {
+        if (profile.getDistrictCode() != null
+                && !profile.getDistrictCode().isEmpty()) {
+            return profile.getDistrictCode();
+        }
+
+        if (profile.getCityCode() != null
+                && !profile.getCityCode().isEmpty()) {
+            return profile.getCityCode();
+        }
+
+        return profile.getProvinceCode();
     }
 }

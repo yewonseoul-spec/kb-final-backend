@@ -73,5 +73,8 @@ BenefitProfileFilterResDTO findBenefitProfileFilter(
         Integer memberNo
 );
 
+    // 목표 기반 추천
+    GoalRecommendResDTO findGoalRecommend(Integer memberNo);
+
 
 }

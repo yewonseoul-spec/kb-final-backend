@@ -87,4 +87,10 @@ public interface BenefitMapper {
     BenefitProfileFilterResDTO findBenefitProfileFilter(
             @Param("memberNo") Integer memberNo
     );
+
+    // 목표 → 혜택 중분류 매핑 조회
+    List<String> findGoalCategoryCodes(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+    );
 }

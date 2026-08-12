@@ -465,6 +465,17 @@
             )
         </if>
 
+        <if test="detailCategoryCodes != null and detailCategoryCodes.size() &gt; 0">
+            AND b.detail_category_code IN
+            <foreach item="code"
+                     collection="detailCategoryCodes"
+                     open="("
+                     separator=","
+                     close=")">
+                #{code}
+            </foreach>
+        </if>
+
 <!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
         ORDER BY
         CASE
@@ -494,6 +505,23 @@
         END ASC,
 
         b.benefit_no DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 목표 → 중분류 매핑 조회 (목표 기반 추천) -->
+    <select id="findGoalCategoryCodes" resultType="string">
+
+        SELECT
+        g.detail_category_code
+
+        FROM goal_benefit_category g
+
+        WHERE g.goal_type = #{goalType}
+        AND g.priority = #{priority}
+
+        ORDER BY g.detail_category_code
     </select>
 
     <!-- 추천 검색어 조회 -->
