@@ -3,8 +3,6 @@ package org.scoula.benefit.dto;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.List;
-
 @Getter
 @Setter
 public class GoalRecommendResDTO {
@@ -17,8 +15,8 @@ public class GoalRecommendResDTO {
     private String goalType;
 
     // 1차 : 목표에 직접 맞닿는 중분류
-    private List<BenefitListResDTO> primaryBenefits;
+    private GoalSectionDTO primary = new GoalSectionDTO();
 
     // 2차 : 함께 보면 좋은 중분류
-    private List<BenefitListResDTO> secondaryBenefits;
+    private GoalSectionDTO secondary = new GoalSectionDTO();
 }

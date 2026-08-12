@@ -93,4 +93,10 @@ public interface BenefitMapper {
             @Param("goalType") String goalType,
             @Param("priority") int priority
     );
+
+    // 목표 → 중분류 이름 조회 (화면 설명용)
+    List<String> findGoalCategoryNames(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+    );
 }

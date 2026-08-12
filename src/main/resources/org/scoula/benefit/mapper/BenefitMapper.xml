@@ -524,6 +524,22 @@
         ORDER BY g.detail_category_code
     </select>
 
+    <!-- 목표 → 중분류 이름 조회 (화면 설명용) -->
+    <select id="findGoalCategoryNames" resultType="string">
+
+        SELECT
+        d.detail_category_name
+
+        FROM goal_benefit_category g
+        JOIN benefit_detail_category d
+        ON d.detail_category_code = g.detail_category_code
+
+        WHERE g.goal_type = #{goalType}
+        AND g.priority = #{priority}
+
+        ORDER BY d.display_order
+    </select>
+
     <!-- 추천 검색어 조회 -->
     <select id="findRecommendedKeywords"
             resultType="org.scoula.benefit.dto.RecommendedKeywordResDTO">
