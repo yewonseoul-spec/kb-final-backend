@@ -79,6 +79,7 @@ DROP TABLE IF EXISTS recommend_keyword;
 DROP TABLE IF EXISTS finance_product;
 DROP TABLE IF EXISTS spending_category;
 DROP TABLE IF EXISTS benefit_category;
+DROP TABLE IF EXISTS benefit_detail_category;
 DROP TABLE IF EXISTS region;
 DROP TABLE IF EXISTS terms;
 DROP TABLE IF EXISTS member;
