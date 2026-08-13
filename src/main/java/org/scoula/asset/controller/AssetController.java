@@ -1,5 +1,6 @@
 package org.scoula.asset.controller;
 
+import org.scoula.asset.dto.AccountDTO;
 import org.scoula.asset.dto.AssetDashboardResDTO;
 import org.scoula.asset.service.AssetService;
 import org.scoula.security.account.domain.CustomUser;
@@ -10,6 +11,9 @@ import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import javax.servlet.http.HttpServletRequest;
+import java.util.List;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
@@ -27,5 +31,16 @@ public class AssetController {
 
         AssetDashboardResDTO response = assetService.getAssetDashboard(memberNo);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/balance")
+    public ResponseEntity<List<AccountDTO>> getAccountBalances(HttpServletRequest request, @AuthenticationPrincipal CustomUser user) {
+        Integer memberNo = user.getMember().getMemberNo();
+        if (memberNo == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        List<AccountDTO> accounts = assetService.getAccountBalances(memberNo);
+        return ResponseEntity.ok(accounts);
     }
 }
