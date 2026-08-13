@@ -828,4 +828,277 @@
         api_deleted_dt = NULL
         WHERE plcy_no = #{plcyNo}
     </update>
+
+<!-- 소비기반 추천 소비 최근 3개월 기반-->
+    <select id="findTopSpendingCategories"
+            parameterType="java.lang.Integer"
+            resultType="org.scoula.benefit.dto.ConsumptionCategoryResDTO">
+
+        SELECT
+        s.category_no AS categoryNo,
+        sc.category_name AS categoryName,
+        SUM(s.amount) AS totalAmount
+
+        FROM spending s
+
+        JOIN spending_category sc
+        ON sc.category_no = s.category_no
+
+        WHERE s.member_no = #{memberNo}
+
+<!--        전체 소비 기준으로 하려면 아래 2줄 삭제하면 됨-->
+        AND s.spending_date >=
+        DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+
+        GROUP BY
+        s.category_no,
+        sc.category_name
+
+        ORDER BY
+        totalAmount DESC
+
+        LIMIT 3
+
+    </select>
+
+<!-- 소비기반 추천 혜택 중분류-->
+    <select id="findConsumptionBenefitCategoryNames"
+            parameterType="java.lang.Integer"
+            resultType="java.lang.String">
+
+        SELECT
+        bdc.detail_category_name
+
+        FROM spending_benefit_category_map sbcm
+
+        JOIN benefit_detail_category bdc
+        ON bdc.detail_category_code =
+        sbcm.detail_category_code
+
+        WHERE sbcm.category_no IN (
+        SELECT top_category.category_no
+
+        FROM (
+        SELECT
+        s.category_no,
+        SUM(s.amount) AS total_amount
+
+        FROM spending s
+
+        WHERE s.member_no = #{memberNo}
+
+        AND s.spending_date >=
+        DATE_SUB(
+        CURDATE(),
+        INTERVAL 3 MONTH
+        )
+
+        GROUP BY s.category_no
+
+        ORDER BY total_amount DESC
+
+        LIMIT 3
+        ) top_category
+        )
+
+        GROUP BY
+        bdc.detail_category_code,
+        bdc.detail_category_name,
+        bdc.display_order
+
+        ORDER BY
+        bdc.display_order ASC
+
+    </select>
+<!-- 실제 소비기반 추천 조회-->
+    <select id="findConsumptionRecommendedBenefits"
+            parameterType="java.lang.Integer"
+            resultType="org.scoula.benefit.dto.BenefitListResDTO">
+        <if test="filter.zipCd != null and filter.zipCd != ''">
+            WITH RECURSIVE region_scope AS (
+            SELECT
+            r.zip_cd,
+            r.parent_region_code
+            FROM region r
+            WHERE r.zip_cd = #{filter.zipCd}
+
+            UNION ALL
+
+            SELECT
+            child.zip_cd,
+            child.parent_region_code
+            FROM region child
+            INNER JOIN region_scope parent
+            ON child.parent_region_code = parent.zip_cd
+            )
+        </if>
+        SELECT DISTINCT
+        b.benefit_no AS benefitNo,
+        b.plcy_no AS plcyNo,
+        b.plcy_nm AS plcyNm,
+
+        b.category_code AS categoryCode,
+        bc.category_name AS categoryName,
+
+        b.detail_category_code AS detailCategoryCode,
+
+        b.sprvsn_inst_cd_nm AS sprvsnInstCdNm,
+
+        b.apply_start_date AS applyStartDate,
+        b.apply_end_date AS applyEndDate,
+
+        b.aply_prd_se_cd AS aplyPrdSeCd,
+
+        b.is_active AS isActive,
+
+        CASE
+        WHEN b.apply_end_date IS NULL
+        THEN 'ALWAYS'
+
+        WHEN b.apply_end_date &lt; CURDATE()
+        THEN 'CLOSED'
+
+        ELSE 'OPEN'
+        END AS benefitStatus
+
+        FROM benefit b
+
+        JOIN benefit_category bc
+        ON bc.category_code = b.category_code
+
+        JOIN spending_benefit_category_map sbcm
+        ON sbcm.detail_category_code =
+        b.detail_category_code
+
+        WHERE b.is_active = 'Y'
+        AND sbcm.category_no IN (
+
+        SELECT top_category.category_no
+
+        FROM (
+        SELECT
+        s.category_no,
+        SUM(s.amount) AS total_amount
+
+        FROM spending s
+
+        WHERE s.member_no = #{memberNo}
+
+        AND s.spending_date >=
+        DATE_SUB(
+        CURDATE(),
+        INTERVAL 3 MONTH
+        )
+
+        GROUP BY s.category_no
+
+        ORDER BY total_amount DESC
+
+        LIMIT 3
+        ) top_category
+        )
+
+        <if test="filter.zipCd != null and filter.zipCd != ''">
+            AND EXISTS (
+            SELECT 1
+            FROM benefit_region br
+            WHERE br.benefit_no = b.benefit_no
+            AND br.zip_cd IN (
+            SELECT zip_cd
+            FROM region_scope
+            )
+            )
+        </if>
+        <if test="filter.age != null">
+            AND (
+            (
+            b.sprt_trgt_min_age IS NULL
+            OR b.sprt_trgt_min_age = 0
+            OR b.sprt_trgt_min_age &lt;= #{filter.age}
+            )
+            AND
+            (
+            b.sprt_trgt_max_age IS NULL
+            OR b.sprt_trgt_max_age = 0
+            OR b.sprt_trgt_max_age &gt;= #{filter.age}
+            )
+            )
+        </if>
+        <if test="filter.age != null">
+            AND (
+            (
+            b.sprt_trgt_min_age IS NULL
+            OR b.sprt_trgt_min_age = 0
+            OR b.sprt_trgt_min_age &lt;= #{filter.age}
+            )
+            AND
+            (
+            b.sprt_trgt_max_age IS NULL
+            OR b.sprt_trgt_max_age = 0
+            OR b.sprt_trgt_max_age &gt;= #{filter.age}
+            )
+            )
+        </if>
+        <if test="
+    filter.schoolCd != null
+    and filter.schoolCd != ''
+">
+            AND EXISTS (
+            SELECT 1
+            FROM benefit_school bs
+            WHERE bs.benefit_no =
+            b.benefit_no
+            AND (
+            bs.school_cd =
+            #{filter.schoolCd}
+            OR bs.school_cd =
+            '0049010'
+            )
+            )
+        </if>
+        <if test="
+    filter.jobCd != null
+    and filter.jobCd != ''
+">
+            AND EXISTS (
+            SELECT 1
+            FROM benefit_job bj
+            WHERE bj.benefit_no =
+            b.benefit_no
+            AND (
+            bj.job_cd =
+            #{filter.jobCd}
+            OR bj.job_cd =
+            '0013010'
+            )
+            )
+        </if>
+        <if test="
+    filter.mrgSttsCd != null
+    and filter.mrgSttsCd != ''
+">
+            AND (
+            b.mrg_stts_cd =
+            #{filter.mrgSttsCd}
+            OR b.mrg_stts_cd =
+            '0055003'
+            )
+        </if>
+
+        ORDER BY
+
+        CASE
+        WHEN b.apply_end_date IS NULL
+        THEN 1
+        ELSE 0
+        END,
+
+        CASE
+        WHEN b.apply_end_date >= CURDATE()
+        THEN b.apply_end_date
+        END ASC,
+
+        b.benefit_no DESC
+
+    </select>
 </mapper>

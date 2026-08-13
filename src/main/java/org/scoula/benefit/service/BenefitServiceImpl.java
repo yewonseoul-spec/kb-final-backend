@@ -496,19 +496,99 @@ public class BenefitServiceImpl implements BenefitService {
     public int syncDailyYouthPolicies() {
         long startTime = System.currentTimeMillis();
 
-        int pageNum = 1;
-        int pageSize = 100;
-        int count = 0;
+        SyncRunResult finalResult = null;
+        StringBuilder retryHistory = new StringBuilder();
 
-        int insertCnt = 0;
-        int updateCnt = 0;
-        int skipCnt = 0;
+        int maxWholeRetryCount = 1; // 전체 동기화 재시도 1회
+
+        for (int attempt = 1; attempt <= maxWholeRetryCount + 1; attempt++) {
+            System.out.println("[청년혜택 자동 동기화 시작] 전체 시도 = " + attempt);
+
+            SyncRunResult result = runDailySyncOnce(attempt);
+
+            finalResult = result;
+
+            if (result.errorMsg == null) {
+                if (attempt > 1) {
+                    retryHistory.append("1차 전체 동기화 실패 후 ")
+                            .append(attempt)
+                            .append("차 전체 재시도 성공");
+                }
+
+                break;
+            }
+
+            retryHistory.append("[")
+                    .append(attempt)
+                    .append("차 전체 동기화 실패] ")
+                    .append(result.errorMsg)
+                    .append(" / ");
+
+            if (attempt <= maxWholeRetryCount) {
+                System.out.println("[청년혜택 자동 동기화 전체 재시도 대기] 60초 후 pageNum=1부터 다시 시작");
+
+                try {
+                    Thread.sleep(60_000); // 1분 대기
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+
+                    retryHistory.append("[전체 재시도 대기 중 인터럽트 발생] ")
+                            .append(e.getMessage())
+                            .append(" / ");
+
+                    break;
+                }
+
+                System.out.println("[청년혜택 자동 동기화 전체 재시도 시작] pageNum=1부터 다시 시작");
+            }
+        }
+
+        int durationMs = (int) (System.currentTimeMillis() - startTime);
+
+        String resultStatus;
+
+        if (finalResult.errorMsg == null) {
+            resultStatus = "S";
+        } else if (finalResult.count > 0) {
+            resultStatus = "P";
+        } else {
+            resultStatus = "F";
+        }
+
         String errorMsg = null;
 
-        List<String> apiPlcyNoList = new ArrayList<>();
+        if (finalResult.errorMsg != null) {
+            errorMsg = retryHistory.toString();
+        } else if (retryHistory.length() > 0) {
+            errorMsg = retryHistory.toString();
+        }
 
-        // 추가: API 전체 페이지를 끝까지 성공적으로 조회했는지 확인용
-        boolean completedSuccessfully = false;
+        if (errorMsg != null && errorMsg.length() > 1000) {
+            errorMsg = errorMsg.substring(0, 1000);
+        }
+
+        saveAutoSyncLog(
+                resultStatus,
+                finalResult.count,
+                finalResult.insertCnt,
+                finalResult.updateCnt,
+                finalResult.skipCnt,
+                errorMsg,
+                durationMs
+        );
+
+        System.out.println("[청년혜택 자동 동기화 완료] 처리 건수 = " + finalResult.count);
+
+        return finalResult.count;
+    }
+
+    private SyncRunResult runDailySyncOnce(int attemptNo) {
+        SyncRunResult result = new SyncRunResult();
+
+        int pageNum = 1;
+        int pageSize = 100;
+
+        List<String> apiPlcyNoList = new ArrayList<>();
 
         while (true) {
             YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
@@ -519,10 +599,25 @@ public class BenefitServiceImpl implements BenefitService {
             String json;
 
             try {
+                System.out.println("[온통청년 API 호출] 전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", pageSize="
+                        + pageSize);
+
                 json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
+
             } catch (Exception e) {
-                e.printStackTrace();
-                errorMsg = "API 호출 실패 (pageNum=" + pageNum + "): " + e.getMessage();
+                result.errorMsg = "전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", API 호출 실패: "
+                        + e.getMessage();
+
+                System.out.println("[온통청년 API 호출 실패] " + result.errorMsg);
+
                 break;
             }
 
@@ -531,31 +626,37 @@ public class BenefitServiceImpl implements BenefitService {
             try {
                 policyList = parsePolicyList(json);
             } catch (Exception e) {
-                System.out.println("[온통청년 API 응답 파싱 실패] pageNum = " + pageNum);
-                System.out.println("[pageSize] " + pageSize);
+                result.errorMsg = "전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", 응답 파싱 실패: "
+                        + e.getMessage();
+
+                System.out.println("[온통청년 API 응답 파싱 실패] " + result.errorMsg);
 
                 if (json != null) {
                     System.out.println("[응답 앞부분]");
                     System.out.println(json.substring(0, Math.min(json.length(), 1000)));
                 }
 
-                System.out.println("[실패 사유] " + e.getMessage());
-                errorMsg = "응답 파싱 실패 (pageNum=" + pageNum + "): " + e.getMessage();
                 break;
             }
 
             if (policyList.isEmpty()) {
-                System.out.println("[온통청년 API 전체 조회 완료] pageNum = " + pageNum);
+                System.out.println("[온통청년 API 전체 조회 완료] 전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum);
 
-                // 추가: 마지막 빈 페이지까지 정상 도달했을 때만 삭제 반영 허용
-                completedSuccessfully = true;
+                result.completedSuccessfully = true;
                 break;
             }
 
             for (YouthPolicyApiItemDTO item : policyList) {
                 if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
-                    skipCnt++;
-                    count++;
+                    result.skipCnt++;
+                    result.count++;
                     continue;
                 }
 
@@ -564,11 +665,6 @@ public class BenefitServiceImpl implements BenefitService {
                 BenefitVO benefit = convertToBenefitVO(item);
 
                 int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
-
-                System.out.println("[정책 존재 여부] plcyNo = "
-                        + item.getPlcyNo()
-                        + ", exists = "
-                        + exists);
 
                 if (exists == 0) {
                     System.out.println("[신규 저장 분기] " + item.getPlcyNo());
@@ -581,9 +677,8 @@ public class BenefitServiceImpl implements BenefitService {
                         saveBenefitMappings(benefitNo, item);
                     }
 
-                    insertCnt++;
+                    result.insertCnt++;
                 } else {
-                    // 추가: DB에는 API 삭제 처리되어 있었더라도 이번 API에 다시 있으면 복구
                     benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
 
                     if (shouldUpdateStatus(benefit)) {
@@ -591,54 +686,48 @@ public class BenefitServiceImpl implements BenefitService {
 
                         benefitMapper.updateBenefitStatusOnly(benefit);
 
-                        updateCnt++;
+                        result.updateCnt++;
                     } else {
                         System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
 
-                        skipCnt++;
+                        result.skipCnt++;
                     }
                 }
 
-                count++;
+                result.count++;
             }
 
             pageNum++;
         }
 
-        // 추가: Open API에서 사라진 혜택 반영
-        if (completedSuccessfully && !apiPlcyNoList.isEmpty()) {
-            int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(apiPlcyNoList);
+        if (result.completedSuccessfully && !apiPlcyNoList.isEmpty()) {
+            List<String> distinctApiPlcyNoList = apiPlcyNoList.stream()
+                    .filter(plcyNo -> plcyNo != null && !plcyNo.trim().isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(distinctApiPlcyNoList);
 
             System.out.println("[Open API 삭제 혜택 비활성화 완료] 건수 = " + deletedCnt);
 
-            /*
-             * sync_log CHECK 제약 때문에
-             * insertCnt + updateCnt + skipCnt = count 를 유지해야 함.
-             *
-             * API에서 사라진 혜택 비활성화도 DB update 작업이므로 updateCnt에 포함.
-             */
-            updateCnt += deletedCnt;
-            count += deletedCnt;
+            result.updateCnt += deletedCnt;
+            result.count += deletedCnt;
         } else {
             System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
         }
 
-        int durationMs = (int) (System.currentTimeMillis() - startTime);
-        String resultStatus;
-
-        if (errorMsg == null) {
-            resultStatus = "S";
-        } else if (count > 0) {
-            resultStatus = "P";
-        } else {
-            resultStatus = "F";
-        }
-
-        saveAutoSyncLog(resultStatus, count, insertCnt, updateCnt, skipCnt, errorMsg, durationMs);
-
-        return count;
+        return result;
     }
 
+// OPEN API 실패 후 재호출 메서드
+private static class SyncRunResult {
+    int count;
+    int insertCnt;
+    int updateCnt;
+    int skipCnt;
+    String errorMsg;
+    boolean completedSuccessfully;
+}
     /**
      * 자동 동기화 이력 기록.
      * 로그 기록이 실패해도 동기화 자체는 성공으로 두기 위해 예외를 밖으로 올리지 않는다.
@@ -1244,5 +1333,100 @@ public BenefitDetailResDTO findBenefitDetail(
         }
 
         return profile.getProvinceCode();
+    }
+    //소비 기반 혜택 추천
+    @Override
+    public ConsumptionRecommendResDTO
+    findConsumptionRecommendedBenefits(
+            Integer memberNo,
+            BenefitFilterReqDTO filter
+    ) {
+
+        List<ConsumptionCategoryResDTO>
+                topCategories =
+                benefitMapper
+                        .findTopSpendingCategories(
+                                memberNo
+                        );
+
+        if (topCategories == null
+                || topCategories.isEmpty()) {
+
+            return ConsumptionRecommendResDTO
+                    .builder()
+                    .message(
+                            "아직 소비 내역이 없어 "
+                                    + "소비 기반 추천을 제공하기 어려워요."
+                    )
+                    .spendingCategories(
+                            Collections.emptyList()
+                    )
+                    .benefitCategories(
+                            Collections.emptyList()
+                    )
+                    .totalCount(0)
+                    .benefits(
+                            Collections.emptyList()
+                    )
+                    .build();
+        }
+
+        List<String> spendingCategories =
+                topCategories.stream()
+                        .map(
+                                ConsumptionCategoryResDTO
+                                        ::getCategoryName
+                        )
+                        .collect(
+                                Collectors.toList()
+                        );
+
+        List<String> benefitCategories =
+                benefitMapper
+                        .findConsumptionBenefitCategoryNames(
+                                memberNo
+                        );
+
+        List<BenefitListResDTO> benefits =
+                benefitMapper
+                        .findConsumptionRecommendedBenefits(
+                                memberNo,
+                                filter
+                        );
+
+        String spendingText =
+                String.join(
+                        "·",
+                        spendingCategories
+                );
+
+        String benefitText =
+                String.join(
+                        "·",
+                        benefitCategories
+                );
+
+        String message =
+                spendingText
+                        + " 소비가 많은 패턴을 바탕으로 "
+                        + benefitText
+                        + " 혜택을 추천했어요.";
+
+        return ConsumptionRecommendResDTO
+                .builder()
+                .message(message)
+                .spendingCategories(
+                        spendingCategories
+                )
+                .benefitCategories(
+                        benefitCategories
+                )
+                .totalCount(
+                        benefits.size()
+                )
+                .benefits(
+                        benefits
+                )
+                .build();
     }
 }
