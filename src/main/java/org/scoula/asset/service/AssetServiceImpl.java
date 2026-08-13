@@ -23,4 +23,9 @@ public class AssetServiceImpl implements AssetService {
 
         return new AssetDashboardResDTO(totalAsset, accounts, maturities);
     }
+
+    @Override
+    public List<AccountDTO> getAccountBalances(Integer memberNo) {
+        return assetMapper.selectAccounts(memberNo);
+    }
 }
