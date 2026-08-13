@@ -89,6 +89,17 @@ public interface BenefitMapper {
             @Param("memberNo") Integer memberNo
     );
 
+    // 목표 → 혜택 중분류 매핑 조회
+    List<String> findGoalCategoryCodes(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+    );
+
+    // 목표 → 중분류 이름 조회 (화면 설명용)
+    List<String> findGoalCategoryNames(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+      
     //소비기반 혜택추천
     List<ConsumptionCategoryResDTO>
     findTopSpendingCategories(

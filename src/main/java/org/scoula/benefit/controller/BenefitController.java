@@ -310,6 +310,38 @@ public class BenefitController {
         );
     }
 
+    //목표 기반 혜택추천
+    @GetMapping("/goal-filter")
+    public ResponseEntity<GoalRecommendResDTO>
+    getBenefitGoalFilter(
+            Principal principal
+    ) {
+        if (principal == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        if (memberNo == null) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .build();
+        }
+
+        return ResponseEntity.ok(
+                benefitService.findGoalRecommend(
+                        memberNo
+                )
+        );
+    }          
+
+      
+      
     //소비 기반 혜택 추천
     @GetMapping("/recommend/consumption")
     public ResponseEntity<ConsumptionRecommendResDTO>

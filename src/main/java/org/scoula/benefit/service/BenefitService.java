@@ -63,21 +63,24 @@ public interface BenefitService {
     // 관리자 기간별 동기화 (처리 내역 포함)
     SyncDetailResultDTO syncByFrstRegDtWithDetail(String startDate, String endDate);
 
-//혜택 상세페이지
-BenefitDetailResDTO findBenefitDetail(
-        Integer benefitNo
-);
+    //혜택 상세페이지
+    BenefitDetailResDTO findBenefitDetail(
+            Integer benefitNo
+    );
 
-//사용자 프로필 조건기반 혜택추천
-BenefitProfileFilterResDTO findBenefitProfileFilter(
-        Integer memberNo
-);
+    //사용자 프로필 조건기반 혜택추천
+    BenefitProfileFilterResDTO findBenefitProfileFilter(
+            Integer memberNo
+    );
 
-//소비 기반 혜택 추천
-ConsumptionRecommendResDTO
-findConsumptionRecommendedBenefits(
-        Integer memberNo,
-        BenefitFilterReqDTO filter
-);
+    // 목표 기반 추천
+    GoalRecommendResDTO findGoalRecommend(Integer memberNo);
+
+    //소비 기반 혜택 추천
+    ConsumptionRecommendResDTO
+    findConsumptionRecommendedBenefits(
+            Integer memberNo,
+            BenefitFilterReqDTO filter
+    );
 
 }
