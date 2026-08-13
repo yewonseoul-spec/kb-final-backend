@@ -99,6 +99,7 @@ public interface BenefitMapper {
     List<String> findGoalCategoryNames(
             @Param("goalType") String goalType,
             @Param("priority") int priority
+    );
       
     //소비기반 혜택추천
     List<ConsumptionCategoryResDTO>
