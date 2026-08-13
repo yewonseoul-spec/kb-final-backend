@@ -1,4 +1,5 @@
-
+-- =====================================================================
+-- [v2.2] 5-2. spending_benefit_category_map 테이블 추가
 -- =====================================================================
 -- [v2.1] benefit 테이블 api_deleted_yn, api_deleted_dt 컬럼 추가
 -- =====================================================================
@@ -224,6 +225,30 @@ CREATE TABLE spending_category
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='소비 카테고리';
+
+-- 5-2. 소비 카테고리-혜택 중분류 매핑 (spending_benefit_category_map) :
+CREATE TABLE spending_benefit_category_map
+(
+    category_no          INT     NOT NULL COMMENT '소비 카테고리 번호',
+    detail_category_code CHAR(2) NOT NULL COMMENT '혜택 중분류 코드',
+
+    PRIMARY KEY (
+                 category_no,
+                 detail_category_code
+        ),
+
+    CONSTRAINT fk_spending_benefit_map_spending
+        FOREIGN KEY (category_no)
+            REFERENCES spending_category(category_no),
+
+    CONSTRAINT fk_spending_benefit_map_benefit
+        FOREIGN KEY (detail_category_code)
+            REFERENCES benefit_detail_category(detail_category_code)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4
+    COLLATE = utf8mb4_0900_ai_ci
+    COMMENT = '소비 카테고리-혜택 중분류 매핑';
 
 
 -- =====================================================================

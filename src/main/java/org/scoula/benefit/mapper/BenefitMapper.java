@@ -6,6 +6,7 @@ import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.dto.BenefitDetailResDTO;
 import org.scoula.benefit.dto.BenefitProfileFilterResDTO;
+import org.scoula.benefit.dto.ConsumptionCategoryResDTO;
 
 import java.util.List;
 
@@ -86,5 +87,24 @@ public interface BenefitMapper {
     //사용자프로필 조건기반 혜택 추천
     BenefitProfileFilterResDTO findBenefitProfileFilter(
             @Param("memberNo") Integer memberNo
+    );
+
+    //소비기반 혜택추천
+    List<ConsumptionCategoryResDTO>
+    findTopSpendingCategories(
+            @Param("memberNo") Integer memberNo
+    );
+
+    List<String> findConsumptionBenefitCategoryNames(
+            @Param("memberNo") Integer memberNo
+    );
+
+    List<BenefitListResDTO>
+    findConsumptionRecommendedBenefits(
+            @Param("memberNo")
+            Integer memberNo,
+
+            @Param("filter")
+            BenefitFilterReqDTO filter
     );
 }

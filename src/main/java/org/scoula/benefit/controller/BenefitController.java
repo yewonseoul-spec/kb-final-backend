@@ -310,4 +310,31 @@ public class BenefitController {
         );
     }
 
+    //소비 기반 혜택 추천
+    @GetMapping("/recommend/consumption")
+    public ResponseEntity<ConsumptionRecommendResDTO>
+    getConsumptionRecommendation(
+            Principal principal,
+            BenefitFilterReqDTO filter
+    ) {
+        if (principal == null) {
+            return ResponseEntity
+                    .status(HttpStatus.UNAUTHORIZED)
+                    .build();
+        }
+
+        Integer memberNo =
+                memberMapper.findMemberNoByLoginId(
+                        principal.getName()
+                );
+
+        return ResponseEntity.ok(
+                benefitService
+                        .findConsumptionRecommendedBenefits(
+                                memberNo,
+                                filter
+                        )
+        );
+    }
+
 }

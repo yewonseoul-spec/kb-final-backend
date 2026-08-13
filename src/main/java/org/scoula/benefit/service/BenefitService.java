@@ -73,5 +73,11 @@ BenefitProfileFilterResDTO findBenefitProfileFilter(
         Integer memberNo
 );
 
+//소비 기반 혜택 추천
+ConsumptionRecommendResDTO
+findConsumptionRecommendedBenefits(
+        Integer memberNo,
+        BenefitFilterReqDTO filter
+);
 
 }
