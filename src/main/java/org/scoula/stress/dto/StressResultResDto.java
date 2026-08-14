@@ -3,7 +3,9 @@ package org.scoula.stress.dto;
 import lombok.Builder;
 import lombok.Getter;
 import org.scoula.stress.domain.CashFlowState;
+import org.scoula.stress.domain.CoverageStability;
 import org.scoula.stress.domain.DataStatus;
+import org.scoula.stress.domain.StressState;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -14,9 +16,6 @@ import java.util.List;
  * 점수와 등급을 두지 않는다. 외부 비상자금 기준은 잔액을 월 생활비로 나눈 값을 보는데
  * 이 기능의 보완 기간은 잔액을 월 순부족액으로 나눈 값이라 분모가 다르기 때문이다.
  * 대신 버틸 수 있는 기간과 실제 금액을 그대로 보여준다.
- * @fileName        : StressResultResDto
- * @author          : 박상호
- * @since           : 2026-08-12
  */
 @Getter
 @Builder
@@ -79,6 +78,9 @@ public class StressResultResDto {
     /** 월 부족액 보완 가능 기간. 부족 상태이고 잔액을 알 때만 값이 있다 */
     private final BigDecimal coverageMonths;
 
+    /** 관측기간 민감도. 기간을 앞세울 수 있는지 판단하는 값 */
+    private final CoverageStability coverageStability;
+
     /** 카테고리별 지출 구성. 총액 내림차순 */
     private final List<CategorySummaryResDto> categories;
 
@@ -87,4 +89,37 @@ public class StressResultResDto {
 
     /** 이 계산에 적용된 한계 */
     private final List<String> limitations;
+
+    /** 충격을 걸지 않았을 때의 보완 가능 기간. 비교 기준 */
+    private final BigDecimal baselineCoverageMonths;
+
+    /** 카테고리별 충격 영향. 증가액이 있는 항목만 */
+    private final List<CategoryImpactResDto> categoryImpacts;
+
+    /** 지출 조정 선택지. 월 환산 금액 내림차순 */
+    private final List<RebalanceOptionResDto> rebalanceOptions;
+
+    /** 스트레스 대응 점수. 0~100. 잔액을 모르면 null */
+    private final Integer score;
+
+    /** 평가 기간 필요자금 */
+    private final long stressNeed;
+
+    /** 계산 중 실제로 발생한 상태 */
+    private final StressState state;
+
+    /** 충격 전 월 현금흐름 상태. 결과 화면 분기에 쓴다 */
+    private final CashFlowState baselineCashFlowState;
+
+    /** 충격 전 월 순부족액. 여유면 음수 */
+    private final Long baselineGap;
+
+    /** 조정 전 월 순부족액. 조정을 적용했을 때만 값이 있다 */
+    private final Long gapBeforeAdjust;
+
+    /** 조정으로 줄인 월 지출 총액 */
+    private final Long adjustedReduction;
+
+    /** 조정 전 보완 가능 기간. 조정을 적용했을 때만 값이 있다 */
+    private final BigDecimal coverageMonthsBeforeAdjust;
 }

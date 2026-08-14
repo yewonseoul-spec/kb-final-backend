@@ -10,9 +10,6 @@ import java.util.List;
 /**
  * 소비 집계 결과
  * 월 환산 지출은 분석 기간 전체 소비를 정상 관측 완결월 수로 나눈 값이다.
- * @fileName        : SpendingSummaryResDto
- * @author          : 박상호
- * @since           : 2026-08-11
  */
 @Getter
 public class SpendingSummaryResDto {
@@ -32,12 +29,16 @@ public class SpendingSummaryResDto {
     /** 카테고리별 집계. 총액 내림차순 */
     private final List<CategorySummaryResDto> categories;
 
+    /** 한 달씩 제외했을 때의 월 환산 지출 목록. 관측기간 민감도 판정에 쓴다 */
+    private final List<Long> leaveOneOutSpending;
+
     @Builder
     public SpendingSummaryResDto(int observationMonths,
                                  YearMonth startMonth,
                                  YearMonth endMonth,
                                  long monthlySpending,
-                                 List<CategorySummaryResDto> categories) {
+                                 List<CategorySummaryResDto> categories,
+                                 List<Long> leaveOneOutSpending) {
 
         this.observationMonths = observationMonths;
         this.startMonth = startMonth;
@@ -46,6 +47,9 @@ public class SpendingSummaryResDto {
         this.categories = categories == null
                 ? Collections.emptyList()
                 : Collections.unmodifiableList(categories);
+        this.leaveOneOutSpending = leaveOneOutSpending == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(leaveOneOutSpending);
     }
 
     /**

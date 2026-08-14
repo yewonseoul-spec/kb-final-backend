@@ -9,8 +9,8 @@ import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -22,9 +22,6 @@ import java.util.Set;
  * 여행처럼 산발적인 지출이 매달 반복되는 비용처럼 부풀려진다.
  * 거래가 없는 정상 관측월은 0 원으로 분모에 포함하며, 금액 크기에 근거한 이상치 처리는 하지 않는다.
  * 검토한 방법이 전부 지출을 낮추는 방향이라 실제보다 안전해 보이게 만들기 때문이다.
- * @fileName        : SpendingAggregator
- * @author          : 박상호
- * @since           : 2026-08-11
  */
 public final class SpendingAggregator {
 
@@ -59,16 +56,19 @@ public final class SpendingAggregator {
                     .observationMonths(0)
                     .monthlySpending(0L)
                     .categories(new ArrayList<>())
+                    .leaveOneOutSpending(new ArrayList<>())
                     .build();
         }
 
-        Set<String> targetMonths = new HashSet<>();
+        // 순서를 유지해야 하므로 LinkedHashSet 을 쓴다
+        Set<String> targetMonths = new LinkedHashSet<>();
         for (YearMonth month : analysisWindow.getMonths()) {
             targetMonths.add(month.format(YEAR_MONTH_FORMAT));
         }
 
         // 카테고리별 총액과 거래 발생 월 수를 모은다
         Map<String, long[]> categoryAccumulator = new LinkedHashMap<>();
+        Map<String, Long> monthlyTotal = new LinkedHashMap<>();
         long grandTotal = 0L;
 
         if (monthlyRows != null) {
@@ -85,6 +85,7 @@ public final class SpendingAggregator {
                 if (row.getAmount() != 0L) {
                     accumulated[OCCURRED_INDEX] += 1L;
                 }
+                monthlyTotal.merge(row.getYearMonth(), row.getAmount(), Long::sum);
                 grandTotal += row.getAmount();
             }
         }
@@ -116,6 +117,32 @@ public final class SpendingAggregator {
                 .endMonth(analysisWindow.getEndMonth())
                 .monthlySpending(monthlySpending)
                 .categories(categories)
+                .leaveOneOutSpending(
+                        createLeaveOneOut(targetMonths, monthlyTotal, grandTotal, observationMonths))
                 .build();
+    }
+
+    /**
+     * 한 달씩 제외했을 때의 월 환산 지출을 계산한다
+     * 특정 달의 소비가 결과를 좌우하는지 확인하기 위한 값이다.
+     * 관측월이 둘 미만이면 뺄 수 있는 달이 없어 빈 목록을 돌려준다.
+     */
+    private static List<Long> createLeaveOneOut(Set<String> targetMonths,
+                                                Map<String, Long> monthlyTotal,
+                                                long grandTotal,
+                                                int observationMonths) {
+
+        List<Long> result = new ArrayList<>();
+
+        if (observationMonths < 2) {
+            return result;
+        }
+
+        for (String month : targetMonths) {
+            long excluded = monthlyTotal.getOrDefault(month, 0L);
+            result.add(Math.round((double) (grandTotal - excluded) / (observationMonths - 1)));
+        }
+
+        return result;
     }
 }

@@ -1,11 +1,13 @@
 package org.scoula.stress.service;
 
 import org.scoula.stress.domain.CashFlowState;
+import org.scoula.stress.domain.CoverageStability;
 import org.scoula.stress.dto.StressInputDto;
 import org.scoula.stress.dto.StressResultDto;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.List;
 
 /**
  * 스트레스 계산 코어
@@ -13,9 +15,6 @@ import java.math.RoundingMode;
  * 단위 테스트에서 숫자만 넣고 결과를 검증할 수 있다.
  * 즉시 부족액은 일회성 충격에서 잔액을 뺀 값이고, 충격 후 잔액은 잔액에서 일회성 충격을 뺀 값이며,
  * 월 순부족액은 충격 후 지출에서 충격 후 소득을 뺀 값이다.
- * @fileName        : StressCalculator
- * @author          : 박상호
- * @since           : 2026-08-11
  */
 public final class StressCalculator {
 
@@ -93,5 +92,33 @@ public final class StressCalculator {
                 .postShockBalance(postShockBalance)
                 .coverageMonths(coverageMonths)
                 .build();
+    }
+
+    /**
+     * 관측기간 민감도를 판정한다
+     * 한 달씩 제외했을 때도 월 부족 상태가 유지되면 기간을 표시할 수 있다.
+     * 어떤 달을 빼면 월 여유로 바뀌는 경우 기간이 크게 흔들리므로 앞세우지 않는다.
+     * 통계적 추론이 아니라 데이터 구성에 따른 흔들림을 보는 것이다.
+     *
+     * @param leaveOneOutSpending   한 달씩 제외한 월 환산 지출 목록
+     * @param crisisIncome          충격 후 월 소득
+     * @param recurringExpenseShock 반복 지출 증가액
+     */
+    public static CoverageStability judgeStability(List<Long> leaveOneOutSpending,
+                                                   Long crisisIncome,
+                                                   long recurringExpenseShock) {
+
+        if (leaveOneOutSpending == null || leaveOneOutSpending.isEmpty() || crisisIncome == null) {
+            return CoverageStability.NOT_APPLICABLE;
+        }
+
+        for (Long spending : leaveOneOutSpending) {
+            long gap = (spending + recurringExpenseShock) - crisisIncome;
+            if (gap <= 0L) {
+                return CoverageStability.SIGN_UNSTABLE;
+            }
+        }
+
+        return CoverageStability.STABLE;
     }
 }

@@ -2,14 +2,13 @@ package org.scoula.stress.dto;
 
 import lombok.Builder;
 import lombok.Getter;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 시나리오를 계산 입력으로 변환한 결과
  * 반복 충격과 일회성 충격을 분리한다. 의료비처럼 한 번만 발생하는 비용을
  * 월 지출에 더하면 매달 반복되는 것으로 계산되기 때문이다.
- * @fileName        : ScenarioShockDto
- * @author          : 박상호
- * @since           : 2026-08-12
  */
 @Getter
 @Builder
@@ -27,6 +26,9 @@ public class ScenarioShockDto {
     /** 화면에 보여줄 적용 내역 */
     private final String appliedDescription;
 
+    /** 카테고리별 충격 영향 */
+    private final List<CategoryImpactResDto> categoryImpacts;
+
     /**
      * 충격이 하나도 없는 평상시 상태를 반환한다
      */
@@ -36,6 +38,7 @@ public class ScenarioShockDto {
                 .recurringIncomeShock(0L)
                 .oneTimeShock(0L)
                 .appliedDescription("평상시")
+                .categoryImpacts(new ArrayList<>())
                 .build();
     }
 }
