@@ -20,7 +20,7 @@ public class StressController {
 
     private final StressService stressService;
 
-    /** stress-01: 스트레스 시나리오 목록 (시나리오 5종 × 충격 강도 3단계) */
+    /** stress-01: 스트레스 시나리오 목록 */
     @GetMapping("/scenarios")
     public ResponseEntity<List<StressScenarioResDto>> findScenarios() {
         return ResponseEntity.ok(stressService.findScenarios());
@@ -33,15 +33,17 @@ public class StressController {
      * JwtAuthenticationFilter가 토큰을 검증하고 SecurityContext에 넣어둔
      * CustomUser에서 꺼내 쓴다. 주소창으로 남의 회원번호를 넣을 수 없다.
      *
-     * 계산이 불가능한 경우에도 200으로 응답하고 status로 사유를 구분한다.
-     * 프론트가 상황별로 다른 안내를 띄울 수 있어야 하기 때문이다.
-     *   NO_SPENDING / NO_ACCOUNT / PROFILE_REQUIRED / SCENARIO_UNAVAILABLE
+     * 지출 조정은 배열이라 쿼리 파라미터로 받을 수 없어 본문으로 받는다.
+     * 사용자가 직접 고른 감소율이며 시스템이 판단한 값이 아니다.
+     *
+     * 계산이 불가능한 경우에도 200으로 응답하고 상태 필드로 사유를 구분한다.
+     * 소비는 있고 소득은 모르고 잔액은 아는 사용자가 있을 수 있으므로
+     * 전체를 성공과 실패 하나로 끝내지 않는다.
      */
     @PostMapping("/result")
     public ResponseEntity<StressResultResDto> calculate(
             @AuthenticationPrincipal CustomUser user,
-            @RequestParam String scenarioCode,
-            @RequestParam String shockLevel) {
+            @RequestBody StressResultReqDto req) {
 
         // 토큰이 없거나 만료된 경우. 프론트 응답 인터셉터가 401을 받아
         // 로그아웃 처리하고 로그인 화면으로 보낸다.
@@ -49,10 +51,8 @@ public class StressController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        StressResultReqDto req = new StressResultReqDto();
+        // 본문으로 넘어온 회원번호는 신뢰하지 않고 토큰 값으로 덮어쓴다
         req.setMemberNo(user.getMember().getMemberNo());
-        req.setScenarioCode(scenarioCode);
-        req.setShockLevel(shockLevel);
 
         return ResponseEntity.ok(stressService.calculate(req));
     }
