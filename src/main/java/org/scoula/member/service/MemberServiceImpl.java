@@ -112,6 +112,15 @@ public class MemberServiceImpl implements MemberService {
             throw new InvalidMemberFormatException("닉네임 형식이 올바르지 않습니다.");
         }
         dto.setRealName(realName);
+
+        validatePassword(dto.getPassword());   // 암호화 전이라 원문이 들어 있다
+    }
+
+    // 회원가입·비밀번호 변경·비밀번호 재설정 세 곳이 같은 규칙을 쓴다
+    private void validatePassword(String password) {
+        if (password == null || !password.matches(PASSWORD_RULE)) {
+            throw new InvalidMemberFormatException("비밀번호 형식이 올바르지 않습니다.");
+        }
     }
 
     @Override
@@ -133,6 +142,9 @@ public class MemberServiceImpl implements MemberService {
         if (!passwordEncoder.matches(changePassword.getOldPassword(), member.getPassword())) {
             throw new PasswordMissmatchException();
         }
+
+        // 현재 비밀번호 확인을 먼저 통과해야 형식 오류를 알려준다
+        validatePassword(changePassword.getNewPassword());
 
         changePassword.setNewPassword(passwordEncoder.encode(changePassword.getNewPassword()));
 
@@ -162,9 +174,7 @@ public class MemberServiceImpl implements MemberService {
         MemberVO member = findForReset(request);
 
         String newPassword = request.getNewPassword();
-        if (newPassword == null || !newPassword.matches(PASSWORD_RULE)) {
-            throw new InvalidMemberFormatException("비밀번호 형식이 올바르지 않습니다.");
-        }
+        validatePassword(newPassword);
 
         // updatePassword 의 UPDATE 문은 newPassword·loginId 만 참조하므로 oldPassword 는 비워 둔다.
         // 입력값이 아니라 조회된 loginId 를 쓴다.
