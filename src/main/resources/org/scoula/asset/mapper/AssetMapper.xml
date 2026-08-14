@@ -46,5 +46,13 @@
           AND mfp.maturity_date IS NOT NULL
         ORDER BY mfp.maturity_date
     </select>
-
+    
+    <select id="selectHeldProductAmounts" resultType="org.scoula.asset.dto.HeldProductDTO">
+        SELECT fp.product_type      AS productType,
+               SUM(mfp.hold_amount) AS amount
+        FROM member_finance_product mfp
+                 INNER JOIN finance_product fp ON mfp.product_no = fp.product_no
+        WHERE mfp.member_no = #{memberNo}
+        GROUP BY fp.product_type
+    </select>
 </mapper>
