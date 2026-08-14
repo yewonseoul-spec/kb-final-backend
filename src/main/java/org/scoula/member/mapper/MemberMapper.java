@@ -10,6 +10,8 @@ public interface MemberMapper {
 
     int countByEmail(String email);
 
+    MemberVO findByEmail(String email); // 아이디 찾기
+
     int insert(MemberVO member);  // 회원 정보 추가
 
     int update(MemberVO member);

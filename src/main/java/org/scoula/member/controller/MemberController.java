@@ -2,6 +2,8 @@ package org.scoula.member.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.scoula.member.dto.FindIdReqDTO;
+import org.scoula.member.dto.FindIdResDTO;
 import org.scoula.member.dto.MemberDTO;
 import org.scoula.member.dto.MemberJoinDTO;
 import org.scoula.member.service.MemberService;
@@ -36,6 +38,13 @@ public class MemberController {
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("로그아웃 되었습니다.");
     }
+
+    @PostMapping("/find-id")
+    public ResponseEntity<FindIdResDTO> findId(@RequestBody FindIdReqDTO request) {
+        return ResponseEntity.ok(service.findId(request));
+    }
+
+
 
 
 

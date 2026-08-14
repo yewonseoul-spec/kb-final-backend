@@ -2,10 +2,8 @@ package org.scoula.member.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.scoula.member.dto.ChangePasswordDTO;
-import org.scoula.member.dto.MemberDTO;
-import org.scoula.member.dto.MemberJoinDTO;
-import org.scoula.member.dto.MemberUpdateDTO;
+import org.scoula.member.dto.*;
+import org.scoula.member.exception.AccountNotFoundException;
 import org.scoula.member.exception.InvalidMemberFormatException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
@@ -133,6 +131,16 @@ public class MemberServiceImpl implements MemberService {
         changePassword.setNewPassword(passwordEncoder.encode(changePassword.getNewPassword()));
 
         mapper.updatePassword(changePassword);
+    }
+
+    // 이메일은 UNIQUE 라 계정은 최대 1건이다.
+    @Override
+    public FindIdResDTO findId(FindIdReqDTO request) {
+        MemberVO member = mapper.findByEmail(request.getEmail());
+        if (member == null) {
+            throw new AccountNotFoundException("입력하신 이메일로 가입된 계정이 없어요.");
+        }
+        return FindIdResDTO.of(member);
     }
 
 }

@@ -2,6 +2,7 @@ package org.scoula.exception;
 
 import lombok.extern.log4j.Log4j2;
 import org.apache.ibatis.exceptions.PersistenceException;
+import org.scoula.member.exception.AccountNotFoundException;
 import org.scoula.member.exception.InvalidMemberFormatException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
@@ -55,6 +56,16 @@ public class ApiExceptionAdvice {
     protected ResponseEntity<String> handleInvalidMemberFormat(InvalidMemberFormatException e) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body(e.getMessage());
+    }
+
+    // 404 에러 - 아이디 찾기·비밀번호 재설정에서 계정을 못 찾음
+    // 어느 항목이 틀렸는지 알려주면 계정 열거에 쓰이므로 문구를 한 가지로 고정한다
+    @ExceptionHandler(AccountNotFoundException.class)
+    protected ResponseEntity<String> handleAccountNotFound(AccountNotFoundException e) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body(e.getMessage());
     }
