@@ -1,5 +1,12 @@
 -- =====================================================================
--- [v2.0] benefit 테이블에 ref_url_addr1 컬럼 추가
+-- [v2.3] 4-3 goal_benefit_category 매핑테이블 추가
+--        (목표 → 혜택 중분류. priority 1=핵심, 2=연관)
+-- =====================================================================
+-- [v2.2] 5-2. spending_benefit_category_map 테이블 추가
+-- =====================================================================
+-- [v2.1] benefit 테이블 api_deleted_yn, api_deleted_dt 컬럼 추가
+-- =====================================================================
+-- [v2.0] benefit 테이블 ref_url_addr1 컬럼 추가
 -- =====================================================================
 -- [v1.9] benefit 테이블에 custom_apply_url 컬럼 추가
 --        (관리자가 지정한 신청 링크. 동기화 upsert 대상에서 제외해 보존한다)
@@ -76,6 +83,7 @@ DROP TABLE IF EXISTS recommend_keyword;
 DROP TABLE IF EXISTS finance_product;
 DROP TABLE IF EXISTS spending_category;
 DROP TABLE IF EXISTS benefit_category;
+DROP TABLE IF EXISTS benefit_detail_category;
 DROP TABLE IF EXISTS region;
 DROP TABLE IF EXISTS terms;
 DROP TABLE IF EXISTS member;
@@ -210,6 +218,30 @@ CREATE TABLE benefit_detail_category
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='혜택 중분류 카테고리';
 
 -- =====================================================================
+--  4-3  goal_benefit_category : 목표 → 혜택 중분류 매핑
+--   · 목표 기반 추천이 후보를 좁히는 데 쓴다.
+--   · priority 1 = 핵심(목표에 직접 맞닿음), 2 = 연관(함께 보면 좋음)
+--     화면에서는 두 섹션으로 나누어 보여 준다.
+--   · PK가 (goal_type, detail_category_code) 라 같은 목표 안에서
+--     한 중분류가 1차와 2차에 동시에 들어갈 수 없다. 섹션 간 중복 방지.
+--   · goal_type 은 goal 테이블과 같은 ENUM 이다. 목표를 추가하면
+--     goal · goal_benefit_category · GoalType.java 세 곳을 함께 고쳐야 한다.
+-- =====================================================================
+CREATE TABLE goal_benefit_category
+(
+    goal_type            ENUM ('INDEPENDENCE','EMPLOYMENT','STARTUP','MARRIAGE','STUDY_ABROAD') NOT
+                                                                                                    NULL COMMENT '목표유형',
+    detail_category_code CHAR(2) NOT NULL COMMENT '중분류카테고리코드',
+    priority             TINYINT NOT NULL COMMENT '우선순위(1=핵심, 2=연관)',
+    PRIMARY KEY (goal_type, detail_category_code),
+    CONSTRAINT fk_goal_benefit_category_detail FOREIGN KEY (detail_category_code)
+        REFERENCES benefit_detail_category (detail_category_code),
+    CONSTRAINT chk_goal_benefit_category_priority CHECK (priority IN (1, 2))
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci COMMENT ='목표별 혜택 중분류 매핑';
+
+-- =====================================================================
 --  5. spending_category : 소비 카테고리
 -- =====================================================================
 CREATE TABLE spending_category
@@ -221,6 +253,30 @@ CREATE TABLE spending_category
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='소비 카테고리';
+
+-- 5-2. 소비 카테고리-혜택 중분류 매핑 (spending_benefit_category_map) :
+CREATE TABLE spending_benefit_category_map
+(
+    category_no          INT     NOT NULL COMMENT '소비 카테고리 번호',
+    detail_category_code CHAR(2) NOT NULL COMMENT '혜택 중분류 코드',
+
+    PRIMARY KEY (
+                 category_no,
+                 detail_category_code
+        ),
+
+    CONSTRAINT fk_spending_benefit_map_spending
+        FOREIGN KEY (category_no)
+            REFERENCES spending_category(category_no),
+
+    CONSTRAINT fk_spending_benefit_map_benefit
+        FOREIGN KEY (detail_category_code)
+            REFERENCES benefit_detail_category(detail_category_code)
+)
+    ENGINE = InnoDB
+    DEFAULT CHARSET = utf8mb4
+    COLLATE = utf8mb4_0900_ai_ci
+    COMMENT = '소비 카테고리-혜택 중분류 매핑';
 
 
 -- =====================================================================
@@ -312,6 +368,8 @@ CREATE TABLE benefit
     conflict_group_code  VARCHAR(50)  NULL COMMENT '중복수혜그룹코드',
     inq_cnt              INT          NOT NULL DEFAULT 0 COMMENT '조회수(초기값; 실시간은 Redis)',
     is_active            CHAR(1)      NOT NULL DEFAULT 'Y' COMMENT '활성화여부 Y/N(마감 경과 시 N)',
+    api_deleted_yn        CHAR(1)     NOT NULL DEFAULT 'N' COMMENT '혜택 삭제 여부',
+    api_deleted_dt       DATETIME     NULL COMMENT '혜택 삭제 일시',
     frst_reg_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
     last_mdfcn_dt        DATETIME     NULL     DEFAULT NULL COMMENT '최종수정일시(lastMdfcnDt)',
     plcy_expln_cn        TEXT         NULL COMMENT '정책설명내용(plcyExplnCn)',

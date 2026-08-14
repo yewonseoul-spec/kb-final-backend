@@ -7,6 +7,8 @@ import org.scoula.benefit.client.YouthPolicyApiClient;
 import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.mapper.BenefitMapper;
+import org.scoula.mypage.domain.GoalVO;
+import org.scoula.mypage.mapper.GoalMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -189,6 +191,7 @@ public class BenefitServiceImpl implements BenefitService {
     private final YouthPolicyApiClient youthPolicyApiClient;
     private final BenefitMapper benefitMapper;
     private final AdminMapper adminMapper;
+    private final GoalMapper goalMapper;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -493,15 +496,97 @@ public class BenefitServiceImpl implements BenefitService {
     public int syncDailyYouthPolicies() {
         long startTime = System.currentTimeMillis();
 
+        SyncRunResult finalResult = null;
+        StringBuilder retryHistory = new StringBuilder();
+
+        int maxWholeRetryCount = 1; // 전체 동기화 재시도 1회
+
+        for (int attempt = 1; attempt <= maxWholeRetryCount + 1; attempt++) {
+            System.out.println("[청년혜택 자동 동기화 시작] 전체 시도 = " + attempt);
+
+            SyncRunResult result = runDailySyncOnce(attempt);
+
+            finalResult = result;
+
+            if (result.errorMsg == null) {
+                if (attempt > 1) {
+                    retryHistory.append("1차 전체 동기화 실패 후 ")
+                            .append(attempt)
+                            .append("차 전체 재시도 성공");
+                }
+
+                break;
+            }
+
+            retryHistory.append("[")
+                    .append(attempt)
+                    .append("차 전체 동기화 실패] ")
+                    .append(result.errorMsg)
+                    .append(" / ");
+
+            if (attempt <= maxWholeRetryCount) {
+                System.out.println("[청년혜택 자동 동기화 전체 재시도 대기] 60초 후 pageNum=1부터 다시 시작");
+
+                try {
+                    Thread.sleep(60_000); // 1분 대기
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+
+                    retryHistory.append("[전체 재시도 대기 중 인터럽트 발생] ")
+                            .append(e.getMessage())
+                            .append(" / ");
+
+                    break;
+                }
+
+                System.out.println("[청년혜택 자동 동기화 전체 재시도 시작] pageNum=1부터 다시 시작");
+            }
+        }
+
+        int durationMs = (int) (System.currentTimeMillis() - startTime);
+
+        String resultStatus;
+
+        if (finalResult.errorMsg == null) {
+            resultStatus = "S";
+        } else if (finalResult.count > 0) {
+            resultStatus = "P";
+        } else {
+            resultStatus = "F";
+        }
+
+        String errorMsg = null;
+
+        if (finalResult.errorMsg != null) {
+            errorMsg = retryHistory.toString();
+        } else if (retryHistory.length() > 0) {
+            errorMsg = retryHistory.toString();
+        }
+
+        if (errorMsg != null && errorMsg.length() > 1000) {
+            errorMsg = errorMsg.substring(0, 1000);
+        }
+
+        saveAutoSyncLog(
+                resultStatus,
+                finalResult.count,
+                finalResult.insertCnt,
+                finalResult.updateCnt,
+                finalResult.skipCnt,
+                errorMsg,
+                durationMs
+        );
+
+        System.out.println("[청년혜택 자동 동기화 완료] 처리 건수 = " + finalResult.count);
+
+        return finalResult.count;
+    }
+
+    private SyncRunResult runDailySyncOnce(int attemptNo) {
+        SyncRunResult result = new SyncRunResult();
+
         int pageNum = 1;
         int pageSize = 100;
-        int count = 0;
-
-        // sync_log 기록용 카운터. 세 값의 합이 count 와 같아야 CHECK 제약을 통과한다
-        int insertCnt = 0;
-        int updateCnt = 0;
-        int skipCnt = 0;
-        String errorMsg = null;
 
         List<String> apiPlcyNoList = new ArrayList<>();
 
@@ -514,53 +599,76 @@ public class BenefitServiceImpl implements BenefitService {
             String json;
 
             try {
+                System.out.println("[온통청년 API 호출] 전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", pageSize="
+                        + pageSize);
+
                 json = youthPolicyApiClient.getPoliciesRaw(requestDTO);
+
             } catch (Exception e) {
-                e.printStackTrace();
-                errorMsg = "API 호출 실패 (pageNum=" + pageNum + "): " + e.getMessage();
+                result.errorMsg = "전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", API 호출 실패: "
+                        + e.getMessage();
+
+                System.out.println("[온통청년 API 호출 실패] " + result.errorMsg);
+
                 break;
             }
 
-            // 스케쥴러 실패사유 기록추가
             List<YouthPolicyApiItemDTO> policyList;
 
             try {
                 policyList = parsePolicyList(json);
             } catch (Exception e) {
-                System.out.println("[온통청년 API 응답 파싱 실패] pageNum = " + pageNum);
-                System.out.println("[pageSize] " + pageSize);
+                result.errorMsg = "전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum
+                        + ", 응답 파싱 실패: "
+                        + e.getMessage();
+
+                System.out.println("[온통청년 API 응답 파싱 실패] " + result.errorMsg);
 
                 if (json != null) {
                     System.out.println("[응답 앞부분]");
                     System.out.println(json.substring(0, Math.min(json.length(), 1000)));
                 }
 
-                System.out.println("[실패 사유] " + e.getMessage());
-                errorMsg = "응답 파싱 실패 (pageNum=" + pageNum + "): " + e.getMessage();
                 break;
             }
 
             if (policyList.isEmpty()) {
-                System.out.println("[온통청년 API 전체 조회 완료] pageNum = " + pageNum);
+                System.out.println("[온통청년 API 전체 조회 완료] 전체시도="
+                        + attemptNo
+                        + ", pageNum="
+                        + pageNum);
+
+                result.completedSuccessfully = true;
                 break;
             }
 
             for (YouthPolicyApiItemDTO item : policyList) {
+                if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
+                    result.skipCnt++;
+                    result.count++;
+                    continue;
+                }
+
                 apiPlcyNoList.add(item.getPlcyNo());
 
                 BenefitVO benefit = convertToBenefitVO(item);
 
-
                 int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
 
-                System.out.println("[정책 존재 여부] plcyNo = "
-                        + item.getPlcyNo()
-                        + ", exists = "
-                        + exists);
-
                 if (exists == 0) {
-                    // 신규 혜택이면 전체 저장 + 매핑 저장
                     System.out.println("[신규 저장 분기] " + item.getPlcyNo());
+
                     benefitMapper.upsertBenefit(benefit);
 
                     Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
@@ -568,48 +676,58 @@ public class BenefitServiceImpl implements BenefitService {
                     if (benefitNo != null) {
                         saveBenefitMappings(benefitNo, item);
                     }
-                    insertCnt++;
+
+                    result.insertCnt++;
                 } else {
+                    benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
+
                     if (shouldUpdateStatus(benefit)) {
-                        // 기존 혜택 중 시작 전, 진행 중, 상시 혜택만 갱신
                         System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
+
                         benefitMapper.updateBenefitStatusOnly(benefit);
-                        updateCnt++;
+
+                        result.updateCnt++;
                     } else {
-                        // 마감된 혜택은 갱신 제외
                         System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
-                        skipCnt++;
+
+                        result.skipCnt++;
                     }
                 }
 
-                count++;
+                result.count++;
             }
 
             pageNum++;
-//            스케쥴러 테스트로 페이지 설정 테스트 확인후 삭제필요
-//            if (pageNum > 3) {
-//                break;
-//            }
         }
 
-        // 관리자 화면 '동기화 로그'에 자동 실행 이력을 남긴다.
-        // 수동 동기화(AdminService)와 달리 실행자가 사람이 아니므로 member_no 는 NULL 이다.
-        int durationMs = (int) (System.currentTimeMillis() - startTime);
-        String resultStatus;
+        if (result.completedSuccessfully && !apiPlcyNoList.isEmpty()) {
+            List<String> distinctApiPlcyNoList = apiPlcyNoList.stream()
+                    .filter(plcyNo -> plcyNo != null && !plcyNo.trim().isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
 
-        if (errorMsg == null) {
-            resultStatus = "S";
-        } else if (count > 0) {
-            resultStatus = "P";   // 일부 페이지까지는 처리됨
+            int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(distinctApiPlcyNoList);
+
+            System.out.println("[Open API 삭제 혜택 비활성화 완료] 건수 = " + deletedCnt);
+
+            result.updateCnt += deletedCnt;
+            result.count += deletedCnt;
         } else {
-            resultStatus = "F";
+            System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
         }
 
-        saveAutoSyncLog(resultStatus, count, insertCnt, updateCnt, skipCnt, errorMsg, durationMs);
-
-        return count;
+        return result;
     }
 
+// OPEN API 실패 후 재호출 메서드
+private static class SyncRunResult {
+    int count;
+    int insertCnt;
+    int updateCnt;
+    int skipCnt;
+    String errorMsg;
+    boolean completedSuccessfully;
+}
     /**
      * 자동 동기화 이력 기록.
      * 로그 기록이 실패해도 동기화 자체는 성공으로 두기 위해 예외를 밖으로 올리지 않는다.
@@ -1110,5 +1228,205 @@ public BenefitDetailResDTO findBenefitDetail(
         }
 
         return profileFilter;
+    }
+
+    @Override
+    public GoalRecommendResDTO findGoalRecommend(
+            Integer memberNo
+    ) {
+        if (memberNo == null) {
+            throw new IllegalArgumentException(
+                    "회원 번호가 필요합니다."
+            );
+        }
+
+        GoalRecommendResDTO result = new GoalRecommendResDTO();
+
+        GoalVO goal = goalMapper.get(memberNo);
+
+        /*
+         * goal 테이블 ENUM 에 '없음'이 없고 member_no 에 unique 가 걸려 있어,
+         * 목표 미설정은 값이 아니라 행 자체가 없는 상태로 나타난다.
+         * 이때는 기본값인 빈 섹션 두 개가 그대로 나간다.
+         */
+        if (goal == null || goal.getGoalType() == null) {
+            return result;
+        }
+
+        String goalType = goal.getGoalType().name();
+
+        result.setGoalType(goalType);
+
+        /*
+         * 프로필이 없으면 null 이 온다.
+         * 그때는 조건 필터 없이 목표 매핑만으로 보여 준다.
+         */
+        BenefitProfileFilterResDTO profile =
+                benefitMapper.findBenefitProfileFilter(memberNo);
+
+        result.setPrimary(findGoalSection(goalType, 1, profile));
+        result.setSecondary(findGoalSection(goalType, 2, profile));
+
+        return result;
+    }
+
+    private GoalSectionDTO findGoalSection(
+            String goalType,
+            int priority,
+            BenefitProfileFilterResDTO profile
+    ) {
+        GoalSectionDTO section = new GoalSectionDTO();
+
+        List<String> codes =
+                benefitMapper.findGoalCategoryCodes(
+                        goalType, priority
+                );
+
+        /*
+         * 매핑이 비면 조회하지 않고 빈 섹션을 돌려준다.
+         * 그대로 findBenefit 에 넘기면 IN 조건이 통째로 빠져
+         * 전체 혜택이 목표 추천으로 둔갑한다.
+         */
+        if (codes == null || codes.isEmpty()) {
+            return section;
+        }
+
+        section.setCategories(
+                benefitMapper.findGoalCategoryNames(
+                        goalType, priority
+                )
+        );
+
+        BenefitFilterReqDTO filter = new BenefitFilterReqDTO();
+
+        filter.setDetailCategoryCodes(codes);
+
+        if (profile != null) {
+            filter.setAge(profile.getAge());
+            filter.setZipCd(resolveZipCd(profile));
+            filter.setPlcyMajorCd(profile.getPlcyMajorCd());
+            filter.setSchoolCd(profile.getSchoolCd());
+            filter.setJobCd(profile.getJobCd());
+            filter.setMrgSttsCd(profile.getMrgSttsCd());
+        }
+
+        section.setBenefits(benefitMapper.findBenefit(filter));
+
+        return section;
+    }
+
+    /*
+     * 구군 → 시군 → 시도 순으로 가장 좁은 지역을 쓴다.
+     * 조건 기반 탭이 프론트에서 하는 것과 같은 규칙이다.
+     */
+    private String resolveZipCd(
+            BenefitProfileFilterResDTO profile
+    ) {
+        if (profile.getDistrictCode() != null
+                && !profile.getDistrictCode().isEmpty()) {
+            return profile.getDistrictCode();
+        }
+
+        if (profile.getCityCode() != null
+                && !profile.getCityCode().isEmpty()) {
+            return profile.getCityCode();
+        }
+
+        return profile.getProvinceCode();
+    }
+    //소비 기반 혜택 추천
+    @Override
+    public ConsumptionRecommendResDTO
+    findConsumptionRecommendedBenefits(
+            Integer memberNo,
+            BenefitFilterReqDTO filter
+    ) {
+
+        List<ConsumptionCategoryResDTO>
+                topCategories =
+                benefitMapper
+                        .findTopSpendingCategories(
+                                memberNo
+                        );
+
+        if (topCategories == null
+                || topCategories.isEmpty()) {
+
+            return ConsumptionRecommendResDTO
+                    .builder()
+                    .message(
+                            "아직 소비 내역이 없어 "
+                                    + "소비 기반 추천을 제공하기 어려워요."
+                    )
+                    .spendingCategories(
+                            Collections.emptyList()
+                    )
+                    .benefitCategories(
+                            Collections.emptyList()
+                    )
+                    .totalCount(0)
+                    .benefits(
+                            Collections.emptyList()
+                    )
+                    .build();
+        }
+
+        List<String> spendingCategories =
+                topCategories.stream()
+                        .map(
+                                ConsumptionCategoryResDTO
+                                        ::getCategoryName
+                        )
+                        .collect(
+                                Collectors.toList()
+                        );
+
+        List<String> benefitCategories =
+                benefitMapper
+                        .findConsumptionBenefitCategoryNames(
+                                memberNo
+                        );
+
+        List<BenefitListResDTO> benefits =
+                benefitMapper
+                        .findConsumptionRecommendedBenefits(
+                                memberNo,
+                                filter
+                        );
+
+        String spendingText =
+                String.join(
+                        "·",
+                        spendingCategories
+                );
+
+        String benefitText =
+                String.join(
+                        "·",
+                        benefitCategories
+                );
+
+        String message =
+                spendingText
+                        + " 소비가 많은 패턴을 바탕으로 "
+                        + benefitText
+                        + " 혜택을 추천했어요.";
+
+        return ConsumptionRecommendResDTO
+                .builder()
+                .message(message)
+                .spendingCategories(
+                        spendingCategories
+                )
+                .benefitCategories(
+                        benefitCategories
+                )
+                .totalCount(
+                        benefits.size()
+                )
+                .benefits(
+                        benefits
+                )
+                .build();
     }
 }

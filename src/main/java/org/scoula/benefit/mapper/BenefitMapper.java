@@ -6,6 +6,7 @@ import org.scoula.benefit.domain.BenefitVO;
 import org.scoula.benefit.dto.*;
 import org.scoula.benefit.dto.BenefitDetailResDTO;
 import org.scoula.benefit.dto.BenefitProfileFilterResDTO;
+import org.scoula.benefit.dto.ConsumptionCategoryResDTO;
 
 import java.util.List;
 
@@ -46,6 +47,11 @@ public interface BenefitMapper {
 
     int updateBenefitStatusOnly(BenefitVO benefit);
 
+    //온통청년 사라진 혜택 관리
+    int deactivateBenefitsNotInApi(@Param("plcyNoList") List<String> plcyNoList);
+
+    int restoreBenefitFromApi(String plcyNo);
+
    //카테고리 필터
    List<BenefitCategoryResDTO> findBenefitCategories();
 
@@ -75,10 +81,42 @@ public interface BenefitMapper {
     //혜택 상세페이지
     BenefitDetailResDTO findBenefitDetail(
             Integer benefitNo
+
     );
 
     //사용자프로필 조건기반 혜택 추천
     BenefitProfileFilterResDTO findBenefitProfileFilter(
             @Param("memberNo") Integer memberNo
+    );
+
+    // 목표 → 혜택 중분류 매핑 조회
+    List<String> findGoalCategoryCodes(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+    );
+
+    // 목표 → 중분류 이름 조회 (화면 설명용)
+    List<String> findGoalCategoryNames(
+            @Param("goalType") String goalType,
+            @Param("priority") int priority
+    );
+      
+    //소비기반 혜택추천
+    List<ConsumptionCategoryResDTO>
+    findTopSpendingCategories(
+            @Param("memberNo") Integer memberNo
+    );
+
+    List<String> findConsumptionBenefitCategoryNames(
+            @Param("memberNo") Integer memberNo
+    );
+
+    List<BenefitListResDTO>
+    findConsumptionRecommendedBenefits(
+            @Param("memberNo")
+            Integer memberNo,
+
+            @Param("filter")
+            BenefitFilterReqDTO filter
     );
 }
