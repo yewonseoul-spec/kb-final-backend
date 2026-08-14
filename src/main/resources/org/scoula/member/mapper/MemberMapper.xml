@@ -36,6 +36,25 @@
         WHERE email = #{email}
     </select>
 
+    <!-- 아이디 찾기(AUTH-06). 탈퇴 회원은 없는 것으로 본다 -->
+    <select id="findByEmail" resultMap="memberMap">
+        SELECT member_no, login_id, password, email, role,
+               real_name, status, created_at, updated_at
+        FROM member
+        WHERE email = #{email}
+          AND status = 'Y'
+    </select>
+
+    <!-- 비밀번호 재설정 본인확인 -->
+    <select id="findByLoginIdAndEmail" resultMap="memberMap">
+        SELECT member_no, login_id, password, email, role,
+               real_name, status, created_at, updated_at
+        FROM member
+        WHERE login_id = #{loginId}
+          AND email = #{email}
+          AND status = 'Y'
+    </select>
+
     <insert id="insert" useGeneratedKeys="true" keyProperty="memberNo">
         INSERT INTO member (login_id, password, email, real_name)
         VALUES (#{loginId}, #{password}, #{email}, #{realName})
