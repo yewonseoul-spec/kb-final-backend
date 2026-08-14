@@ -17,5 +17,7 @@ public interface MemberService {
 
     FindIdResDTO findId(FindIdReqDTO request);
 
+    void verifyResetPassword(ResetPasswordReqDTO request);
 
+    void resetPassword(ResetPasswordReqDTO request);
 }

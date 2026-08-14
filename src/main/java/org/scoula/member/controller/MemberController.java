@@ -2,10 +2,7 @@ package org.scoula.member.controller;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.scoula.member.dto.FindIdReqDTO;
-import org.scoula.member.dto.FindIdResDTO;
-import org.scoula.member.dto.MemberDTO;
-import org.scoula.member.dto.MemberJoinDTO;
+import org.scoula.member.dto.*;
 import org.scoula.member.service.MemberService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -42,6 +39,18 @@ public class MemberController {
     @PostMapping("/find-id")
     public ResponseEntity<FindIdResDTO> findId(@RequestBody FindIdReqDTO request) {
         return ResponseEntity.ok(service.findId(request));
+    }
+
+    @PostMapping("/reset-password-verify")
+    public ResponseEntity<Void> verifyResetPassword(@RequestBody ResetPasswordReqDTO request) {
+        service.verifyResetPassword(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<Void> resetPassword(@RequestBody ResetPasswordReqDTO request) {
+        service.resetPassword(request);
+        return ResponseEntity.ok().build();
     }
 
 

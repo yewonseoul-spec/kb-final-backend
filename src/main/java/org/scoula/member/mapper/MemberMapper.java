@@ -1,5 +1,6 @@
 package org.scoula.member.mapper;
 
+import org.apache.ibatis.annotations.Param;
 import org.scoula.member.dto.ChangePasswordDTO;
 import org.scoula.security.account.domain.MemberVO;
 
@@ -11,6 +12,9 @@ public interface MemberMapper {
     int countByEmail(String email);
 
     MemberVO findByEmail(String email); // 아이디 찾기
+
+    MemberVO findByLoginIdAndEmail(@Param("loginId") String loginId,
+                                   @Param("email") String email); // 비밀번호 재설정 본인확인
 
     int insert(MemberVO member);  // 회원 정보 추가
 
