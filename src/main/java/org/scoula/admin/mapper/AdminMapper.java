@@ -1,19 +1,14 @@
 package org.scoula.admin.mapper;
 
+import org.apache.ibatis.annotations.*;
+import org.scoula.admin.domain.SyncLogDetailVO;
+import org.scoula.admin.domain.SyncLogVO;
+import org.scoula.admin.dto.*;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Insert;
-import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
-import org.scoula.admin.domain.SyncLogDetailVO;
-import org.scoula.admin.domain.SyncLogVO;
-import org.scoula.admin.dto.AdminBenefitDetailResDto;
-import org.scoula.admin.dto.AdminBenefitListResDto;
-import org.scoula.admin.dto.AdminBenefitSearchReqDto;
-import org.scoula.admin.dto.DeadlineBenefitResDto;
-import org.scoula.admin.dto.SyncLogDetailResDto;
-import org.scoula.admin.dto.SyncLogSearchReqDto;
-import org.scoula.admin.dto.SyncLogStatsResDto;
 
 import java.util.List;
 
@@ -439,4 +434,74 @@ public interface AdminMapper {
             "WHERE d.log_no = #{logNo} " +
             "ORDER BY FIELD(d.action_type, 'I', 'U', 'D'), d.detail_no ASC")
     List<SyncLogDetailResDto> findSyncLogDetails(@Param("logNo") int logNo);
+
+// ==============================
+// ADMIN-04 추천검색어 관리
+// ==============================
+
+    // 추천검색어 전체 조회
+    @Select("""
+    SELECT
+        keyword_code AS keywordCode,
+        keyword_name AS keywordName,
+        display_order AS displayOrder,
+        is_active AS isActive
+    FROM recommend_keyword
+    ORDER BY display_order ASC,
+             keyword_code ASC
+""")
+    List<RecommendKeywordAdminDTO> findRecommendKeywords();
+
+
+    // 동일 검색어 중복 체크
+    @Select("""
+    SELECT COUNT(*)
+    FROM recommend_keyword
+    WHERE keyword_name = #{keywordName}
+""")
+    int countRecommendKeywordByName(
+            @Param("keywordName") String keywordName
+    );
+
+
+    // 추천검색어 추가
+    @Insert("""
+    INSERT INTO recommend_keyword (
+        keyword_name,
+        display_order,
+        is_active
+    )
+    SELECT
+        #{keywordName},
+        COALESCE(MAX(display_order), 0) + 1,
+        'Y'
+    FROM recommend_keyword
+""")
+    int insertRecommendKeyword(
+            @Param("keywordName") String keywordName
+    );
+
+
+    // 활성 / 비활성 변경
+    @Update("""
+    UPDATE recommend_keyword
+    SET is_active = #{isActive}
+    WHERE keyword_code = #{keywordCode}
+""")
+    int updateRecommendKeywordStatus(
+            @Param("keywordCode") Integer keywordCode,
+            @Param("isActive") String isActive
+    );
+
+
+    // 추천검색어 삭제
+    @Delete("""
+    DELETE FROM recommend_keyword
+    WHERE keyword_code = #{keywordCode}
+""")
+    int deleteRecommendKeyword(
+            @Param("keywordCode") Integer keywordCode
+    );
+
+
 }

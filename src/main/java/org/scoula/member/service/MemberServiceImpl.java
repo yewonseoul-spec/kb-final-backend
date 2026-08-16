@@ -2,10 +2,8 @@ package org.scoula.member.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
-import org.scoula.member.dto.ChangePasswordDTO;
-import org.scoula.member.dto.MemberDTO;
-import org.scoula.member.dto.MemberJoinDTO;
-import org.scoula.member.dto.MemberUpdateDTO;
+import org.scoula.member.dto.*;
+import org.scoula.member.exception.AccountNotFoundException;
 import org.scoula.member.exception.InvalidMemberFormatException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
@@ -34,6 +32,12 @@ public class MemberServiceImpl implements MemberService {
     // 아이디: 영문 소문자로 시작하는 영문 소문자·숫자 5~20자.
     // login_id 컬럼 collation 이 ci 라 대문자를 허용하면 저장값과 조회값이 어긋나 보인다.
     private static final String LOGIN_ID_RULE = "^[a-z][a-z0-9]{4,19}$";
+
+    // 비밀번호: 영문·숫자·특수문자를 포함한 8자 이상. SignUp.vue·ChangePassword.vue 와 같은 규칙.
+    private static final String PASSWORD_RULE = "^(?=.*[A-Za-z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$";
+
+    // 아이디가 틀렸는지 이메일이 틀렸는지 구분해 알려주면 계정 열거에 쓰인다. 문구를 하나로 고정한다.
+    private static final String NO_ACCOUNT_MESSAGE = "아이디와 이메일이 일치하는 계정이 없어요.";
 
     @Override
     public boolean checkDuplicate(String loginId) {
@@ -108,6 +112,15 @@ public class MemberServiceImpl implements MemberService {
             throw new InvalidMemberFormatException("닉네임 형식이 올바르지 않습니다.");
         }
         dto.setRealName(realName);
+
+        validatePassword(dto.getPassword());   // 암호화 전이라 원문이 들어 있다
+    }
+
+    // 회원가입·비밀번호 변경·비밀번호 재설정 세 곳이 같은 규칙을 쓴다
+    private void validatePassword(String password) {
+        if (password == null || !password.matches(PASSWORD_RULE)) {
+            throw new InvalidMemberFormatException("비밀번호 형식이 올바르지 않습니다.");
+        }
     }
 
     @Override
@@ -130,9 +143,51 @@ public class MemberServiceImpl implements MemberService {
             throw new PasswordMissmatchException();
         }
 
+        // 현재 비밀번호 확인을 먼저 통과해야 형식 오류를 알려준다
+        validatePassword(changePassword.getNewPassword());
+
         changePassword.setNewPassword(passwordEncoder.encode(changePassword.getNewPassword()));
 
         mapper.updatePassword(changePassword);
+    }
+
+    // 이메일은 UNIQUE 라 계정은 최대 1건이다.
+    @Override
+    public FindIdResDTO findId(FindIdReqDTO request) {
+        MemberVO member = mapper.findByEmail(request.getEmail());
+        if (member == null) {
+            throw new AccountNotFoundException("입력하신 이메일로 가입된 계정이 없어요.");
+        }
+        return FindIdResDTO.of(member);
+    }
+
+    // AUTH-07. 비밀번호를 입력시키기 전에 걸러내는 단계라 조회만 한다.
+    @Override
+    public void verifyResetPassword(ResetPasswordReqDTO request) {
+        findForReset(request);
+    }
+
+    @Override
+    public void resetPassword(ResetPasswordReqDTO request) {
+        // 프론트와 별개로 여기서 다시 조회한다.
+        // 재설정 토큰을 두지 않는 대신 이 재검증이 그 자리를 맡는다.
+        MemberVO member = findForReset(request);
+
+        String newPassword = request.getNewPassword();
+        validatePassword(newPassword);
+
+        // updatePassword 의 UPDATE 문은 newPassword·loginId 만 참조하므로 oldPassword 는 비워 둔다.
+        // 입력값이 아니라 조회된 loginId 를 쓴다.
+        mapper.updatePassword(new ChangePasswordDTO(
+                member.getLoginId(), null, passwordEncoder.encode(newPassword)));
+    }
+
+    private MemberVO findForReset(ResetPasswordReqDTO request) {
+        MemberVO member = mapper.findByLoginIdAndEmail(request.getLoginId(), request.getEmail());
+        if (member == null) {
+            throw new AccountNotFoundException(NO_ACCOUNT_MESSAGE);
+        }
+        return member;
     }
 
 }

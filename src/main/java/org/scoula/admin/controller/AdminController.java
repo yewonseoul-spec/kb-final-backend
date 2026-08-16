@@ -148,4 +148,6 @@ public class AdminController {
                 adminService.executeSyncByPeriod(startDate, endDate, user.getMember().getMemberNo());
         return ResponseEntity.ok(result);
     }
+
+
 }

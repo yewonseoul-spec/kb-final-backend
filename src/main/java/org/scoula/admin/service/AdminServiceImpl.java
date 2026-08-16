@@ -3,16 +3,7 @@ package org.scoula.admin.service;
 import lombok.RequiredArgsConstructor;
 import org.scoula.admin.domain.SyncLogDetailVO;
 import org.scoula.admin.domain.SyncLogVO;
-import org.scoula.admin.dto.AdminBenefitDetailResDto;
-import org.scoula.admin.dto.AdminBenefitListResDto;
-import org.scoula.admin.dto.AdminBenefitPageResDto;
-import org.scoula.admin.dto.AdminBenefitSearchReqDto;
-import org.scoula.admin.dto.DashboardResDto;
-import org.scoula.admin.dto.SyncLogDetailResDto;
-import org.scoula.admin.dto.SyncLogPageResDto;
-import org.scoula.admin.dto.SyncLogSearchReqDto;
-import org.scoula.admin.dto.SyncLogStatsResDto;
-import org.scoula.admin.dto.SyncResultResDto;
+import org.scoula.admin.dto.*;
 import org.scoula.admin.mapper.AdminMapper;
 import org.scoula.benefit.dto.SyncDetailResultDTO;
 import org.scoula.benefit.dto.SyncedBenefitDTO;
@@ -477,5 +468,72 @@ public class AdminServiceImpl implements AdminService {
         } catch (Exception e) {
             System.out.println("동기화 처리 내역 기록 실패: " + normalizeErrorMsg(e));
         }
+    }
+
+
+    @Override
+    public List<RecommendKeywordAdminDTO> getRecommendKeywords() {
+        return adminMapper.findRecommendKeywords();
+    }
+
+    @Override
+    public void createRecommendKeyword(
+            String keywordName
+    ) {
+        if (
+                keywordName == null
+                        || keywordName.trim().isEmpty()
+        ) {
+            throw new IllegalArgumentException(
+                    "추천검색어를 입력해주세요."
+            );
+        }
+
+        String normalizedKeyword =
+                keywordName.trim();
+
+        int count =
+                adminMapper.countRecommendKeywordByName(
+                        normalizedKeyword
+                );
+
+        if (count > 0) {
+            throw new IllegalArgumentException(
+                    "이미 등록된 추천검색어입니다."
+            );
+        }
+
+        adminMapper.insertRecommendKeyword(
+                normalizedKeyword
+        );
+    }
+
+    @Override
+    public void changeRecommendKeywordStatus(
+            Integer keywordCode,
+            String isActive
+    ) {
+        if (
+                !"Y".equals(isActive)
+                        && !"N".equals(isActive)
+        ) {
+            throw new IllegalArgumentException(
+                    "활성 상태는 Y 또는 N이어야 합니다."
+            );
+        }
+
+        adminMapper.updateRecommendKeywordStatus(
+                keywordCode,
+                isActive
+        );
+    }
+
+    @Override
+    public void deleteRecommendKeyword(
+            Integer keywordCode
+    ) {
+        adminMapper.deleteRecommendKeyword(
+                keywordCode
+        );
     }
 }
