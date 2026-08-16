@@ -506,26 +506,29 @@ public class BenefitServiceImpl implements BenefitService {
             finalResult = result;
 
             if (result.errorMsg == null) {
+
                 if (attempt > 1) {
-                    retryHistory.append("1차 전체 동기화 실패 후 ")
+                    retryHistory
+                            .append("\n[")
                             .append(attempt)
-                            .append("차 전체 재시도 성공");
+                            .append("차 동기화 성공]");
                 }
 
                 break;
             }
 
-            retryHistory.append("[")
+            retryHistory
+                    .append("[")
                     .append(attempt)
-                    .append("차 전체 동기화 실패] ")
-                    .append(result.errorMsg)
-                    .append(" / ");
+                    .append("차 동기화 실패] ")
+                    .append(result.errorMsg);
 
             if (attempt <= maxWholeRetryCount) {
-                System.out.println("[청년혜택 자동 동기화 전체 재시도 대기] 60초 후 pageNum=1부터 다시 시작");
+                retryHistory.append("\n");
+                System.out.println("[청년혜택 자동 동기화 전체 재시도 대기] 120초 후 pageNum=1부터 다시 시작");
 
                 try {
-                    Thread.sleep(60_000); // 1분 대기
+                    Thread.sleep(120_000); // 2분 대기
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
 
@@ -692,6 +695,21 @@ public class BenefitServiceImpl implements BenefitService {
                 }
 
                 result.count++;
+            }
+
+            try {
+                Thread.sleep(1000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+
+                result.errorMsg =
+                        "전체시도="
+                                + attemptNo
+                                + ", pageNum="
+                                + pageNum
+                                + ", 페이지 호출 대기 중 인터럽트 발생";
+
+                break;
             }
 
             pageNum++;
