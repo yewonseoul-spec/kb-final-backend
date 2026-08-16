@@ -81,6 +81,8 @@ DROP TABLE IF EXISTS benefit;
 DROP TABLE IF EXISTS stress_scenario;
 DROP TABLE IF EXISTS recommend_keyword;
 DROP TABLE IF EXISTS finance_product;
+DROP TABLE IF EXISTS goal_benefit_category;
+DROP TABLE IF EXISTS spending_benefit_category_map;
 DROP TABLE IF EXISTS spending_category;
 DROP TABLE IF EXISTS benefit_category;
 DROP TABLE IF EXISTS benefit_detail_category;
