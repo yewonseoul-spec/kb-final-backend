@@ -1,4 +1,10 @@
 -- =====================================================================
+-- [v2.4] benefit 테이블에 admin_is_active, api_is_active 컬럼 추가
+--        sync_log에 delete_cnt 추가, sync_log_detail action_type에 'D' 추가
+--        trg_benefit_keep_admin_active 트리거 신설 (파일 맨 아래)
+--        (관리자가 지정한 활성 상태를 동기화가 덮지 못하게 하고,
+--         API가 같은 값으로 정상화되면 지정을 자동 해제한다)
+-- =====================================================================
 -- [v2.3] 4-3 goal_benefit_category 매핑테이블 추가
 --        (목표 → 혜택 중분류. priority 1=핵심, 2=연관)
 -- =====================================================================
@@ -370,6 +376,8 @@ CREATE TABLE benefit
     conflict_group_code  VARCHAR(50)  NULL COMMENT '중복수혜그룹코드',
     inq_cnt              INT          NOT NULL DEFAULT 0 COMMENT '조회수(초기값; 실시간은 Redis)',
     is_active            CHAR(1)      NOT NULL DEFAULT 'Y' COMMENT '활성화여부 Y/N(마감 경과 시 N)',
+    admin_is_active      CHAR(1)      NULL COMMENT '관리자 지정 활성 상태. NULL이면 API 원본을 따른다',
+    api_is_active        CHAR(1)      NULL COMMENT 'API 원본 활성 상태. 관리자 지정과 비교해 자동 해제를 판정한다',
     api_deleted_yn        CHAR(1)     NOT NULL DEFAULT 'N' COMMENT '혜택 삭제 여부',
     api_deleted_dt       DATETIME     NULL COMMENT '혜택 삭제 일시',
     frst_reg_dt          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '최초등록일시(frstRegDt)',
@@ -746,6 +754,7 @@ CREATE TABLE sync_log (
                           insert_cnt    INT          NOT NULL DEFAULT 0                COMMENT '신규추가건수',
                           update_cnt    INT          NOT NULL DEFAULT 0                COMMENT '업데이트건수',
                           skip_cnt      INT          NOT NULL DEFAULT 0                COMMENT '스킵건수',
+                          delete_cnt    INT          NOT NULL DEFAULT 0                COMMENT 'API 응답에 없어 삭제 처리된 건수',
                           error_msg     VARCHAR(500) NULL                              COMMENT '오류내용(S면 보통 NULL)',
                           duration_ms   INT          NULL                              COMMENT '소요시간(ms)',
                           member_no     INT          NULL                              COMMENT '실행 관리자(A면 NULL, M이면 ADMIN member_no)',
@@ -753,8 +762,9 @@ CREATE TABLE sync_log (
                           CONSTRAINT fk_sync_log_member FOREIGN KEY (member_no)
                               REFERENCES member (member_no),
                           CONSTRAINT chk_sync_log_counts CHECK (
-                              total_cnt  >= 0 AND insert_cnt >= 0 AND update_cnt >= 0 AND skip_cnt >= 0
-                                  AND (insert_cnt + update_cnt + skip_cnt) <= total_cnt),
+                              total_cnt  >= 0 AND insert_cnt >= 0 AND update_cnt >= 0
+                                  AND skip_cnt >= 0 AND delete_cnt >= 0
+                                  AND (insert_cnt + update_cnt + skip_cnt + delete_cnt) <= total_cnt),
                           CONSTRAINT chk_sync_log_duration CHECK (duration_ms IS NULL OR duration_ms >= 0)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
@@ -773,15 +783,53 @@ CREATE TABLE sync_log_detail
     detail_no       INT          NOT NULL AUTO_INCREMENT COMMENT '상세번호',
     log_no          INT          NOT NULL COMMENT '동기화 실행 이력',
     benefit_no      INT          NOT NULL COMMENT '처리된 혜택',
-    action_type     CHAR(1)      NOT NULL COMMENT '처리구분(I=신규/U=기존)',
+    action_type     CHAR(1)      NOT NULL COMMENT '처리구분(I=신규/U=기존/D=API삭제)',
     changed_summary VARCHAR(500) NULL COMMENT '변경 내용 요약(신규거나 값이 그대로면 NULL)',
     PRIMARY KEY (detail_no),
     CONSTRAINT fk_sync_detail_log FOREIGN KEY (log_no)
         REFERENCES sync_log (log_no),
     CONSTRAINT fk_sync_detail_benefit FOREIGN KEY (benefit_no)
         REFERENCES benefit (benefit_no),
-    CONSTRAINT chk_sync_detail_action CHECK (action_type IN ('I', 'U')),
+    CONSTRAINT chk_sync_detail_action CHECK (action_type IN ('I', 'U', 'D')),
     KEY idx_sync_detail_log (log_no)
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='동기화 처리 내역';
+
+
+-- ---------------------------------------------------------------------
+-- trg_benefit_keep_admin_active  (v2.4)
+--
+--   관리자가 지정한 활성 상태를 동기화가 덮지 못하게 하고,
+--   API가 같은 값으로 정상화되면 그 지정을 자동으로 해제한다.
+--
+--   is_active 는 동기화의 ON DUPLICATE KEY UPDATE 대상이라 매번 덮어쓰이므로,
+--   관리자 지정은 admin_is_active 에, API 원본은 api_is_active 에 따로 둔다.
+--   조회 쿼리는 기존대로 is_active 만 보면 되고 이 트리거가 값을 맞춘다.
+--
+--   admin_is_active 가 NULL 인 정책에는 아무 영향이 없다.
+--   되돌리려면 : DROP TRIGGER trg_benefit_keep_admin_active;
+-- ---------------------------------------------------------------------
+DELIMITER $$
+
+CREATE TRIGGER trg_benefit_keep_admin_active
+    BEFORE UPDATE
+    ON benefit
+    FOR EACH ROW
+BEGIN
+    -- 관리자 지정은 API 상태값 오류에 대한 임시 개입이지 영구 숨김이 아니다.
+    -- API가 관리자와 같은 판단에 도달했거나 정책 자체가 사라졌으면
+    -- 개입할 이유가 없어졌으므로 지정을 해제한다.
+    IF NEW.admin_is_active IS NOT NULL
+        AND (NEW.admin_is_active = NEW.api_is_active
+            OR NEW.api_deleted_yn = 'Y') THEN
+        SET NEW.admin_is_active = NULL;
+    END IF;
+
+    -- 지정이 남아 있으면 동기화가 덮은 값을 되돌린다.
+    IF NEW.admin_is_active IS NOT NULL THEN
+        SET NEW.is_active = NEW.admin_is_active;
+    END IF;
+END$$
+
+DELIMITER ;

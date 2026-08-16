@@ -19,12 +19,15 @@ public class AdminBenefitDetailResDto {
     private String sbmsnDcmntCn;     // 제출 서류
     private String plcyExplnCn;      // 혜택 설명
 
-    // 신청 URL은 둘을 나란히 들고 있는다.
-    //   aplyUrlAddr    : 온통청년 원본. 동기화 때마다 덮인다
+    // 신청 URL은 세 값을 나란히 들고 있는다. 우선순위는 위에서부터다.
     //   customApplyUrl : 관리자 지정. 동기화 대상이 아니라 보존된다
-    // 사용자에게는 지정값이 있으면 그것만 나가고, 원본은 이 관리 화면에서만 보인다.
-    private String aplyUrlAddr;
+    //   aplyUrlAddr    : 온통청년 원본 신청 주소. 동기화 때마다 덮인다
+    //   refUrlAddr1    : 참고 주소. 신청 주소가 없을 때 공고 확인용으로 쓴다
+    // 사용자에게는 이 순서로 하나만 나가고, 관리 화면에서만 셋을 다 보여준다.
+    // 셋이 모두 비어 있으면 관리자가 직접 지정해야 하는 정책이다.
     private String customApplyUrl;
+    private String aplyUrlAddr;
+    private String refUrlAddr1;
 
     private Date applyStartDate;
     private Date applyEndDate;
@@ -41,7 +44,21 @@ public class AdminBenefitDetailResDto {
 
     private String conflictGroupCode;
     private Integer inqCnt;
+
+    // 활성 상태도 같은 구조다. 우선순위는 위에서부터다.
+    //   apiDeletedYn  : 오픈 API에서 사라져 삭제 처리된 정책인지
+    //   adminIsActive : 관리자 지정. 동기화 대상이 아니라 보존된다
+    //   apiIsActive   : 온통청년이 준 원본. 관리자 지정과 같아지면 지정이 자동 해제된다
+    //   isActive      : 서비스가 실제로 쓰는 최종값. 트리거가 위 셋으로 계산한다
     private String isActive;
+    private String adminIsActive;
+    private String apiIsActive;
+    private String apiDeletedYn;
+    private Date apiDeletedDt;
+
+    /** 최종 노출 상태. D=API삭제 / Y=활성 / N=비활성 */
+    private String effectiveStatus;
+
     private Date frstRegDt;
     private Date lastMdfcnDt;
 

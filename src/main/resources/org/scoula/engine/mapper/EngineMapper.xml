@@ -58,6 +58,9 @@
         b.apply_end_date
         FROM benefit b
         WHERE b.is_active = 'Y'
+        <!-- 온통청년에서 사라진 정책은 추천하지 않는다.
+             행은 남아 있지만 신청할 곳이 없어졌기 때문이다 -->
+        AND IFNULL(b.api_deleted_yn, 'N') = 'N'
         <!-- 신청기간 구분이 '마감'(0057003)이면 후보에서 제외
            상시(0057002)는 apply_end_date가 NULL이므로 아래 조건에서 통과된다 -->
         AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd &lt;&gt; '0057003')

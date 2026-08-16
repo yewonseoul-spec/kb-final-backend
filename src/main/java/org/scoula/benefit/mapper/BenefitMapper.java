@@ -47,6 +47,10 @@ public interface BenefitMapper {
 
     int updateBenefitStatusOnly(BenefitVO benefit);
 
+    // [상호 추가] 숨김 처리 대상 목록. deactivateBenefitsNotInApi 는 건수만 돌려주므로
+    // 어떤 정책이 사라졌는지 상세에 남기려면 UPDATE 전에 조회해야 한다
+    List<Integer> findBenefitNosNotInApi(@Param("plcyNoList") List<String> plcyNoList);
+
     //온통청년 사라진 혜택 관리
     int deactivateBenefitsNotInApi(@Param("plcyNoList") List<String> plcyNoList);
 

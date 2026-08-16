@@ -33,6 +33,9 @@
         conflict_group_code,
         inq_cnt,
         is_active,
+        <!-- [상호 추가] api_is_active
+             API 원본 활성 상태. 관리자 지정과 비교해 자동 해제를 판정한다 -->
+        api_is_active,
         api_deleted_yn,
         api_deleted_dt,
         frst_reg_dt,
@@ -67,6 +70,9 @@
         #{conflictGroupCode},
         IFNULL(#{inqCnt}, 0),
         IFNULL(#{isActive}, 'Y'),
+        <!-- [상호 추가] IFNULL(#{isActive}, 'Y')
+             api_is_active 초기값. 신규 정책은 관리자 지정이 없으므로 원본과 같다 -->
+        IFNULL(#{isActive}, 'Y'),
         'N',
         NULL,
         IFNULL(#{frstRegDt}, NOW()),
@@ -98,6 +104,9 @@
         mrg_stts_cd = NULLIF(TRIM(VALUES(mrg_stts_cd)), ''),
         inq_cnt = VALUES(inq_cnt),
         is_active = VALUES(is_active),
+        <!-- [상호 추가] api_is_active = VALUES(is_active)
+             is_active 는 관리자 지정이 있으면 트리거가 되돌리므로 API 원본은 따로 남긴다 -->
+        api_is_active = VALUES(is_active),
         api_deleted_yn = 'N',
         api_deleted_dt = NULL,
         last_mdfcn_dt = NOW(),
@@ -188,19 +197,22 @@
     </select>
 
 
-<!--    테스트 설정시 last_mdfcn_dt = NOW()   -->
+    <!--    테스트 설정시 last_mdfcn_dt = NOW()   -->
     <update id="updateBenefitStatusOnly">
         UPDATE benefit
         SET
         inq_cnt = #{inqCnt},
         is_active = #{isActive},
+        <!-- [상호 추가] api_is_active = #{isActive}
+             자동 동기화에서도 API 원본을 함께 기록한다 -->
+        api_is_active = #{isActive},
         api_deleted_yn = 'N',
         api_deleted_dt = NULL,
         last_mdfcn_dt = NOW()
         WHERE plcy_no = #{plcyNo}
     </update>
 
-<!--카테고리 필터 -->
+    <!--카테고리 필터 -->
     <select id="findBenefitCategories"
             resultType="org.scoula.benefit.dto.BenefitCategoryResDTO">
         SELECT
@@ -246,7 +258,7 @@
         ORDER BY r.zip_cd ASC
     </select>
 
-<!-- 전공 필터 -->
+    <!-- 전공 필터 -->
     <select id="findBenefitMajors"
             resultType="org.scoula.benefit.dto.BenefitMajorResDTO">
 
@@ -322,7 +334,7 @@
 
     </select>
 
-<!--    검색 조회-->
+    <!--    검색 조회-->
     <select id="findBenefit"
             parameterType="org.scoula.benefit.dto.BenefitFilterReqDTO"
             resultType="org.scoula.benefit.dto.BenefitListResDTO">
@@ -476,7 +488,7 @@
             </foreach>
         </if>
 
-<!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
+        <!-- 1.마감전 혜택 2.상시 3. 마감된 혜택 순서 -->
         ORDER BY
         CASE
         -- 신청 가능한 기간제 혜택
@@ -577,7 +589,7 @@
         WHERE plcy_no = #{plcyNo}
     </select>
 
-<!-- 혜택 상세페이지   -->
+    <!-- 혜택 상세페이지   -->
     <!-- 혜택 상세 조회 -->
     <!-- [상호] 관리자 지정 신청 URL 반영 (2026-08-07)
             원본 aply_url_addr은 그대로 두고, benefit.custom_apply_url에 값이 있으면 그것을 쓴다.
@@ -668,20 +680,20 @@
         CURDATE()
         ) AS age,
 
-<!--    r : 프로필에 저장된 지역 / p : r의 상위 지역 / gp : p의 상위 지역-->
+        <!--    r : 프로필에 저장된 지역 / p : r의 상위 지역 / gp : p의 상위 지역-->
 
         CASE
-<!--     프로필 지역이 시도인 경우 -->
+        <!--     프로필 지역이 시도인 경우 -->
         WHEN p.zip_cd IS NULL
         OR p.zip_cd = '00000'
         THEN r.zip_cd
 
-<!--     프로필 지역이 시군인 경우 -->
+        <!--     프로필 지역이 시군인 경우 -->
         WHEN gp.zip_cd IS NULL
         OR gp.zip_cd = '00000'
         THEN p.zip_cd
 
-<!--     프로필 지역이 구군인 경우 -->
+        <!--     프로필 지역이 구군인 경우 -->
         ELSE gp.zip_cd
         END AS provinceCode,
 
@@ -698,17 +710,17 @@
         END AS provinceName,
 
         CASE
-<!--      시도까지만 저장된 경우 시군은 없음 -->
+        <!--      시도까지만 저장된 경우 시군은 없음 -->
         WHEN p.zip_cd IS NULL
         OR p.zip_cd = '00000'
         THEN NULL
 
-<!--     시군이 저장된 경우 -->
+        <!--     시군이 저장된 경우 -->
         WHEN gp.zip_cd IS NULL
         OR gp.zip_cd = '00000'
         THEN r.zip_cd
 
-<!--  구군이 저장된 경우 부모가 시군 -->
+        <!--  구군이 저장된 경우 부모가 시군 -->
         ELSE p.zip_cd
         END AS cityCode,
 
@@ -737,7 +749,7 @@
         END AS cityName,
 
         CASE
-<!--    3단계 지역일 때만 구군 설정 -->
+        <!--    3단계 지역일 때만 구군 설정 -->
         WHEN gp.zip_cd IS NOT NULL
         AND gp.zip_cd != '00000'
         THEN r.zip_cd
@@ -805,7 +817,18 @@
 
     </select>
 
-<!--    API 삭제 정책으로 판단하고 비활성화-->
+    <!-- [상호 추가] 숨김 처리 대상 목록. 삭제 상세를 기록하기 위해 UPDATE 전에 조회한다 -->
+    <select id="findBenefitNosNotInApi" resultType="java.lang.Integer">
+        SELECT benefit_no
+        FROM benefit
+        WHERE api_deleted_yn = 'N'
+        AND plcy_no NOT IN
+        <foreach collection="plcyNoList" item="plcyNo" open="(" separator="," close=")">
+            #{plcyNo}
+        </foreach>
+    </select>
+
+    <!--    API 삭제 정책으로 판단하고 비활성화-->
     <update id="deactivateBenefitsNotInApi">
         UPDATE benefit
         SET
@@ -820,7 +843,7 @@
         </foreach>
     </update>
 
-<!--  다시 생기면 혜택 복구  -->
+    <!--  다시 생기면 혜택 복구  -->
     <update id="restoreBenefitFromApi" parameterType="string">
         UPDATE benefit
         SET
@@ -829,7 +852,7 @@
         WHERE plcy_no = #{plcyNo}
     </update>
 
-<!-- 소비기반 추천 소비 최근 3개월 기반-->
+    <!-- 소비기반 추천 소비 최근 3개월 기반-->
     <select id="findTopSpendingCategories"
             parameterType="java.lang.Integer"
             resultType="org.scoula.benefit.dto.ConsumptionCategoryResDTO">
@@ -846,7 +869,7 @@
 
         WHERE s.member_no = #{memberNo}
 
-<!--        전체 소비 기준으로 하려면 아래 2줄 삭제하면 됨-->
+        <!--        전체 소비 기준으로 하려면 아래 2줄 삭제하면 됨-->
         AND s.spending_date >=
         DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
 
@@ -861,7 +884,7 @@
 
     </select>
 
-<!-- 소비기반 추천 혜택 중분류-->
+    <!-- 소비기반 추천 혜택 중분류-->
     <select id="findConsumptionBenefitCategoryNames"
             parameterType="java.lang.Integer"
             resultType="java.lang.String">
@@ -910,7 +933,7 @@
         bdc.display_order ASC
 
     </select>
-<!-- 실제 소비기반 추천 조회-->
+    <!-- 실제 소비기반 추천 조회-->
     <select id="findConsumptionRecommendedBenefits"
             parameterType="java.lang.Integer"
             resultType="org.scoula.benefit.dto.BenefitListResDTO">

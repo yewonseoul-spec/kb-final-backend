@@ -19,4 +19,5 @@ public class SyncLogVO {
     private String errorMsg;
     private Integer durationMs;
     private Integer memberNo;      // 실행한 관리자 (자동 동기화면 null)
+    private Integer deleteCnt;  // API 응답에 없어 숨김 처리된 건수
 }
