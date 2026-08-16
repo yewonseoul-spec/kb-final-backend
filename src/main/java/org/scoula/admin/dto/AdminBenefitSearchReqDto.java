@@ -21,4 +21,8 @@ public class AdminBenefitSearchReqDto {
     private Integer page;           // 1부터
     private Integer size;
     private Integer offset;         // 서비스에서 계산해 채운다
+    /** 숨김 처리된 정책만 보기 */
+    private Boolean deletedOnly;
+    /** 관리자가 상태를 지정한 정책만 보기 */
+    private Boolean adminManagedOnly;
 }

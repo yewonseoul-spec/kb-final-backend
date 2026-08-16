@@ -29,4 +29,10 @@ public class AdminBenefitListResDto {
     private Integer pairRuleCount;
     private Integer externalRuleCount;
     private Integer reviewRuleCount;
+    /** 관리자 지정 활성 상태. 지정이 없으면 null */
+    private String adminIsActive;
+    /** API 에서 사라진 정책인지 */
+    private String apiDeletedYn;
+    /** 최종 노출 상태. D=API삭제 / Y=활성 / N=비활성 */
+    private String effectiveStatus;
 }

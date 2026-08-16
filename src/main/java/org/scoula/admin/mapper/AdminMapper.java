@@ -17,6 +17,17 @@ import org.scoula.admin.dto.SyncLogStatsResDto;
 
 import java.util.List;
 
+/**
+ * 관리자 조회·기록 매퍼
+ *
+ * 혜택의 노출 상태는 세 컬럼이 겹쳐 있으므로 조회할 때 하나로 합친다.
+ *   api_deleted_yn   오픈 API 에서 사라진 정책. 소프트 딜리트라 행은 남아 있다
+ *   admin_is_active  관리자가 지정한 상태. 동기화가 덮지 않는다
+ *   is_active        API 원본 상태. 동기화가 매번 덮어쓴다
+ *
+ * 우선순위는 위에서부터다. API 에서 사라진 정책은 관리자가 활성으로 켜도
+ * 신청할 곳이 없으므로 가장 앞에 둔다.
+ */
 public interface AdminMapper {
 
     // ==================================================================
@@ -24,16 +35,25 @@ public interface AdminMapper {
     // ==================================================================
 
     // 동기화 전후 비교용 정책 총 건수 (대시보드 '전체 정책' 카드와 공용)
-    @Select("SELECT COUNT(*) FROM benefit")
+    // 숨김 처리된 정책도 DB 에는 남아 있으므로 여기서는 세지 않는다
+    @Select("SELECT COUNT(*) FROM benefit WHERE api_deleted_yn = 'N'")
     int countBenefits();
 
     // 추천 가능 정책 수. 마감·미도래를 뺀 실제 추천 대상
-    @Select("SELECT COUNT(*) FROM benefit WHERE is_active = 'Y'")
+    // 관리자가 끈 정책은 추천에서 빠지므로 최종 상태로 센다
+    @Select("SELECT COUNT(*) FROM benefit " +
+            "WHERE api_deleted_yn = 'N' " +
+            "  AND COALESCE(admin_is_active, is_active) = 'Y'")
     int countActiveBenefits();
+
+    // 오픈 API 에서 사라져 숨김 처리된 정책 수
+    @Select("SELECT COUNT(*) FROM benefit WHERE api_deleted_yn = 'Y'")
+    int countDeletedBenefits();
 
     // 30일 이내 마감 정책 수. 상시모집(apply_end_date NULL)은 제외
     @Select("SELECT COUNT(*) FROM benefit " +
-            "WHERE is_active = 'Y' " +
+            "WHERE api_deleted_yn = 'N' " +
+            "  AND COALESCE(admin_is_active, is_active) = 'Y' " +
             "  AND apply_end_date IS NOT NULL " +
             "  AND apply_end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)")
     int countDeadlineSoon();
@@ -61,7 +81,8 @@ public interface AdminMapper {
     @Select("SELECT benefit_no, plcy_nm, category_code, apply_end_date, " +
             "       DATEDIFF(apply_end_date, CURDATE()) AS dday " +
             "FROM benefit " +
-            "WHERE is_active = 'Y' " +
+            "WHERE api_deleted_yn = 'N' " +
+            "  AND COALESCE(admin_is_active, is_active) = 'Y' " +
             "  AND apply_end_date IS NOT NULL " +
             "  AND apply_end_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) " +
             "ORDER BY apply_end_date ASC, benefit_no ASC " +
@@ -168,7 +189,7 @@ public interface AdminMapper {
      * 혜택 목록.
      *
      * deadlineSoon 은 대시보드 '마감 임박' 카드에서, hasConflict 는 '중복수혜 규칙'
-     * 카드에서 넘어올 때 쓰는 조건이라 is_active 조건과 별개로 동작한다.
+     * 카드에서 넘어올 때 쓰는 조건이라 활성 조건과 별개로 동작한다.
      *
      * hasConflict 는 그룹형(conflict_group_code)뿐 아니라 개별쌍 규칙에만 걸린 혜택도
      * 함께 잡는다. 둘 중 하나만 보면 '중복수혜 관리 대상'이 반쪽만 나온다.
@@ -181,6 +202,9 @@ public interface AdminMapper {
      *   review   : 아직 검수되지 않아 엔진이 무시한다. 관리자가 처리할 대상
      * 비활성(is_active='N') 규칙은 엔진이 쓰지 않으므로 어느 쪽에도 세지 않는다.
      *
+     * 상태는 원본·관리자 지정·숨김을 모두 내린다. 관리 화면은 무엇이 덮였는지
+     * 보여야 하므로 합친 값만 내리면 관리자가 자기가 지정한 것인지 알 수 없다.
+     *
      * 정렬은 서버에서 한다. 목록이 2,700건인데 화면에는 20건만 내려가므로
      * 화면에서 정렬하면 '마감 임박순'이 전체 기준이 아니게 되어 틀린 결과가 된다.
      *
@@ -189,8 +213,14 @@ public interface AdminMapper {
      */
     @Select("<script>"
             + "SELECT b.benefit_no, b.plcy_no, b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, "
-            + "       b.apply_end_date, b.aply_prd_se_cd, b.is_active, b.inq_cnt, "
+            + "       b.apply_end_date, b.aply_prd_se_cd, b.inq_cnt, "
             + "       b.conflict_group_code, b.frst_reg_dt, "
+
+            // 상태 3종을 그대로 내리고 최종값을 따로 만든다
+            + "       b.is_active, b.admin_is_active, b.api_deleted_yn, "
+            + "       CASE WHEN b.api_deleted_yn = 'Y' THEN 'D' "
+            + "            ELSE COALESCE(b.admin_is_active, b.is_active) END AS effective_status, "
+
             + "       CASE WHEN b.apply_end_date IS NULL THEN NULL "
             + "            ELSE DATEDIFF(b.apply_end_date, CURDATE()) END AS dday, "
 
@@ -215,9 +245,24 @@ public interface AdminMapper {
             + "  <if test='keyword != null and keyword != \"\"'>"
             + "    AND b.plcy_nm LIKE CONCAT('%', #{keyword}, '%')"
             + "  </if>"
+
+            // 활성 필터는 최종 상태로 건다.
+            // 관리자가 끈 정책을 '활성'으로 걸러 보여주면 화면과 필터가 어긋난다
             + "  <if test='isActive != null and isActive != \"\"'>"
-            + "    AND b.is_active = #{isActive}"
+            + "    AND b.api_deleted_yn = 'N' "
+            + "    AND COALESCE(b.admin_is_active, b.is_active) = #{isActive}"
             + "  </if>"
+
+            // 숨김 정책만 보기. 관리자가 무엇이 사라졌는지 확인할 때 쓴다
+            + "  <if test='deletedOnly != null and deletedOnly'>"
+            + "    AND b.api_deleted_yn = 'Y'"
+            + "  </if>"
+
+            // 관리자가 직접 지정한 정책만. 무엇을 손댔는지 되짚을 수 있어야 한다
+            + "  <if test='adminManagedOnly != null and adminManagedOnly'>"
+            + "    AND b.admin_is_active IS NOT NULL"
+            + "  </if>"
+
             + "  <if test='categoryCode != null and categoryCode != \"\"'>"
             + "    AND b.category_code = #{categoryCode}"
             + "  </if>"
@@ -283,7 +328,14 @@ public interface AdminMapper {
             + "    AND plcy_nm LIKE CONCAT('%', #{keyword}, '%')"
             + "  </if>"
             + "  <if test='isActive != null and isActive != \"\"'>"
-            + "    AND is_active = #{isActive}"
+            + "    AND api_deleted_yn = 'N' "
+            + "    AND COALESCE(admin_is_active, is_active) = #{isActive}"
+            + "  </if>"
+            + "  <if test='deletedOnly != null and deletedOnly'>"
+            + "    AND api_deleted_yn = 'Y'"
+            + "  </if>"
+            + "  <if test='adminManagedOnly != null and adminManagedOnly'>"
+            + "    AND admin_is_active IS NOT NULL"
             + "  </if>"
             + "  <if test='categoryCode != null and categoryCode != \"\"'>"
             + "    AND category_code = #{categoryCode}"
@@ -312,73 +364,79 @@ public interface AdminMapper {
      * region_count는 지역 매핑 개수로, 200을 넘으면 전국 코드가 부여된 혜택이다.
      * 주관기관이 특정 지자체인데 이 값이 크면 원천 데이터 오류를 의심할 수 있다.
      *
-     * 신청 URL은 원본과 관리자 지정값을 둘 다 내린다.
+     * 신청 URL은 원본·참고·관리자 지정을 모두 내린다.
      * 관리 화면에서는 무엇이 덮였는지 보여야 하므로 COALESCE로 합치지 않는다.
+     * 활성 상태도 같은 이유로 세 값을 모두 내린다.
      */
     @Select("SELECT b.benefit_no, b.plcy_no, b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, " +
             "       b.target_desc, b.plcy_sprt_cn, b.plcy_aply_mthd_cn, b.sbmsn_dcmnt_cn, " +
-            "       b.plcy_expln_cn, b.aply_url_addr, b.custom_apply_url, " +
+            "       b.plcy_expln_cn, b.aply_url_addr, b.custom_apply_url, b.ref_url_addr1, " +
             "       b.apply_start_date, b.apply_end_date, b.aply_ymd, b.aply_prd_se_cd, " +
-            "       b.sprt_trgt_min_age, b.sprt_trgt_max_age, " +
-            "       b.earn_cnd_se_cd, b.earn_min_amt, b.earn_max_amt, b.earn_etc_cn, " +
-            "       b.mrg_stts_cd, b.conflict_group_code, b.inq_cnt, b.is_active, " +
+            "       b.sprt_trgt_min_age, b.sprt_trgt_max_age, b.earn_cnd_se_cd, " +
+            "       b.earn_min_amt, b.earn_max_amt, b.earn_etc_cn, " +
+            "       b.mrg_stts_cd, b.conflict_group_code, b.inq_cnt, " +
+            "       b.is_active, b.admin_is_active, b.api_deleted_yn, b.api_deleted_dt, " +
+            "       CASE WHEN b.api_deleted_yn = 'Y' THEN 'D' " +
+            "            ELSE COALESCE(b.admin_is_active, b.is_active) END AS effective_status, " +
             "       b.frst_reg_dt, b.last_mdfcn_dt, " +
             "       (SELECT COUNT(*) FROM benefit_region br " +
             "         WHERE br.benefit_no = b.benefit_no) AS region_count " +
-            "FROM benefit b WHERE b.benefit_no = #{benefitNo}")
+            "FROM benefit b " +
+            "WHERE b.benefit_no = #{benefitNo}")
     AdminBenefitDetailResDto findBenefitDetail(@Param("benefitNo") int benefitNo);
 
     /**
-     * 혜택 활성 상태 변경.
-     * 물리 삭제는 benefit_region 등 7개 테이블이 FK로 참조하고 있어 불가능하다.
-     */
-    @Update("UPDATE benefit SET is_active = #{isActive}, last_mdfcn_dt = NOW() " +
-            "WHERE benefit_no = #{benefitNo}")
-    int updateBenefitActive(@Param("benefitNo") int benefitNo,
-                            @Param("isActive") String isActive);
-
-    /**
-     * 관리자 지정 신청 URL 저장·해제.
+     * 관리자 지정 활성 상태를 저장한다.
      *
-     * 원본(aply_url_addr)은 건드리지 않는다. 동기화가 원본을 덮어써도 지정값은 남고,
-     * 지정을 해제하면 다시 원본이 쓰이는 구조라 되돌릴 수 있다.
+     * 지정값을 별도 컬럼에 두고 원본 is_active 도 함께 맞춘다.
+     * 원본까지 바꾸는 이유는 사용자 화면과 엔진의 조회 쿼리가 여러 곳에 흩어져
+     * is_active 를 직접 보고 있어, 각각에 COALESCE 를 넣는 대신
+     * 값 자체를 맞춰두는 편이 안전하기 때문이다.
      *
-     * 빈 문자열을 NULL로 바꿔 넣는 이유는 '해제'와 '빈 값 저장'을 구분하지 않기 위해서다.
-     * 원본 aply_url_addr에도 빈 문자열이 다수 들어 있어 같은 함정을 반복하지 않는다.
+     * 동기화가 원본을 덮으면 trg_benefit_keep_admin_active 트리거가
+     * 다시 지정값으로 되돌린다. 관리자가 누른 행위는 그렇게 보존된다.
+     *
+     * null 을 넣으면 지정을 해제하고 그때부터 API 원본을 따른다.
+     * last_mdfcn_dt 는 건드리지 않는다. 그 값은 원천 데이터의 수정 시각이라
+     * 관리자 조작으로 바꾸면 동기화 판단 기준이 흔들린다.
      */
     @Update("UPDATE benefit " +
-            "   SET custom_apply_url = NULLIF(TRIM(#{customApplyUrl,jdbcType=VARCHAR}), ''), " +
-            "       last_mdfcn_dt = NOW() " +
-            " WHERE benefit_no = #{benefitNo}")
+            "SET admin_is_active = #{adminIsActive,jdbcType=CHAR}, " +
+            "    is_active = COALESCE(#{adminIsActive,jdbcType=CHAR}, is_active) " +
+            "WHERE benefit_no = #{benefitNo}")
+    int updateAdminActive(@Param("benefitNo") int benefitNo,
+                          @Param("adminIsActive") String adminIsActive);
+
+    /**
+     * 관리자 지정 신청 URL 을 저장한다.
+     * NULLIF(TRIM(...), '') 로 빈 문자열을 null 과 같게 만든다.
+     * 원본 aply_url_addr 에 빈 문자열인 행이 다수라 같은 함정을 만들지 않기 위해서다.
+     */
+    @Update("UPDATE benefit " +
+            "SET custom_apply_url = NULLIF(TRIM(#{customApplyUrl,jdbcType=VARCHAR}), '') " +
+            "WHERE benefit_no = #{benefitNo}")
     int updateCustomApplyUrl(@Param("benefitNo") int benefitNo,
                              @Param("customApplyUrl") String customApplyUrl);
 
-    // ==================================================================
-    // admin-03 : 동기화 갱신 내역
-    // ==================================================================
-
-    /** 처리 내역 일괄 저장. 수백 건까지 나올 수 있어 한 번에 넣는다 */
+    /** 동기화 처리 내역 일괄 기록 */
     @Insert("<script>"
             + "INSERT INTO sync_log_detail (log_no, benefit_no, action_type, changed_summary) VALUES "
-            + "<foreach collection='list' item='d' separator=','>"
-            + "  (#{d.logNo}, #{d.benefitNo}, #{d.actionType}, #{d.changedSummary})"
+            + "<foreach collection='list' item='item' separator=','>"
+            + "  (#{item.logNo}, #{item.benefitNo}, #{item.actionType}, #{item.changedSummary})"
             + "</foreach>"
             + "</script>")
-    int insertSyncLogDetails(List<SyncLogDetailVO> details);
+    int insertSyncLogDetails(@Param("list") List<SyncLogDetailVO> details);
 
     /**
-     * 특정 동기화가 처리한 혜택 목록.
-     * 신규(I)를 먼저, 그 안에서는 실제로 값이 바뀐 건을 먼저 보여준다.
-     * 갱신 대상이어도 내용이 그대로인 경우가 많아 변경분이 뒤로 밀리면 확인하기 어렵다.
+     * 동기화 처리 내역 조회.
+     * 신규(I)를 먼저 보여주고 그다음 갱신(U), 마지막에 삭제(D)를 둔다.
+     * 관리자가 가장 먼저 확인하고 싶은 것이 새로 들어온 정책이기 때문이다.
      */
-    @Select("SELECT d.benefit_no, d.action_type, d.changed_summary, " +
-            "       b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, " +
-            "       b.is_active, b.inq_cnt, b.apply_end_date " +
+    @Select("SELECT d.detail_no, d.log_no, d.benefit_no, d.action_type, d.changed_summary, " +
+            "       b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, b.inq_cnt " +
             "FROM sync_log_detail d " +
             "JOIN benefit b ON b.benefit_no = d.benefit_no " +
             "WHERE d.log_no = #{logNo} " +
-            "ORDER BY d.action_type ASC, " +
-            "         CASE WHEN d.changed_summary IS NULL THEN 1 ELSE 0 END, " +
-            "         d.detail_no ASC")
+            "ORDER BY FIELD(d.action_type, 'I', 'U', 'D'), d.detail_no ASC")
     List<SyncLogDetailResDto> findSyncLogDetails(@Param("logNo") int logNo);
 }

@@ -170,29 +170,39 @@ public class AdminServiceImpl implements AdminService {
     }
 
     /**
-     * admin-02: 혜택 노출 상태 변경
+     * 혜택 노출 상태를 바꾼다.
      *
-     * 물리 삭제는 benefit_region 등 7개 테이블이 FK로 참조해 불가능하다.
-     * 노종훈 멘토의 '기간 종료 시 삭제가 아니라 상태 변경' 피드백과도 맞는 방식이다.
+     * 원본 is_active 를 직접 고치지 않고 관리자 지정 컬럼에 저장한다.
+     * 원본은 동기화가 매번 덮어쓰기 때문에 거기에 쓰면 관리자가 누른 행위가
+     * 다음 동기화에서 사라진다.
      *
-     * 한계: 동기화가 is_active를 다시 계산해 덮어쓴다.
-     *      upsertBenefit과 updateBenefitStatusOnly 둘 다 이 컬럼을 갱신하므로
-     *      관리자가 내린 혜택이 다음 동기화에서 되살아날 수 있다.
-     *      conflict_group_code처럼 별도 컬럼을 두고 동기화 대상에서 빼야 해결되며,
-     *      스키마 변경이라 팀 협의가 필요하다.
+     * isActive 에 null 을 주면 지정을 해제하고 다시 API 원본을 따른다.
+     */
+    /**
+     * 혜택 노출 상태를 바꾼다.
+     *
+     * 원본 is_active 를 직접 고치지 않고 관리자 지정 컬럼에 저장한다.
+     * 원본은 동기화의 ON DUPLICATE KEY UPDATE 목록에 있어 매번 덮어쓰이므로,
+     * 거기에 쓰면 관리자가 누른 행위가 다음 동기화에서 사라진다.
+     * custom_apply_url 과 같은 구조다.
+     *
+     * isActive 가 null 이거나 빈 값이면 지정을 해제하고 다시 API 원본을 따른다.
      */
     @Override
     public AdminBenefitDetailResDto changeBenefitActive(int benefitNo, String isActive) {
-        if (!"Y".equals(isActive) && !"N".equals(isActive)) {
-            throw new IllegalArgumentException("isActive는 Y 또는 N만 가능합니다. 입력값=" + isActive);
+
+        // 화면에서 빈 문자열이 올 수 있다. 해제와 같은 뜻으로 본다
+        String value = (isActive == null || isActive.trim().isEmpty())
+                ? null : isActive.trim();
+
+        if (value != null && !"Y".equals(value) && !"N".equals(value)) {
+            throw new IllegalArgumentException("활성 상태는 Y 또는 N 이어야 합니다: " + isActive);
         }
 
-        int updated = adminMapper.updateBenefitActive(benefitNo, isActive);
-        if (updated == 0) {
-            throw new IllegalArgumentException("존재하지 않는 혜택입니다. benefitNo=" + benefitNo);
-        }
+        adminMapper.updateAdminActive(benefitNo, value);
 
-        // 변경 결과를 그대로 돌려줘 프론트가 다시 조회하지 않아도 되게 한다
+        // 바뀐 뒤의 상태를 다시 읽어 내려준다.
+        // 최종 노출 상태는 세 컬럼을 합쳐 만들어지므로 화면이 직접 계산할 수 없다
         return adminMapper.findBenefitDetail(benefitNo);
     }
 

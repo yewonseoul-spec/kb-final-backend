@@ -73,33 +73,16 @@ public class AdminController {
     /**
      * admin-02: 혜택 목록 조회
      * 모든 조건은 선택이며, 아무것도 안 주면 전체를 최신 등록순으로 반환한다.
+     *
+     * 파라미터를 하나씩 받지 않고 DTO 로 바로 바인딩한다.
+     * 조건이 열 개를 넘어 하나씩 옮겨 담으면 새 조건을 추가할 때마다
+     * Controller 도 함께 고쳐야 하고, 빠뜨리면 조용히 무시된다.
      */
-
     @GetMapping("/benefits")
-    public ResponseEntity<AdminBenefitPageResDto> getBenefits(
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String isActive,
-            @RequestParam(required = false) String categoryCode,
-            @RequestParam(required = false) Boolean deadlineSoon,
-            @RequestParam(required = false) Boolean hasConflict,
-            @RequestParam(required = false) String sort,
-            @RequestParam(required = false) String order,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size) {
-
-        AdminBenefitSearchReqDto search = new AdminBenefitSearchReqDto();
-        search.setKeyword(keyword);
-        search.setIsActive(isActive);
-        search.setCategoryCode(categoryCode);
-        search.setDeadlineSoon(deadlineSoon);
-        search.setHasConflict(hasConflict);
-        search.setSort(sort);
-        search.setOrder(order);
-        search.setPage(page);
-        search.setSize(size);
-
+    public ResponseEntity<AdminBenefitPageResDto> getBenefits(AdminBenefitSearchReqDto search) {
         return ResponseEntity.ok(adminService.getBenefits(search));
     }
+
 
     /** admin-02: 혜택 상세 조회 */
     @GetMapping("/benefits/{benefitNo}")
@@ -114,7 +97,7 @@ public class AdminController {
     @PatchMapping("/benefits/{benefitNo}/active")
     public ResponseEntity<AdminBenefitDetailResDto> changeBenefitActive(
             @PathVariable int benefitNo,
-            @RequestParam String isActive) {
+            @RequestParam(required = false) String isActive) {
 
         return ResponseEntity.ok(adminService.changeBenefitActive(benefitNo, isActive));
     }
