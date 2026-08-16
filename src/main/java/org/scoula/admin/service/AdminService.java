@@ -1,13 +1,6 @@
 package org.scoula.admin.service;
 
-import org.scoula.admin.dto.AdminBenefitDetailResDto;
-import org.scoula.admin.dto.AdminBenefitPageResDto;
-import org.scoula.admin.dto.AdminBenefitSearchReqDto;
-import org.scoula.admin.dto.DashboardResDto;
-import org.scoula.admin.dto.SyncLogDetailResDto;
-import org.scoula.admin.dto.SyncLogPageResDto;
-import org.scoula.admin.dto.SyncLogSearchReqDto;
-import org.scoula.admin.dto.SyncResultResDto;
+import org.scoula.admin.dto.*;
 
 import java.util.List;
 
@@ -39,4 +32,19 @@ public interface AdminService {
 
     // admin-01: 관리자 기간별 동기화 실행 (정책 최초등록일 기준)
     SyncResultResDto executeSyncByPeriod(String startDate, String endDate, Integer memberNo);
+
+    List<RecommendKeywordAdminDTO> getRecommendKeywords();
+
+    void createRecommendKeyword(
+            String keywordName
+    );
+
+    void changeRecommendKeywordStatus(
+            Integer keywordCode,
+            String isActive
+    );
+
+    void deleteRecommendKeyword(
+            Integer keywordCode
+    );
 }
