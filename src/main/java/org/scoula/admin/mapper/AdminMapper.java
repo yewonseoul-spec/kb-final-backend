@@ -65,7 +65,7 @@ public interface AdminMapper {
     // 최근 동기화 이력.
     // log_no 순서와 실행 시각 순서가 어긋난 데이터가 있어 executed_at을 1순위로 둔다.
     @Select("SELECT log_no, executed_at, exec_type, sync_start_date, sync_end_date, " +
-            "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, " +
+            "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, delete_cnt, " +
             "       error_msg, duration_ms, member_no " +
             "FROM sync_log " +
             "ORDER BY executed_at DESC, log_no DESC " +
@@ -87,10 +87,10 @@ public interface AdminMapper {
     // 동기화 실행 이력 기록
     @Insert("INSERT INTO sync_log (" +
             "executed_at, exec_type, sync_start_date, sync_end_date, result_status, total_cnt, " +
-            "insert_cnt, update_cnt, skip_cnt, error_msg, duration_ms, member_no" +
+            "insert_cnt, update_cnt, skip_cnt, delete_cnt, error_msg, duration_ms, member_no" +
             ") VALUES (" +
             "NOW(), #{execType}, #{syncStartDate}, #{syncEndDate}, #{resultStatus}, #{totalCnt}, " +
-            "#{insertCnt}, #{updateCnt}, #{skipCnt}, #{errorMsg}, #{durationMs}, #{memberNo}" +
+            "#{insertCnt}, #{updateCnt}, #{skipCnt}, #{deleteCnt}, #{errorMsg}, #{durationMs}, #{memberNo}" +
             ")")
     @Options(useGeneratedKeys = true, keyProperty = "logNo")
     int insertSyncLog(SyncLogVO syncLog);
@@ -109,7 +109,7 @@ public interface AdminMapper {
     /** 조건에 맞는 동기화 이력 목록 (페이지네이션) */
     @Select("<script>"
             + "SELECT log_no, executed_at, exec_type, sync_start_date, sync_end_date, "
-            + "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, "
+            + "       result_status, total_cnt, insert_cnt, update_cnt, skip_cnt, delete_cnt, "
             + "       error_msg, duration_ms, member_no "
             + "FROM sync_log "
             + "<where>"
@@ -212,7 +212,7 @@ public interface AdminMapper {
             + "       b.conflict_group_code, b.frst_reg_dt, "
 
             // 상태 3종을 그대로 내리고 최종값을 따로 만든다
-            + "       b.is_active, b.admin_is_active, b.api_deleted_yn, "
+            + "       b.is_active, b.admin_is_active, b.api_is_active, b.api_deleted_yn, "
             + "       CASE WHEN b.api_deleted_yn = 'Y' THEN 'D' "
             + "            ELSE COALESCE(b.admin_is_active, b.is_active) END AS effective_status, "
 
@@ -370,7 +370,8 @@ public interface AdminMapper {
             "       b.sprt_trgt_min_age, b.sprt_trgt_max_age, b.earn_cnd_se_cd, " +
             "       b.earn_min_amt, b.earn_max_amt, b.earn_etc_cn, " +
             "       b.mrg_stts_cd, b.conflict_group_code, b.inq_cnt, " +
-            "       b.is_active, b.admin_is_active, b.api_deleted_yn, b.api_deleted_dt, " +
+            "       b.is_active, b.admin_is_active, b.api_is_active, " +
+            "       b.api_deleted_yn, b.api_deleted_dt, " +
             "       CASE WHEN b.api_deleted_yn = 'Y' THEN 'D' " +
             "            ELSE COALESCE(b.admin_is_active, b.is_active) END AS effective_status, " +
             "       b.frst_reg_dt, b.last_mdfcn_dt, " +
@@ -424,15 +425,19 @@ public interface AdminMapper {
 
     /**
      * 동기화 처리 내역 조회.
-     * 신규(I)를 먼저 보여주고 그다음 갱신(U), 마지막에 삭제(D)를 둔다.
-     * 관리자가 가장 먼저 확인하고 싶은 것이 새로 들어온 정책이기 때문이다.
+     * 정렬 1순위는 변경 요약이 있는지다. 무엇이 어떻게 바뀌었는지가 관리자가
+     * 가장 먼저 확인할 정보인데, 값이 그대로인 건이 수천 건이라 뒤로 밀지 않으면
+     * 실제 변경분이 묻힌다.
+     * 그다음이 처리 구분으로 신규(I) → 숨김(D) → 갱신(U) 순이다.
      */
     @Select("SELECT d.detail_no, d.log_no, d.benefit_no, d.action_type, d.changed_summary, " +
             "       b.plcy_nm, b.category_code, b.sprvsn_inst_cd_nm, b.inq_cnt " +
             "FROM sync_log_detail d " +
             "JOIN benefit b ON b.benefit_no = d.benefit_no " +
             "WHERE d.log_no = #{logNo} " +
-            "ORDER BY FIELD(d.action_type, 'I', 'U', 'D'), d.detail_no ASC")
+            "ORDER BY (d.changed_summary IS NULL), " +
+            "         FIELD(d.action_type, 'I', 'D', 'U'), " +
+            "         d.detail_no ASC")
     List<SyncLogDetailResDto> findSyncLogDetails(@Param("logNo") int logNo);
 
 // ==============================

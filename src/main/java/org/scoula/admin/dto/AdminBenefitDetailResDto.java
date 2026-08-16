@@ -46,11 +46,13 @@ public class AdminBenefitDetailResDto {
     private Integer inqCnt;
 
     // 활성 상태도 같은 구조다. 우선순위는 위에서부터다.
-    //   apiDeletedYn  : 오픈 API에서 사라져 숨김 처리된 정책인지
+    //   apiDeletedYn  : 오픈 API에서 사라져 삭제 처리된 정책인지
     //   adminIsActive : 관리자 지정. 동기화 대상이 아니라 보존된다
-    //   isActive      : 온통청년 원본. 동기화 때마다 덮인다
+    //   apiIsActive   : 온통청년이 준 원본. 관리자 지정과 같아지면 지정이 자동 해제된다
+    //   isActive      : 서비스가 실제로 쓰는 최종값. 트리거가 위 셋으로 계산한다
     private String isActive;
     private String adminIsActive;
+    private String apiIsActive;
     private String apiDeletedYn;
     private Date apiDeletedDt;
 

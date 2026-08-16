@@ -12,6 +12,7 @@ import org.scoula.mypage.mapper.GoalMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.scoula.admin.domain.SyncLogDetailVO;
 import org.scoula.admin.domain.SyncLogVO;
 import org.scoula.admin.mapper.AdminMapper;
 
@@ -569,16 +570,39 @@ public class BenefitServiceImpl implements BenefitService {
         if (errorMsg != null && errorMsg.length() > 1000) {
             errorMsg = errorMsg.substring(0, 1000);
         }
-
-        saveAutoSyncLog(
+        // [상호 수정] 반환값을 받는다. sync_log_detail 을 남기려면 log_no 가 필요하다
+        Integer logNo = saveAutoSyncLog(
                 resultStatus,
                 finalResult.count,
                 finalResult.insertCnt,
                 finalResult.updateCnt,
                 finalResult.skipCnt,
+                finalResult.deleteCnt,   // [상호 추가]
                 errorMsg,
                 durationMs
         );
+
+        // [상호 추가] 처리 내역을 sync_log_detail 에 남긴다.
+        // 로그 기록이 실패하면 logNo 가 없으므로 상세도 건너뛴다.
+        // 상세 기록 실패가 동기화 자체를 되돌리면 안 되므로 예외를 삼킨다.
+        if (logNo != null && !finalResult.items.isEmpty()) {
+            try {
+                List<SyncLogDetailVO> details = new ArrayList<>();
+                for (SyncedBenefitDTO item : finalResult.items) {
+                    details.add(new SyncLogDetailVO(
+                            logNo,
+                            item.getBenefitNo(),
+                            item.getActionType(),
+                            item.getChangedSummary()));
+                }
+                adminMapper.insertSyncLogDetails(details);
+
+                System.out.println("[자동 동기화 상세 기록] " + details.size() + "건");
+
+            } catch (Exception e) {
+                System.out.println("자동 동기화 상세 기록 실패: " + e.getMessage());
+            }
+        }
 
         System.out.println("[청년혜택 자동 동기화 완료] 처리 건수 = " + finalResult.count);
 
@@ -678,7 +702,11 @@ public class BenefitServiceImpl implements BenefitService {
 
                     if (benefitNo != null) {
                         saveBenefitMappings(benefitNo, item);
+
+                        // [상호 추가] 신규 등록 건을 상세에 남긴다
+                        result.items.add(new SyncedBenefitDTO(benefitNo, "I", null));
                     }
+
 
                     result.insertCnt++;
                 } else {
@@ -688,6 +716,11 @@ public class BenefitServiceImpl implements BenefitService {
                         System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
 
                         benefitMapper.updateBenefitStatusOnly(benefit);
+                        // [상호 추가] 갱신 건을 상세에 남긴다
+                        Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+                        if (benefitNo != null) {
+                            result.items.add(new SyncedBenefitDTO(benefitNo, "U", null));
+                        }
 
                         result.updateCnt++;
                     } else {
@@ -724,11 +757,25 @@ public class BenefitServiceImpl implements BenefitService {
                     .distinct()
                     .collect(Collectors.toList());
 
+            // [상호 추가] 숨김 처리될 정책을 미리 뽑아둔다.
+            // deactivateBenefitsNotInApi 는 건수만 돌려주므로
+            // 어떤 정책이 사라졌는지 남기려면 UPDATE 전에 조회해야 한다.
+            List<Integer> toDelete =
+                    benefitMapper.findBenefitNosNotInApi(distinctApiPlcyNoList);
+
+
             int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(distinctApiPlcyNoList);
 
             System.out.println("[Open API 삭제 혜택 비활성화 완료] 건수 = " + deletedCnt);
 
-            result.updateCnt += deletedCnt;
+            // [상호 추가] 숨김 처리 건을 상세에 남긴다
+            for (Integer benefitNo : toDelete) {
+                result.items.add(new SyncedBenefitDTO(
+                        benefitNo, "D", "온통청년 API 응답에 없음 (데이터는 보존)"));
+            }
+
+            // [상호 수정] updateCnt 대신 deleteCnt 에 담는다
+            result.deleteCnt += deletedCnt;
             result.count += deletedCnt;
         } else {
             System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
@@ -737,21 +784,33 @@ public class BenefitServiceImpl implements BenefitService {
         return result;
     }
 
-// OPEN API 실패 후 재호출 메서드
-private static class SyncRunResult {
-    int count;
-    int insertCnt;
-    int updateCnt;
-    int skipCnt;
-    String errorMsg;
-    boolean completedSuccessfully;
-}
+    // OPEN API 실패 후 재호출 메서드
+    private static class SyncRunResult {
+        int count;
+        int insertCnt;
+        int updateCnt;
+        int skipCnt;
+        String errorMsg;
+        boolean completedSuccessfully;
+
+        // [상호 추가] 숨김 처리 건수
+        // updateCnt 에 섞으면 관리자 화면에서 갱신과 구분되지 않는다
+        int deleteCnt;
+
+        // [상호 추가] 처리한 혜택 목록
+        // 건수만 남기면 관리자 화면에서 무엇이 바뀌었는지 알 수 없다.
+        // 기간별 동기화(syncByFrstRegDtWithDetail)와 같은 방식으로 자동 동기화에도 남긴다.
+        List<SyncedBenefitDTO> items = new ArrayList<>();
+    }
     /**
      * 자동 동기화 이력 기록.
      * 로그 기록이 실패해도 동기화 자체는 성공으로 두기 위해 예외를 밖으로 올리지 않는다.
+     *   [상호 수정] 반환 타입을 void → Integer 로 바꿨다.
+     *   상세 내역(sync_log_detail)을 남기려면 방금 만든 log_no 가 필요하다.
      */
-    private void saveAutoSyncLog(String resultStatus, int totalCnt, int insertCnt,
-                                 int updateCnt, int skipCnt, String errorMsg, int durationMs) {
+    private Integer saveAutoSyncLog(String resultStatus, int totalCnt, int insertCnt,
+                                    int updateCnt, int skipCnt, int deleteCnt,
+                                    String errorMsg, int durationMs) {
         try {
             SyncLogVO log = new SyncLogVO();
             log.setExecType("A");
@@ -762,6 +821,7 @@ private static class SyncRunResult {
             log.setInsertCnt(insertCnt);
             log.setUpdateCnt(updateCnt);
             log.setSkipCnt(skipCnt);
+            log.setDeleteCnt(deleteCnt);   // [상호 추가]
             log.setErrorMsg(errorMsg == null || errorMsg.length() <= 500
                     ? errorMsg
                     : errorMsg.substring(0, 500));
@@ -770,8 +830,12 @@ private static class SyncRunResult {
 
             adminMapper.insertSyncLog(log);
 
+            // @Options(useGeneratedKeys=true) 로 채워진 값
+            return log.getLogNo();
+
         } catch (Exception e) {
             System.out.println("자동 동기화 이력 기록 실패: " + e.getMessage());
+            return null;
         }
     }
 
@@ -1206,22 +1270,22 @@ private static class SyncRunResult {
         return (value == null) ? "" : String.valueOf(value);
     }
 
-// 혜택 상세페이지
-@Override
-public BenefitDetailResDTO findBenefitDetail(
-        Integer benefitNo
-) {if (benefitNo == null) {
+    // 혜택 상세페이지
+    @Override
+    public BenefitDetailResDTO findBenefitDetail(
+            Integer benefitNo
+    ) {if (benefitNo == null) {
         throw new IllegalArgumentException(
                 "혜택 번호가 필요합니다.");}
 
-    BenefitDetailResDTO detail =
-            benefitMapper.findBenefitDetail(
-                    benefitNo);
-    if (detail == null) {
-        throw new IllegalArgumentException(
-                "존재하지 않는 혜택입니다.");}
+        BenefitDetailResDTO detail =
+                benefitMapper.findBenefitDetail(
+                        benefitNo);
+        if (detail == null) {
+            throw new IllegalArgumentException(
+                    "존재하지 않는 혜택입니다.");}
 
-    return detail;}
+        return detail;}
 
     //사용자 프로필 조건기반 혜택추천
     @Override
