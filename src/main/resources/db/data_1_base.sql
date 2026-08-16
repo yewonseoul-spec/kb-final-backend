@@ -1,4 +1,6 @@
 -- =====================================================================
+-- [v1.5] goal_benefit_category 데이터 추가
+-- =====================================================================
 -- [v1.4] recommend_keyword 데이터 변경
 -- =====================================================================
 -- [v1.3] spending_benefit_category_map 데이터 추가
@@ -69,7 +71,47 @@ VALUES (1, '이용약관 동의', '서비스 이용약관 전문 ...', 'Y', 'SIG
        (3, '혜택 알림 수신', '혜택 알림 수신 동의 (선택) ...', 'N', 'SIGNUP', 'v10'),
        (4, 'AI 맞춤 설명 개인정보 제3자 제공', 'AI 맞춤 설명을 위한 개인정보 제3자 제공 동의 (선택) ...', 'N', 'AI', 'v10');
 
--- 3,4 지역, 카테고리 부분은 data_0_code.로 이동함
+-- 3,4 지역, 카테고리 부분은 data_0_code로 이동함
+
+-- 4-3. 목표 → 혜택 중분류 매핑 (goal_benefit_category)
+-- priority 1 = 핵심, 2 = 연관
+INSERT INTO goal_benefit_category (
+    goal_type,
+    detail_category_code,
+    priority
+)
+VALUES
+    -- 독립 : 혼자 살 곳
+    ('INDEPENDENCE', '04', 1),
+    ('INDEPENDENCE', '05', 1),
+    ('INDEPENDENCE', '06', 1),
+    ('INDEPENDENCE', '10', 2),
+
+    -- 취업
+    ('EMPLOYMENT', '01', 1),
+    ('EMPLOYMENT', '02', 2),
+    ('EMPLOYMENT', '07', 2),
+    ('EMPLOYMENT', '08', 2),
+    ('EMPLOYMENT', '09', 2),
+
+    -- 창업
+    ('STARTUP', '03', 1),
+    ('STARTUP', '07', 2),
+    ('STARTUP', '10', 2),
+
+    -- 결혼 : 살 곳 + 자금 + 건강
+    ('MARRIAGE', '04', 1),
+    ('MARRIAGE', '06', 1),
+    ('MARRIAGE', '10', 1),
+    ('MARRIAGE', '11', 2),
+
+    -- 유학
+    ('STUDY_ABROAD', '16', 1),
+    ('STUDY_ABROAD', '08', 1),
+    ('STUDY_ABROAD', '09', 2),
+    ('STUDY_ABROAD', '07', 2)
+ON DUPLICATE KEY UPDATE
+    priority = VALUES(priority);
 
 -- 5. 추천검색어 (recommend_keyword) : is_active Y/N 커버
 INSERT INTO recommend_keyword (keyword_code, keyword_name, display_order, is_active)
