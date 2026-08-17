@@ -3,6 +3,7 @@ package org.scoula.asset.controller;
 import org.scoula.asset.dto.AccountDTO;
 import org.scoula.asset.dto.AssetDashboardResDTO;
 import org.scoula.asset.dto.AssetRatioResDTO;
+import org.scoula.asset.dto.HeldProductDetailDTO;
 import org.scoula.asset.service.AssetService;
 import org.scoula.security.account.domain.CustomUser;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +34,17 @@ public class AssetController {
 
         AssetDashboardResDTO response = assetService.getAssetDashboard(memberNo);
         return ResponseEntity.ok(response);
+    }
+
+    // 금융 상품 목록 조회
+    @GetMapping("/products")
+    public ResponseEntity<List<HeldProductDetailDTO>> getHeldProducts(HttpServletRequest request, @AuthenticationPrincipal CustomUser user) {
+        Integer memberNo = user.getMember().getMemberNo();
+        if (memberNo == null) {
+            return ResponseEntity.status(401).build();
+        }
+
+        return ResponseEntity.ok(assetService.getHeldProductDetails(memberNo));
     }
 
     // 자산 구성 비율 조회

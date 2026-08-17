@@ -26,6 +26,11 @@ public class AssetServiceImpl implements AssetService {
     }
 
     @Override
+    public List<HeldProductDetailDTO> getHeldProductDetails(Integer memberNo) {
+        return assetMapper.selectHeldProductDetails(memberNo);
+    }
+
+    @Override
     public AssetRatioResDTO getAssetRatio(Integer memberNo) {
 
         Map<String, Long> totalsByCategory = new HashMap<>();
