@@ -20,6 +20,20 @@ public class PromptServiceImpl implements PromptService {
      */
     @Override
     public String get(String promptKey) {
+        String fallback = AiPromptDefaults.DEFAULTS.get(promptKey);
+        if (fallback == null) {
+            throw new IllegalStateException("등록되지 않은 프롬프트 키입니다: " + promptKey);
+        }
+        return getOrDefault(promptKey, fallback);
+    }
+
+    /**
+     * 폴백을 호출하는 쪽이 직접 넘긴다.
+     * 소비 분석처럼 자기 상수를 이미 가진 기능은 그 상수를 그대로 넘기면 되고,
+     * 그러면 기존 파일을 지우지 않아도 된다.
+     */
+    @Override
+    public String getOrDefault(String promptKey, String fallback) {
         try {
             String content = aiPromptMapper.findActiveContent(promptKey);
             if (content != null && !content.trim().isEmpty()) {
@@ -30,11 +44,6 @@ public class PromptServiceImpl implements PromptService {
         } catch (Exception e) {
             System.out.println("[프롬프트] PROMPT_SOURCE=FALLBACK / 조회 실패: " + promptKey
                     + " / " + e.getMessage());
-        }
-
-        String fallback = AiPromptDefaults.DEFAULTS.get(promptKey);
-        if (fallback == null) {
-            throw new IllegalStateException("등록되지 않은 프롬프트 키입니다: " + promptKey);
         }
         return fallback;
     }
@@ -100,7 +109,6 @@ public class PromptServiceImpl implements PromptService {
      */
     @Override
     public void deleteVersion(String promptKey, int promptNo) {
-
         AiPromptVO target = aiPromptMapper.findByNo(promptNo);
         if (target == null || !promptKey.equals(target.getPromptKey())) {
             throw new IllegalArgumentException("해당 키의 버전이 아닙니다: " + promptNo);

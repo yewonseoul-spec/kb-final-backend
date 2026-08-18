@@ -9,6 +9,16 @@ public interface PromptService {
     /** 사용중인 프롬프트 본문. DB에 없거나 조회 실패면 코드 기본값을 돌려준다. */
     String get(String promptKey);
 
+    /**
+     * DB 값이 없으면 넘겨받은 기본값을 쓴다.
+     *
+     * 다른 도메인 기능은 자기 프롬프트 상수를 이미 갖고 있으므로
+     * 그 상수를 그대로 폴백으로 넘기게 한다.
+     * 이렇게 하면 기존 상수 파일을 지우지 않아도 되고,
+     * 프롬프트 관리 기능이 죽어도 그쪽 기능은 원래대로 동작한다.
+     */
+    String getOrDefault(String promptKey, String fallback);
+
     /** 사용중인 버전 번호. 폴백으로 떨어졌으면 null */
     Integer getActiveVersion(String promptKey);
 

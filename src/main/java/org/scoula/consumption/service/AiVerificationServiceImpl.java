@@ -2,6 +2,7 @@ package org.scoula.consumption.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.scoula.admin.service.PromptService;
 import org.scoula.consumption.dto.AiVerdictDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,16 @@ public class AiVerificationServiceImpl implements AiVerificationService {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    // [상호 추가] AI 프롬프트 관리 화면(/admin/prompt)에서 이 프롬프트를 수정할 수 있게 하려고 넣었습니다.
+    //            DB 조회가 실패하면 기존 AiVerificationPrompt 상수로 그대로 떨어지므로
+    //            프롬프트 관리 기능이 죽어도 이 검증은 원래대로 동작합니다.
+    private final PromptService promptService;
+
+    // [상호 추가] 기존에는 생성자가 없었는데 PromptService 주입을 위해 만들었습니다.
+    public AiVerificationServiceImpl(PromptService promptService) {
+        this.promptService = promptService;
+    }
+
     @Value("${openai.api-key}")
     private String apiKey;
 
@@ -29,12 +40,17 @@ public class AiVerificationServiceImpl implements AiVerificationService {
         try {
             String userMessage = "원본 데이터: " + requestJson + "\n\n분석 결과: " + responseJson;
 
+            // [상호 수정] AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT 를 직접 쓰던 것을
+            //            DB 조회로 바꿨습니다. DB에 값이 없으면 기존 상수를 그대로 씁니다.
+            String systemPrompt = promptService.getOrDefault(
+                    "CONSUMPTION_VERIFICATION", AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT);
+
             Map<String, Object> requestBody = Map.of(
                     "model", model,
                     "max_tokens", 200,
                     "response_format", Map.of("type", "json_object"),
                     "messages", List.of(
-                            Map.of("role", "system", "content", AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT),
+                            Map.of("role", "system", "content", systemPrompt),
                             Map.of("role", "user", "content", userMessage)
                     )
             );

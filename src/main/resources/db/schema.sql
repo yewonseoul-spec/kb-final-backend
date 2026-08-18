@@ -1,4 +1,11 @@
 -- =====================================================================
+-- [v2.6] AI 중복수혜 자동분류 + 프롬프트 관리
+--        ai_prompt 테이블 신설 (AI 지시문을 코드가 아니라 DB에서 버전 관리)
+--        benefit_conflict_candidate 테이블 신설 (AI 분석 결과 보존층)
+--        (Candidate 는 공고문 의미를 그대로 보존하고,
+--         benefit_conflict_rule 은 엔진이 실행할 수 있는 subset 만 담는다)
+-- =====================================================================
+-- =====================================================================
 -- [v2.5] notification 테이블 noti_type 에 'SECURITY' 추가, ref_no 컬럼 추가
 --        (보안 알림을 계정 알림과 분리. 수신 거부 대상이 아니기 때문)
 --        (ref_no = 알림이 가리키는 대상 번호. 마감 알림이면 benefit_no)
@@ -71,6 +78,8 @@ SET NAMES utf8mb4;
 --  초기화 (재실행 대비) — 자식 → 부모 역순 DROP
 -- ---------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS benefit_conflict_candidate;
+DROP TABLE IF EXISTS ai_prompt;
 DROP TABLE IF EXISTS sync_log_detail;
 DROP TABLE IF EXISTS sync_log;
 DROP TABLE IF EXISTS benefit_conflict_rule;
@@ -799,6 +808,138 @@ CREATE TABLE sync_log_detail
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='동기화 처리 내역';
+
+
+
+
+-- ---------------------------------------------------------------------
+-- ai_prompt  (v2.6)
+--
+--   AI 에게 주는 지시문을 코드가 아니라 DB 에서 관리한다.
+--   프롬프트를 고칠 때마다 재배포하지 않기 위한 것이고,
+--   버전을 남겨 문제가 생기면 이전 버전으로 되돌린다.
+--
+--   is_active='Y' 인 버전 하나만 실제로 사용된다.
+--   조회에 실패하면 코드에 박힌 기본값으로 떨어지므로
+--   이 테이블이 비어 있어도 AI 기능 자체는 동작한다.
+-- ---------------------------------------------------------------------
+CREATE TABLE ai_prompt
+(
+    prompt_no  INT          NOT NULL AUTO_INCREMENT COMMENT '프롬프트번호',
+    prompt_key VARCHAR(50)  NOT NULL COMMENT '기능구분(CONFLICT_DETECTION 등)',
+    version    INT          NOT NULL COMMENT '같은 key 안에서 올라가는 번호',
+    content    TEXT         NOT NULL COMMENT '프롬프트 본문',
+    memo       VARCHAR(200) NULL COMMENT '무엇을 왜 바꿨는지',
+    is_active  CHAR(1)      NOT NULL DEFAULT 'N' COMMENT '실제 사용중인 버전(Y/N)',
+    member_no  INT          NULL COMMENT '수정한 관리자(시드는 NULL)',
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (prompt_no),
+    CONSTRAINT uk_ai_prompt_version UNIQUE (prompt_key, version),
+    CONSTRAINT chk_ai_prompt_active CHECK (is_active IN ('Y', 'N')),
+    CONSTRAINT chk_ai_prompt_version CHECK (version > 0),
+    KEY idx_ai_prompt_key_active (prompt_key, is_active)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci COMMENT ='AI 프롬프트 버전 관리';
+
+
+-- ---------------------------------------------------------------------
+-- benefit_conflict_candidate  (v2.6)
+--
+--   AI 가 공고문에서 찾아낸 중복수혜 관계를 담는다.
+--   benefit_conflict_rule 과 역할이 다르다.
+--
+--     Candidate  공고문 자연어의 의미를 최대한 그대로 보존한다.
+--                방향성, 과거이력, 가구원, 조건부처럼
+--                현재 엔진이 표현하지 못하는 것도 여기서는 버리지 않는다.
+--     Rule       현재 엔진이 실행할 수 있는 subset 만 담는다.
+--
+--   나중에 엔진이 확장되면 AI 를 다시 돌리지 않고
+--   이 테이블만 다시 판정하면 된다.
+--
+--   상태값을 ENUM 이 아니라 VARCHAR 로 둔 이유
+--     restriction_stage, combination_applicability 등은
+--     실제 데이터를 보기 전에 최종값을 정할 수 없다고 결론이 났다.
+--     값이 늘어날 때마다 ALTER 를 치지 않기 위해 문자열로 둔다.
+-- ---------------------------------------------------------------------
+CREATE TABLE benefit_conflict_candidate
+(
+    candidate_no              INT           NOT NULL AUTO_INCREMENT COMMENT '후보번호',
+
+    source_benefit_no         INT           NOT NULL COMMENT '이 문장이 실린 정책',
+
+    scope                     VARCHAR(20)   NOT NULL COMMENT 'OTHER_POLICY/SAME_POLICY/NOT_CONFLICT/UNCERTAIN',
+    relation                  VARCHAR(20)   NULL COMMENT 'FORBIDDEN/CONDITIONAL/ALLOWED',
+
+    target_name_raw           VARCHAR(300)  NULL COMMENT '본문에 적힌 상대 정책명 그대로',
+    target_category_raw       VARCHAR(300)  NULL COMMENT '범주로만 적혔을 때 그 표현 그대로',
+    category_code             VARCHAR(30)   NULL COMMENT '정규화 범주(1차 수집 단계에서는 비워둔다)',
+
+    direction                 VARCHAR(20)   NULL COMMENT 'BIDIRECTIONAL/SOURCE_TO_TARGET/UNKNOWN',
+    timing                    VARCHAR(20)   NULL COMMENT 'CURRENT/PAST/CURRENT_OR_PAST/UNKNOWN',
+    subject_scope             VARCHAR(20)   NULL COMMENT 'APPLICANT/HOUSEHOLD/UNKNOWN',
+    restriction_stage         VARCHAR(30)   NULL COMMENT 'APPLICATION/SELECTION/BENEFIT_RECEIPT/HISTORY',
+    combination_applicability VARCHAR(10)   NULL COMMENT 'YES/NO/UNKNOWN. 신규 조합에도 적용할 근거가 있는가',
+    trigger_scope             VARCHAR(20)   NULL COMMENT 'APPLIED/APPROVED/CURRENT/PAST. 현재는 Rule 로 승격하지 않는다',
+
+    condition_type            VARCHAR(30)   NULL COMMENT 'AMOUNT_ADJUSTMENT/HISTORY_CONDITION/HOUSEHOLD_CONDITION/ELIGIBILITY_CONDITION',
+    condition_text            VARCHAR(500)  NULL COMMENT '조건부일 때 그 조건 문장',
+
+    evidence_text             TEXT          NULL COMMENT '판단 근거가 된 본문 문장 원문 그대로',
+    evidence_verified         CHAR(1)       NOT NULL DEFAULT 'N' COMMENT '추출한 이름이 근거 문장에 실제로 있는가',
+    confidence                DECIMAL(4, 3) NULL COMMENT 'AI 자기보고. 자동확정 근거로 쓰지 않는다',
+
+    mapped_benefit_no         INT           NULL COMMENT 'Resolver 가 찾은 상대 정책',
+    resolver_result           VARCHAR(20)   NULL COMMENT 'UNIQUE_MATCH/MULTI_MATCH/NO_MATCH',
+    resolver_candidates       VARCHAR(500)  NULL COMMENT 'MULTI 일 때 후보 benefit_no 목록',
+    resolve_retry_cnt         INT           NOT NULL DEFAULT 0 COMMENT 'Resolver 재시도 횟수',
+    last_resolved_at          DATETIME      NULL COMMENT '마지막 Resolver 재시도 시각',
+
+    verifier_verdict          VARCHAR(20)   NULL COMMENT 'PASS/BLOCK/NOT_RUN',
+    blocking_reasons          VARCHAR(500)  NULL COMMENT '쉼표 구분(DIRECTION_NOT_PROVEN 등)',
+    crosscheck_result         VARCHAR(30)   NULL COMMENT 'MUTUAL/COUNTERPART_SILENT/COUNTERPART_ALLOWS/NOT_RUN',
+
+    analysis_status           VARCHAR(20)   NOT NULL DEFAULT 'SUCCESS' COMMENT 'SUCCESS/FAILED/STALE',
+    workflow_status           VARCHAR(20)   NOT NULL DEFAULT 'UNRESOLVED' COMMENT 'UNRESOLVED/REVIEW_REQUIRED/PENDING_DATA/DEFERRED/CONFIRMED/DISCARDED',
+    enforcement_state         VARCHAR(20)   NOT NULL DEFAULT 'NONE' COMMENT 'NONE/PENDING_BLOCK/CONFIRMED_BLOCK/WARNING. 엔진이 보는 값',
+    review_reason             VARCHAR(50)   NULL COMMENT '왜 검수로 왔는가(MULTI_MATCH/DIRECTION_UNKNOWN 등)',
+    conflict_decision         VARCHAR(20)   NULL COMMENT '관리자 판정(BLOCK/PARTIAL/NOT_CONFLICT)',
+
+    deferred_until            DATETIME      NULL COMMENT '보류 만료 시각. 지나면 다시 노출한다',
+    discard_reason            VARCHAR(200)  NULL COMMENT '폐기 이유',
+    decided_by                INT           NULL COMMENT '판정한 관리자',
+    decided_at                DATETIME      NULL,
+
+    model_name                VARCHAR(50)   NULL COMMENT '분석에 쓴 모델',
+    prompt_key                VARCHAR(50)   NULL COMMENT 'CONFLICT_DETECTION 등',
+    prompt_version            INT           NULL COMMENT 'ai_prompt.version',
+    source_text_hash          CHAR(64)      NULL COMMENT '분석 대상 본문의 SHA-256. 같으면 재분석을 생략한다',
+
+    dedupe_key                VARCHAR(300)  NOT NULL COMMENT '의미 기반 중복 방지 키',
+
+    created_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (candidate_no),
+    CONSTRAINT fk_candidate_source FOREIGN KEY (source_benefit_no)
+        REFERENCES benefit (benefit_no),
+    CONSTRAINT fk_candidate_mapped FOREIGN KEY (mapped_benefit_no)
+        REFERENCES benefit (benefit_no),
+    -- 프롬프트나 원문이 바뀌면 새 행이 생겨야 이전 결과와 비교할 수 있으므로
+    -- dedupe_key 단독이 아니라 세 값을 묶는다.
+    CONSTRAINT uk_candidate_dedupe UNIQUE (dedupe_key, prompt_version, source_text_hash),
+    CONSTRAINT chk_candidate_scope CHECK (scope IN ('OTHER_POLICY', 'SAME_POLICY', 'NOT_CONFLICT', 'UNCERTAIN', 'ERROR')),
+    CONSTRAINT chk_candidate_analysis CHECK (analysis_status IN ('SUCCESS', 'FAILED', 'STALE')),
+    CONSTRAINT chk_candidate_enforcement CHECK (enforcement_state IN ('NONE', 'PENDING_BLOCK', 'CONFIRMED_BLOCK', 'WARNING')),
+    CONSTRAINT chk_candidate_evidence CHECK (evidence_verified IN ('Y', 'N')),
+    KEY idx_candidate_source (source_benefit_no),
+    KEY idx_candidate_mapped (mapped_benefit_no),
+    KEY idx_candidate_enforce (enforcement_state),
+    KEY idx_candidate_workflow (workflow_status, deferred_until),
+    KEY idx_candidate_pending (workflow_status, resolver_result)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci COMMENT ='AI 중복수혜 분석 결과(실행 Rule 이전의 의미 보존층)';
 
 
 -- ---------------------------------------------------------------------
