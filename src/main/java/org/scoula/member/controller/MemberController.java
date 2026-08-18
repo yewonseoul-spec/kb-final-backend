@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.scoula.member.exception.InvalidRefreshTokenException;
 import org.scoula.security.account.domain.CustomUser;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.scoula.security.account.dto.AuthResultDTO;
 import org.scoula.security.account.dto.UserInfoDTO;
 import org.scoula.security.service.RefreshTokenService;
@@ -39,8 +40,13 @@ public class MemberController {
         return ResponseEntity.ok().body(service.checkDuplicateEmail(email));
     }
 
+    // 로그아웃 — Redis에서 리프레시 토큰을 지워 즉시 무효화한다
     @PostMapping("/logout")
-    public ResponseEntity<String> logout() {
+    public ResponseEntity<String> logout(@AuthenticationPrincipal
+                                         CustomUser user) {
+        if (user != null) {
+            refreshTokenService.delete(user.getMember().getMemberNo());
+        }
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body("로그아웃 되었습니다.");
