@@ -33,7 +33,8 @@ import java.util.List;
         "org.scoula.admin.mapper",
         "org.scoula.home.mapper",
         "org.scoula.admin.mapper",
-        "org.scoula.stress.mapper"
+        "org.scoula.stress.mapper",
+        "org.scoula.notification.mapper"
 })
 @ComponentScan(basePackages = {
         "org.scoula.benefit.service",
@@ -48,7 +49,8 @@ import java.util.List;
         "org.scoula.admin.service",
         "org.scoula.home.service",
         "org.scoula.admin.service",
-        "org.scoula.stress.service"
+        "org.scoula.stress.service",
+        "org.scoula.notification.service"
 })
 
 @EnableScheduling

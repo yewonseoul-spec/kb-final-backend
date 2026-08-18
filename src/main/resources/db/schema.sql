@@ -1,4 +1,9 @@
 -- =====================================================================
+-- [v2.5] notification 테이블 noti_type 에 'SECURITY' 추가, ref_no 컬럼 추가
+--        (보안 알림을 계정 알림과 분리. 수신 거부 대상이 아니기 때문)
+--        (ref_no = 알림이 가리키는 대상 번호. 마감 알림이면 benefit_no)
+-- =====================================================================
+-- =====================================================================
 -- [v2.4] benefit 테이블에 admin_is_active, api_is_active 컬럼 추가
 --        sync_log에 delete_cnt 추가, sync_log_detail action_type에 'D' 추가
 --        trg_benefit_keep_admin_active 트리거 신설 (파일 맨 아래)
@@ -490,13 +495,13 @@ CREATE TABLE goal
 -- =====================================================================
 CREATE TABLE notification
 (
-    noti_no    INT                                                  NOT NULL AUTO_INCREMENT COMMENT '알림번호',
-    member_no  INT                                                  NOT NULL COMMENT '회원번호',
-    noti_type  ENUM ('DEADLINE','SPENDING','NEW_BENEFIT','ACCOUNT') NOT NULL
-        COMMENT '알림유형(마감임박/소비분석/신규혜택/계정·정보수정)',
-    content    TEXT                                                 NOT NULL COMMENT '내용',
-    is_read    CHAR(1)                                              NOT NULL DEFAULT 'N' COMMENT '읽음여부 Y/N',
-    created_at DATETIME                                             NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
+    noti_no    INT NOT NULL AUTO_INCREMENT COMMENT '알림번호',
+    member_no  INT NOT NULL COMMENT '회원번호',
+    noti_type  ENUM ('DEADLINE','SPENDING','NEW_BENEFIT','ACCOUNT','SECURITY') NOT NULL COMMENT '알림유형(마감임박/소비분석/신규혜택/계정·정보수정/보안)',
+    ref_no     INT NULL COMMENT '알림이 가리키는 대상 번호(마감 알림=benefit_no)',
+    content    TEXT NOT NULL COMMENT '내용',
+    is_read    CHAR(1) NOT NULL DEFAULT 'N' COMMENT '읽음여부 Y/N',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '생성일시',
     PRIMARY KEY (noti_no),
     CONSTRAINT fk_notification_member FOREIGN KEY (member_no)
         REFERENCES member (member_no),
@@ -504,7 +509,6 @@ CREATE TABLE notification
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='알림';
-
 
 -- =====================================================================
 --  14. account : 계좌

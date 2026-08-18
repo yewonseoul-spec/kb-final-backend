@@ -13,6 +13,7 @@ import org.scoula.mypage.mapper.AppliedBenefitMapper;
 import org.scoula.mypage.mapper.FavoriteBenefitMapper;
 import org.scoula.mypage.mapper.GoalMapper;
 import org.scoula.mypage.mapper.MemberProfileMapper;
+import org.scoula.notification.service.NotificationService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,7 @@ public class MypageServiceImpl implements MypageService {
     private final GoalMapper goalMapper;
     private final AppliedBenefitMapper appliedBenefitMapper;
     private final FavoriteBenefitMapper favoriteBenefitMapper;
+    private final NotificationService notificationService;
 
     @Transactional
     @Override
@@ -50,6 +52,12 @@ public class MypageServiceImpl implements MypageService {
     public void updateProfile(int memberNo, ProfileDTO dto) {
         if (mapper.update(dto.toVo(memberNo)) == 0) {
             throw new NoSuchElementException();
+        }
+        try {
+            notificationService.notifyProfileUpdated(memberNo);
+        } catch (Exception e) {
+            log.warn("정보 수정 알림 생성 실패 - memberNo={}",
+                    memberNo, e);
         }
     }
 
