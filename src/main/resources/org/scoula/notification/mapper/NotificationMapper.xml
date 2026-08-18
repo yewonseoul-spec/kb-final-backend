@@ -44,7 +44,7 @@
             SELECT f.member_no,
                    'DEADLINE',
                    b.benefit_no,
-                   CONCAT('관심 혜택 ', b.plcy_nm, '의 신청이 ',
+                   CONCAT(b.plcy_nm, '의 신청이 ',
                           DATE_FORMAT(b.apply_end_date, '%c월 %e일'),
                           '에 마감돼요.')
             FROM favorite_benefit f
