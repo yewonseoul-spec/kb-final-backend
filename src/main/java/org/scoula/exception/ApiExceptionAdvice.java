@@ -4,6 +4,7 @@ import lombok.extern.log4j.Log4j2;
 import org.apache.ibatis.exceptions.PersistenceException;
 import org.scoula.member.exception.AccountNotFoundException;
 import org.scoula.member.exception.InvalidMemberFormatException;
+import org.scoula.member.exception.InvalidRefreshTokenException;
 import org.scoula.member.exception.PasswordMissmatchException;
 import org.scoula.member.exception.RequiredTermsNotAgreedException;
 import org.springframework.core.annotation.Order;
@@ -56,6 +57,16 @@ public class ApiExceptionAdvice {
     protected ResponseEntity<String> handleInvalidMemberFormat(InvalidMemberFormatException e) {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .header("Content-Type", "text/plain;charset=UTF-8")
+                .body(e.getMessage());
+    }
+
+    // 401 에러 - 리프레시 토큰 무효(만료·위조·로그아웃됨)
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    protected ResponseEntity<String>
+    handleInvalidRefreshToken(InvalidRefreshTokenException e) {
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
                 .header("Content-Type", "text/plain;charset=UTF-8")
                 .body(e.getMessage());
     }
