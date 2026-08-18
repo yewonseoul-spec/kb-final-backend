@@ -21,12 +21,18 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationMapper mapper;
     private final StringRedisTemplate redisTemplate;
 
+    private static final int DEADLINE_DAYS = 14;
+
+    // 같은 회원의 마감 알림 생성 쿼리를 하루에 한 번만 돌리기 위한 표식
+    private static final Duration DEADLINE_TTL = Duration.ofHours(24);
+
     // 미읽음 개수 캐시. 무효화가 본체이고 TTL 은 이중 안전망이다
     private static final Duration UNREAD_TTL = Duration.ofMinutes(10);
 
     @Transactional
     @Override
     public List<NotificationResDTO> getNotifications(int memberNo) {
+        ensureDeadlineNotifications(memberNo);
         return mapper.findByMemberNo(memberNo);
     }
 
@@ -93,6 +99,26 @@ public class NotificationServiceImpl implements NotificationService {
         invalidateUnread(memberNo);
     }
 
+    /*
+     * 하루에 한 번만 생성 쿼리를 돌린다.
+     * 표식이 사라져도(Redis 재시작) 매퍼의 NOT EXISTS 가 중복을 막으므로
+     * 최악의 결과는 쿼리가 한 번 더 도는 것뿐이다.
+     */
+    private void ensureDeadlineNotifications(int memberNo) {
+        String key = "noti:deadline:" + memberNo;
+
+        Boolean first = safeSetIfAbsent(key, "1", DEADLINE_TTL);
+        if (Boolean.FALSE.equals(first)) {
+            return;   // 오늘 이미 돌렸다
+        }
+        // null 이면 Redis 가 답을 못 준 것 — 그냥 진행한다
+
+        int created = mapper.insertDeadline(memberNo, DEADLINE_DAYS);
+        if (created > 0) {
+            invalidateUnread(memberNo);
+        }
+    }
+
     private String unreadKey(int memberNo) {
         return "noti:unread:" + memberNo;
     }
@@ -116,6 +142,17 @@ public class NotificationServiceImpl implements NotificationService {
             redisTemplate.opsForValue().set(key, value, ttl);
         } catch (Exception e) {
             log.warn("redis set 실패 - key={}", key, e);
+        }
+    }
+
+    private Boolean safeSetIfAbsent(String key, String value, Duration
+            ttl) {
+        try {
+            return redisTemplate.opsForValue().setIfAbsent(key, value,
+                    ttl);
+        } catch (Exception e) {
+            log.warn("redis setIfAbsent 실패 - key={}", key, e);
+            return null;
         }
     }
 
