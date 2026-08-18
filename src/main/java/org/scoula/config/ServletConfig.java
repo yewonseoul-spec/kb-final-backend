@@ -24,7 +24,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
         "org.scoula.admin.controller",
         "org.scoula.home.controller",
         "org.scoula.admin.controller",
-        "org.scoula.stress.controller"
+        "org.scoula.stress.controller",
+        "org.scoula.notification.controller"
 })
 
 public class ServletConfig implements WebMvcConfigurer {

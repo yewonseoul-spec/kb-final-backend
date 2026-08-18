@@ -60,6 +60,8 @@ public class SpendingSummaryServiceImpl implements SpendingSummaryService {
         // 최근 3개월(오늘과 같은 날짜까지)의 카테고리별 평균을 구한다
         Map<String, Long> categoryAverage = calculateCategoryAverage(memberNo, thisYearMonth, sameDayOfMonth);
 
+        long totalDiff = Math.abs(thisTotal - lastTotal);
+        
         // 글로 조립한다
 //        StringBuilder sb = new StringBuilder();
 //        sb.append(yearMonth).append(" 소비 요약 (").append(yesterday).append(" 기준)\n");
@@ -106,6 +108,7 @@ public class SpendingSummaryServiceImpl implements SpendingSummaryService {
             categoryData.put("카테고리", category);
             categoryData.put("이번달금액", amount);
             categoryData.put("지난달같은기간대비", directionTag(amount, lastAmount));
+            categoryData.put("지난달대비차이", amount - lastAmount);
             categoryData.put("최근3개월평균금액", avgAmount);
             categoryData.put("평균대비", avgAmount > 0 ? directionTag(amount, avgAmount) : "데이터없음");
             categoryList.add(categoryData);
@@ -116,6 +119,7 @@ public class SpendingSummaryServiceImpl implements SpendingSummaryService {
         summary.put("이번달1일부터며칠까지", sameDayOfMonth);
         summary.put("이번달총지출", thisTotal);
         summary.put("지난달같은기간총지출", lastTotal);
+        summary.put("총지출증감액", totalDiff);
         summary.put("전체지출방향", directionTag(thisTotal, lastTotal));
         summary.put("카테고리별지출", categoryList);
 

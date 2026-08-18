@@ -98,6 +98,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers(HttpMethod.POST, "/api/auth/logout").authenticated()
                 .antMatchers("/api/mypage/**").authenticated()
                 .antMatchers("/api/admin/**").hasRole("ADMIN")   // 관리자 전용
+                .antMatchers("/api/notification/**").authenticated()
                 .antMatchers("/api/engine/**").authenticated()   // 로그인 회원 본인 데이터
                 .antMatchers("/api/stress/**").authenticated()   // 로그인 회원 본인 데이터
                 .anyRequest().permitAll(); // 나머지는 전부 개방

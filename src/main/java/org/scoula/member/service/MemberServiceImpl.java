@@ -12,6 +12,7 @@ import org.scoula.security.account.domain.MemberVO;
 import org.scoula.terms.domain.TermsVO;
 import org.scoula.terms.dto.TermsAgreeReqDto;
 import org.scoula.terms.mapper.TermsMapper;
+import org.scoula.notification.service.NotificationService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ public class MemberServiceImpl implements MemberService {
     final PasswordEncoder passwordEncoder;
     final MemberMapper mapper;
     final TermsMapper termsMapper;
+    final NotificationService notificationService;
 
     // 닉네임: 한글·영문·숫자 2~10자. 표시용이라 중복은 허용한다.
     private static final String NICKNAME_RULE = "^[가-힣a-zA-Z0-9]{2,10}$";
@@ -149,6 +151,13 @@ public class MemberServiceImpl implements MemberService {
         changePassword.setNewPassword(passwordEncoder.encode(changePassword.getNewPassword()));
 
         mapper.updatePassword(changePassword);
+
+        // 알림 생성이 실패해도 비밀번호 변경은 성공으로 남아야 한다
+        try {
+            notificationService.notifyPasswordChanged(member.getMemberNo());
+        } catch (Exception e) {
+            log.warn("비밀번호 변경 알림 생성 실패 - memberNo={}", member.getMemberNo(), e);
+        }
     }
 
     // 이메일은 UNIQUE 라 계정은 최대 1건이다.

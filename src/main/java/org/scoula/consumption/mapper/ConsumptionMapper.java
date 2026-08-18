@@ -22,4 +22,8 @@ public interface ConsumptionMapper {
     List<SpendingVO> selectRecentSpendingWithMerchant(Integer memberNo);
 
     int countExpectedByCondition(ExpectedSpendingVO condition);
+
+    List<Integer> selectAllMemberNos();
+
+    ExpectedSpendingVO selectExpectedByNo(Long expectedNo);
 }
