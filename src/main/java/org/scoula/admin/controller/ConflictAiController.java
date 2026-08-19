@@ -72,7 +72,21 @@ public class ConflictAiController {
         return ResponseEntity.ok(conflictReviewService.queue());
     }
 
-    /** 경로 충돌을 피해 상세보다 위에 둔다 */
+    /**
+     * 보류 중인 건. 만료 전에도 다시 볼 수 있어야 한다.
+     * 고정 경로는 {candidateNo} 보다 먼저 선언해야 숫자로 해석되지 않는다.
+     */
+    @GetMapping("/review/deferred")
+    public ResponseEntity<List<Map<String, Object>>> deferredQueue() {
+        return ResponseEntity.ok(conflictReviewService.deferredQueue());
+    }
+
+    @GetMapping("/review/summary")
+    public ResponseEntity<Map<String, Object>> summary() {
+        return ResponseEntity.ok(conflictReviewService.summary());
+    }
+
+    /** 확정분을 엔진이 읽는 Rule 로 내린다 */
     @PostMapping("/review/publish")
     public ResponseEntity<Map<String, Integer>> publish() {
         return ResponseEntity.ok(conflictReviewService.publishRules());
@@ -90,7 +104,10 @@ public class ConflictAiController {
             @RequestParam String decision,
             @RequestParam(required = false) Integer mappedNo,
             @RequestParam(required = false) String reason,
-            @RequestParam(required = false) Integer memberNo) {
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.scoula.security.account.domain.CustomUser user) {
+        // 판정자는 화면이 보내는 값이 아니라 토큰에서 채운다.
+        Integer memberNo = (user == null) ? null : user.getMember().getMemberNo();
         conflictReviewService.decide(candidateNo, decision, mappedNo, reason, memberNo);
         return ResponseEntity.ok().build();
     }
@@ -99,13 +116,10 @@ public class ConflictAiController {
     public ResponseEntity<Void> defer(
             @PathVariable int candidateNo,
             @RequestParam(defaultValue = "7") int days,
-            @RequestParam(required = false) Integer memberNo) {
+            @org.springframework.security.core.annotation.AuthenticationPrincipal
+            org.scoula.security.account.domain.CustomUser user) {
+        Integer memberNo = (user == null) ? null : user.getMember().getMemberNo();
         conflictReviewService.defer(candidateNo, days, memberNo);
         return ResponseEntity.ok().build();
-    }
-
-    @GetMapping("/review/summary")
-    public ResponseEntity<Map<String, Object>> summary() {
-        return ResponseEntity.ok(conflictReviewService.summary());
     }
 }

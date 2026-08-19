@@ -133,7 +133,7 @@ public class ConflictAiServiceImpl implements ConflictAiService {
     // ------------------------------------------------------------
 
     /**
-     * 분류 결과를 Candidate 로 저장한다.
+     * 분석 결과를 Candidate 로 저장한다.
      *
      * 이 단계에서는 gate 판정을 하지 않는다.
      * 자연어 의미를 최대한 그대로 보존하는 것이 Candidate 의 역할이고,
@@ -149,92 +149,172 @@ public class ConflictAiServiceImpl implements ConflictAiService {
         System.out.println("[중복분류] 정책명 사전 " + dict.size() + "건 로드");
 
         Integer promptVersion = promptService.getActiveVersion(PROMPT_KEY);
-        int saved = 0, skipped = 0;
+        int saved = 0;
 
         for (ConflictAiItemDto item : run.getItems()) {
-
             if (!"OTHER_POLICY".equals(item.getScope())) continue;
-
-            for (ConflictRelationDto rel : item.getRelations()) {
-
-                ConflictCandidateVO vo = new ConflictCandidateVO();
-
-                vo.setSourceBenefitNo(item.getBenefitNo());
-                vo.setScope(item.getScope());
-                vo.setRelation(rel.getRelation());
-
-                // AI 가 targetName 에 범주 표현을 계속 넣는다.
-                // 프롬프트로 두 번 막았는데도 안 지켜서 여기서 결정론적으로 옮긴다.
-                String name = rel.getTargetName();
-                String category = rel.getTargetCategory();
-                if (!ConflictNormalizer.isRealPolicyName(name)) {
-                    if (ConflictNormalizer.isBlank(category)) category = name;
-                    name = null;
-                }
-                vo.setTargetNameRaw(name);
-                vo.setTargetCategoryRaw(ConflictNormalizer.isBlank(category) ? null : category);
-
-                vo.setDirection(rel.getDirection());
-                vo.setTiming(rel.getTiming());
-                vo.setSubjectScope(rel.getSubject());
-                vo.setRestrictionStage(rel.getRestrictionStage());
-                vo.setCombinationApplicability(rel.getCombinationApplicability());
-                vo.setConditionType(ConflictNormalizer.isBlank(rel.getConditionType())
-                        ? null : rel.getConditionType());
-                vo.setConditionText(ConflictNormalizer.isBlank(rel.getConditionText())
-                        ? null : rel.getConditionText());
-
-                vo.setEvidenceText(rel.getEvidence());
-                vo.setConfidence(rel.getConfidence());
-
-                boolean verified = name != null
-                        && ConflictNormalizer.evidenceContains(rel.getEvidence(), name);
-                vo.setEvidenceVerified(verified ? "Y" : "N");
-
-                // 이름이 있을 때만 DB 연결을 시도한다
-                if (name != null) {
-                    ConflictResolver.Result rr = resolver.resolve(name, item.getBenefitNo());
-                    vo.setResolverResult(rr.getResolverResult());
-                    vo.setMappedBenefitNo(rr.getMappedBenefitNo());
-                    vo.setResolverCandidates(rr.getCandidates());
-                } else {
-                    vo.setResolverResult("NO_MATCH");
-                }
-
-                vo.setVerifierVerdict("NOT_RUN");
-                vo.setCrosscheckResult("NOT_RUN");
-                vo.setAnalysisStatus("SUCCESS");
-                vo.setWorkflowStatus("UNRESOLVED");
-                vo.setEnforcementState("NONE");
-                vo.setReviewReason(initialReviewReason(vo));
-
-                vo.setModelName(item.getModelName());
-                vo.setPromptKey(PROMPT_KEY);
-                vo.setPromptVersion(promptVersion);
-                vo.setSourceTextHash(item.getSourceTextHash());
-                vo.setDedupeKey(ConflictNormalizer.buildDedupeKey(
-                        vo.getSourceBenefitNo(), vo.getMappedBenefitNo(),
-                        vo.getDirection(), vo.getTargetCategoryRaw(),
-                        vo.getTiming(), vo.getSubjectScope()));
-
-                try {
-                    int n = conflictCandidateMapper.insertCandidate(vo);
-                    if (n > 0) saved++; else skipped++;
-                } catch (Exception e) {
-                    skipped++;
-                    System.out.println("[중복분류] 저장 실패 benefit_no="
-                            + vo.getSourceBenefitNo() + " / " + e.getMessage());
-                }
-            }
+            saved += saveCandidates(item, resolver, promptVersion);
         }
 
-        System.out.println("[중복분류] Candidate 저장 " + saved + "건 / 중복·실패 " + skipped + "건");
+        System.out.println("[중복분류] Candidate 저장 " + saved + "건");
         return run;
     }
 
     /**
-     * 프롬프트 시험 실행.
+     * 상대 정책을 직접 분석한다.
      *
+     * Cross-check 는 상대 공고문이 우리를 되짚었는지 확인하는 단계인데,
+     * 상대가 후보 필터에 걸리지 않으면 분석 자체가 안 되어 있어
+     * "언급 없음" 과 "분석 안 함" 을 구분할 수 없었다.
+     *
+     * 실제로 결혼지원금 두 정책이 서로를 지목하는 관계인데
+     * 한쪽 공고문에 '중복' 이라는 단어가 없어 후보에서 빠졌고,
+     * 그 결과 양방향 관계가 단방향으로 남았다.
+     *
+     * 그래서 상대가 특정된 경우에는 필터를 무시하고 직접 분석한다.
+     */
+    @Override
+    public int analyzeOne(int benefitNo) {
+
+        ConflictAiSourceDto s = conflictAiMapper.findSourceByBenefitNo(benefitNo);
+        if (s == null) return 0;
+
+        String body = buildUserMessage(s);
+        String hash = sha256(body);
+        Integer promptVersion = promptService.getActiveVersion(PROMPT_KEY);
+
+        // 같은 본문 · 같은 프롬프트로 이미 분석했으면 다시 부르지 않는다
+        if (conflictCandidateMapper.countAnalyzed(benefitNo, hash, promptVersion) > 0) {
+            return 0;
+        }
+
+        String systemPrompt = promptService.get(PROMPT_KEY);
+        ConflictAiItemDto item = classifyOne(systemPrompt, body);
+        item.setBenefitNo(s.getBenefitNo());
+        item.setPlcyNm(s.getPlcyNm());
+        item.setSprvsnInstCdNm(s.getSprvsnInstCdNm());
+        item.setIsActive(s.getIsActive());
+        item.setSourceTextHash(hash);
+        item.setModelName(model);
+        item.setPromptVersion(promptVersion);
+
+        if (!"OTHER_POLICY".equals(item.getScope())) {
+            System.out.println("[Cross-check] 상대 분석 " + benefitNo
+                    + " scope=" + item.getScope() + " (관계 없음)");
+            return 0;
+        }
+
+        List<BenefitNameDto> dict = conflictAiMapper.findAllBenefitNames();
+        ConflictResolver resolver = new ConflictResolver(dict);
+        int saved = saveCandidates(item, resolver, promptVersion);
+
+        System.out.println("[Cross-check] 상대 분석 " + benefitNo
+                + " scope=" + item.getScope() + " 저장 " + saved + "건");
+        return saved;
+    }
+
+    /**
+     * 분석 결과를 Candidate 로 저장한다.
+     * runAndSave 와 analyzeOne 이 같은 로직을 쓰도록 분리했다.
+     */
+    private int saveCandidates(ConflictAiItemDto item,
+                               ConflictResolver resolver,
+                               Integer promptVersion) {
+        int saved = 0;
+
+        for (ConflictRelationDto rel : item.getRelations()) {
+
+            ConflictCandidateVO vo = new ConflictCandidateVO();
+
+            vo.setSourceBenefitNo(item.getBenefitNo());
+            vo.setScope(item.getScope());
+            vo.setRelation(rel.getRelation());
+
+            // AI 가 targetName 에 범주 표현을 계속 넣는다.
+            // 프롬프트로 두 번 막았는데도 안 지켜서 여기서 결정론적으로 옮긴다.
+            String name = rel.getTargetName();
+            String category = rel.getTargetCategory();
+            if (!ConflictNormalizer.isRealPolicyName(name)) {
+                if (ConflictNormalizer.isBlank(category)) category = name;
+                name = null;
+            }
+            vo.setTargetNameRaw(name);
+            vo.setTargetCategoryRaw(ConflictNormalizer.isBlank(category) ? null : category);
+
+            vo.setDirection(rel.getDirection());
+            vo.setTiming(rel.getTiming());
+            vo.setSubjectScope(rel.getSubject());
+            vo.setRestrictionStage(rel.getRestrictionStage());
+            vo.setCombinationApplicability(rel.getCombinationApplicability());
+            vo.setConditionType(ConflictNormalizer.isBlank(rel.getConditionType())
+                    ? null : rel.getConditionType());
+            vo.setConditionText(ConflictNormalizer.isBlank(rel.getConditionText())
+                    ? null : rel.getConditionText());
+
+            vo.setEvidenceText(rel.getEvidence());
+            vo.setConfidence(rel.getConfidence());
+
+            boolean verified = name != null
+                    && ConflictNormalizer.evidenceContains(rel.getEvidence(), name);
+            vo.setEvidenceVerified(verified ? "Y" : "N");
+
+            // 이름이 있을 때만 DB 연결을 시도한다
+            if (name != null) {
+                ConflictResolver.Result rr = resolver.resolve(name, item.getBenefitNo());
+                vo.setResolverResult(rr.getResolverResult());
+                vo.setMappedBenefitNo(rr.getMappedBenefitNo());
+                vo.setResolverCandidates(rr.getCandidates());
+            } else {
+                vo.setResolverResult("NO_MATCH");
+            }
+
+            vo.setVerifierVerdict("NOT_RUN");
+            vo.setCrosscheckResult("NOT_RUN");
+            vo.setAnalysisStatus("SUCCESS");
+            vo.setWorkflowStatus("UNRESOLVED");
+            vo.setEnforcementState("NONE");
+            vo.setReviewReason(initialReviewReason(vo));
+
+            vo.setModelName(item.getModelName());
+            vo.setPromptKey(PROMPT_KEY);
+            vo.setPromptVersion(promptVersion);
+            vo.setSourceTextHash(item.getSourceTextHash());
+            vo.setDedupeKey(ConflictNormalizer.buildDedupeKey(
+                    vo.getSourceBenefitNo(), vo.getMappedBenefitNo(),
+                    vo.getDirection(), vo.getTargetCategoryRaw(),
+                    vo.getTiming(), vo.getSubjectScope()));
+
+            try {
+                if (conflictCandidateMapper.insertCandidate(vo) > 0) saved++;
+            } catch (Exception e) {
+                System.out.println("[중복분류] 저장 실패 benefit_no="
+                        + vo.getSourceBenefitNo() + " / " + e.getMessage());
+            }
+        }
+        return saved;
+    }
+
+    /**
+     * 왜 검수로 왔는지를 미리 적어둔다.
+     * 관리자가 화면에서 "이건 왜 나한테 왔나" 를 묻지 않게 하려는 것이다.
+     */
+    private String initialReviewReason(ConflictCandidateVO vo) {
+        if ("MULTI_MATCH".equals(vo.getResolverResult()))  return "MULTI_MATCH";
+        if ("N".equals(vo.getEvidenceVerified()) && vo.getTargetNameRaw() != null)
+            return "EXTRACTION_INVALID";
+        if (vo.getTargetNameRaw() == null)                 return "NO_MATCH";
+        if (!"BIDIRECTIONAL".equals(vo.getDirection()))    return "DIRECTION_UNKNOWN";
+        if (!"YES".equals(vo.getCombinationApplicability()))
+            return "COMBINATION_APPLICABILITY_UNKNOWN";
+        if (vo.getConditionType() != null)                 return "CONDITIONAL";
+        return null;
+    }
+
+    // ------------------------------------------------------------
+    // 프롬프트 시험 실행
+    // ------------------------------------------------------------
+
+    /**
      * 활성 버전을 바꾸기 전에 결과를 눈으로 보기 위한 것이다.
      * 저장하지 않으므로 몇 번을 돌려도 Candidate 가 늘지 않는다.
      */
@@ -261,23 +341,6 @@ public class ConflictAiServiceImpl implements ConflictAiService {
         item.setIsActive(s.getIsActive());
         item.setModelName(model);
         return item;
-    }
-
-    /**
-     * 왜 검수로 왔는지를 미리 적어둔다.
-     * 관리자가 화면에서 "이건 왜 나한테 왔나" 를 묻지 않게 하려는 것이고,
-     * Queue 정렬 기준도 confidence 가 아니라 이 값이다.
-     */
-    private String initialReviewReason(ConflictCandidateVO vo) {
-        if ("MULTI_MATCH".equals(vo.getResolverResult()))  return "MULTI_MATCH";
-        if ("N".equals(vo.getEvidenceVerified()) && vo.getTargetNameRaw() != null)
-            return "EXTRACTION_INVALID";
-        if (vo.getTargetNameRaw() == null)                 return "NO_MATCH";
-        if (!"BIDIRECTIONAL".equals(vo.getDirection()))    return "DIRECTION_UNKNOWN";
-        if (!"YES".equals(vo.getCombinationApplicability()))
-            return "COMBINATION_APPLICABILITY_UNKNOWN";
-        if (vo.getConditionType() != null)                 return "CONDITIONAL";
-        return null;
     }
 
     // ------------------------------------------------------------
@@ -410,8 +473,6 @@ public class ConflictAiServiceImpl implements ConflictAiService {
     /**
      * gate 단계별 누적 통과 수.
      * 어느 줄에서 급락하는지가 곧 병목이다.
-     * direction/applicability 만 급락하면 AI 추출이 아니라
-     * 실행 의미 모델이 병목이라는 뜻이다.
      */
     private void buildGateFunnel(ConflictAiStatsDto st, List<ConflictAiItemDto> items) {
 

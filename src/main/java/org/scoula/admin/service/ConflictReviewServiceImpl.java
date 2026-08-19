@@ -21,7 +21,6 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
      * 검수 대기 목록.
      *
      * A 와 B 가 이미 특정된 것만 온다. 관리자가 고를 상대를 찾는 일은 없다.
-     * 그래도 후보 목록이 남아 있는 건은 참고용으로 이름을 붙여 내린다.
      */
     @Override
     public List<Map<String, Object>> queue() {
@@ -47,6 +46,25 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
         return rows;
     }
 
+    /**
+     * 보류 중인 건.
+     *
+     * 검수 목록은 만료일이 지난 건만 가져오므로
+     * 보류한 뒤 판단이 바뀌어도 만료 전까지 다시 볼 방법이 없었다.
+     * 보류는 판단을 미루는 것이지 잠그는 것이 아니므로 언제든 열람할 수 있어야 한다.
+     */
+    @Override
+    public List<Map<String, Object>> deferredQueue() {
+        return mapper.findDeferredQueue();
+    }
+
+    @Override
+    public Map<String, Object> summary() {
+        Map<String, Object> out = new LinkedHashMap<>(mapper.summaryCandidate());
+        out.put("total_benefit", mapper.countBenefit());
+        return out;
+    }
+
     @Override
     public Map<String, Object> detail(int candidateNo) {
         return mapper.findReviewDetail(candidateNo);
@@ -56,7 +74,7 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
      * 관리자 판정.
      *
      * decision 은 관리자가 누른 버튼이고, 그것이 곧 엔진 동작은 아니다.
-     * 예를 들어 "중복 불가" 를 눌러도 한쪽 공고만 근거가 있으면
+     * "함께 받을 수 없음" 을 눌러도 한쪽 공고에만 근거가 있으면
      * 대칭 규칙으로 만들지 않고 안내로 내린다.
      * 관리자는 근거 문장 하나를 본 것이지 양쪽을 본 것이 아니기 때문이다.
      */
@@ -73,9 +91,6 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
         switch (decision == null ? "" : decision) {
 
             case "BLOCK": {
-                // 양방향 근거가 있을 때만 조합에서 제거한다.
-                // 한쪽 공고만 지목한 관계를 대칭으로 만들면
-                // 반대편 사용자가 받을 수 있었던 정책을 잃는다.
                 boolean twoWay = "BIDIRECTIONAL".equals(c.getDirection());
                 mapper.decide(candidateNo, "CONFIRMED",
                         twoWay ? "CONFIRMED_BLOCK" : "WARNING",
@@ -120,8 +135,11 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
     /**
      * 확정된 Candidate 를 엔진이 실제로 읽는 Rule 로 내린다.
      *
-     * 개별쌍은 DB 제약이 작은 번호를 trigger 로 강제하므로 뒤집어 넣는다.
-     * 방향 정보는 Candidate 에 남아 있으므로 잃지 않는다.
+     * 개별쌍으로 저장하는 조건은 상대 정책 지정만으로 부족하다.
+     * 우리 DB 의 개별쌍은 방향을 담을 자리가 없어 항상 대칭으로 동작하므로,
+     * 한쪽 공고에만 근거가 있는 관계를 개별쌍으로 저장하면
+     * 반대편 사용자가 받을 수 있었던 정책을 잃는다.
+     * 그래서 조합 제외가 확정된 건만 개별쌍으로 만든다.
      */
     @Override
     public Map<String, Integer> publishRules() {
@@ -134,8 +152,12 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
             String ruleText = ConflictRuleTextBuilder.build(c);
             String type = ConflictRuleTextBuilder.toConflictType(c);
 
-            if (c.getMappedBenefitNo() == null) {
-                // trigger 가 NULL 이면 UNIQUE 가 걸리지 않으므로 직접 확인한다
+            boolean asPair = c.getMappedBenefitNo() != null
+                    && "CONFIRMED_BLOCK".equals(c.getEnforcementState());
+
+            if (!asPair) {
+                // trigger 가 NULL 이면 MySQL 이 UNIQUE 중복을 허용하므로
+                // 저장 전에 같은 내용의 규칙이 있는지 직접 확인한다
                 if (mapper.countExternalRule(c.getSourceBenefitNo(), ruleText) > 0) {
                     continue;
                 }
@@ -157,13 +179,6 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
         out.put("pairRule", pair);
         out.put("externalWarning", external);
         System.out.println("[Rule 생성] " + out);
-        return out;
-    }
-
-    @Override
-    public Map<String, Object> summary() {
-        Map<String, Object> out = new LinkedHashMap<>(mapper.summaryCandidate());
-        out.put("total_benefit", mapper.countBenefit());
         return out;
     }
 }

@@ -16,6 +16,7 @@ public class ConflictGateServiceImpl implements ConflictGateService {
 
     private final ConflictCandidateMapper mapper;
     private final ConflictAiMapper conflictAiMapper;
+    private final ConflictAiService conflictAiService;
 
     // ------------------------------------------------------------
     // Cross-check
@@ -23,12 +24,11 @@ public class ConflictGateServiceImpl implements ConflictGateService {
 
     /**
      * AI 는 정책 하나만 읽으므로 방향을 알 수 없다.
-     * 실측에서 direction=BIDIRECTIONAL 이 0건이었던 것도 그 때문이고,
-     * 공고문이 원래 한쪽 방향으로만 쓰여 있어 프롬프트로는 해결되지 않는다.
-     *
      * 양방향 근거는 상대 정책의 공고문에서만 나온다.
-     * 상대도 나를 지목했다면 두 기관이 독립적으로 같은 말을 한 것이므로
-     * 어느 쪽을 먼저 받아도 막힌다고 볼 근거가 생긴다.
+     *
+     * 상대가 후보 필터에 안 걸려 분석되지 않은 경우가 있어
+     * "언급 없음" 과 "분석 안 함" 이 구분되지 않았다.
+     * 그래서 상대가 특정된 건은 필터를 무시하고 직접 분석한 뒤 대조한다.
      */
     @Override
     public Map<String, Integer> crossCheck() {
@@ -36,9 +36,18 @@ public class ConflictGateServiceImpl implements ConflictGateService {
         List<ConflictCandidateVO> targets = mapper.findCrosscheckTargets();
         System.out.println("[Cross-check] 대상 " + targets.size() + "건");
 
-        int mutual = 0, allows = 0, silent = 0;
+        int mutual = 0, allows = 0, silent = 0, analyzed = 0;
 
         for (ConflictCandidateVO c : targets) {
+
+            // 상대가 아직 분석되지 않았으면 지금 분석한다.
+            // 이미 분석된 정책이면 내부에서 건너뛴다.
+            if (mapper.countBySource(c.getMappedBenefitNo()) == 0) {
+                if (conflictAiService.analyzeOne(c.getMappedBenefitNo()) > 0) {
+                    analyzed++;
+                }
+            }
+
             String counterpart = mapper.findCounterpartRelation(
                     c.getSourceBenefitNo(), c.getMappedBenefitNo());
 
@@ -46,14 +55,14 @@ public class ConflictGateServiceImpl implements ConflictGateService {
             String direction = c.getDirection();
 
             if (counterpart == null) {
-                // 상대 공고에 우리 얘기가 없다. 방향을 확정할 근거가 없을 뿐
+                // 상대 공고를 실제로 읽었는데 우리 얘기가 없다.
                 // 충돌이 아니라는 뜻은 아니므로 그대로 둔다.
                 result = "COUNTERPART_SILENT";
                 silent++;
 
             } else if ("ALLOWED".equals(counterpart)) {
                 // 한쪽은 안 된다 하고 한쪽은 된다고 한다.
-                // 공고 시점이 다르거나 한쪽이 갱신 안 됐을 수 있어 자동 판단하지 않는다.
+                // 공고 시점이 다를 수 있어 자동 판단하지 않는다.
                 result = "COUNTERPART_ALLOWS";
                 allows++;
 
@@ -63,7 +72,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
                 mutual++;
 
                 // 같은 관계인데 두 공고문을 따로 읽어 applicability 가 갈릴 수 있다.
-                // 실제로 결혼지원금 쌍에서 한쪽 YES, 한쪽 UNKNOWN 이 나왔다.
                 // 상호 확인된 관계라면 근거가 강한 쪽을 양쪽에 적용하는 것이 맞다.
                 if ("YES".equals(c.getCombinationApplicability())) {
                     mapper.propagateApplicability(
@@ -80,6 +88,7 @@ public class ConflictGateServiceImpl implements ConflictGateService {
 
         Map<String, Integer> out = new LinkedHashMap<>();
         out.put("target", targets.size());
+        out.put("analyzedCounterpart", analyzed);
         out.put("MUTUAL", mutual);
         out.put("COUNTERPART_ALLOWS", allows);
         out.put("COUNTERPART_SILENT", silent);
@@ -94,9 +103,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
     /**
      * 최종 판정은 AI 가 아니라 여기서 한다.
      * 두 모델이 동의해도 이 조건을 통과하지 못하면 Rule 이 되지 않는다.
-     *
-     * 잘못된 HARD Rule 은 사용자가 받을 수 있었던 정책을 추천에서 지운다.
-     * 그래서 자동확정 조건을 좁게 잡고, 애매한 것은 경고나 검수로 내린다.
      */
     @Override
     public List<Map<String, Object>> applyGate() {
@@ -121,7 +127,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
      *
      * 특정하지 못한 건을 보내면 관리자가 "중복 관계 검수" 가 아니라
      * "AI 가 못 끝낸 DB 매칭" 을 대신하게 된다.
-     * 그건 관리자 업무가 아니고, 실제로 화면이 안 읽히는 원인이었다.
      *
      * 다만 특정하지 못한 이유가 둘로 갈린다.
      *   후보가 여럿   → 나중에 좁혀질 수 있으므로 대기
@@ -132,7 +137,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
         c.setDiscardReason(null);
 
         // 1. 상대를 이름으로 지목하지 않았다. 범주형이다.
-        //    관리자가 읽어도 정책번호가 생기지 않으므로 안내로 자동 처리한다.
         if (c.getTargetNameRaw() == null) {
             set(c, "CONFIRMED", "WARNING", null);
             return;
@@ -149,8 +153,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
         boolean verified = "Y".equals(c.getEvidenceVerified());
 
         // 3. 근거 문장에 그 이름이 없다. AI 가 지어냈을 수 있어 이름 자체를 믿을 수 없다.
-        //    DB 에서 특정까지 됐으면 사람이 볼 가치가 있지만,
-        //    특정도 안 되고 근거도 없으면 남길 이유가 없다.
         if (!verified) {
             if (unique) {
                 set(c, "REVIEW_REQUIRED", "NONE", "EXTRACTION_INVALID");
@@ -162,8 +164,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
         }
 
         // 4. 이름은 확인됐는데 우리 DB 에 없다. 외부 제도다.
-        //    국민취업지원제도처럼 실재하는 제도이므로 사용자 안내는 나가야 한다.
-        //    나중에 그 정책이 동기화로 들어오면 재해소가 검수로 올려준다.
         if ("NO_MATCH".equals(c.getResolverResult())) {
             set(c, "CONFIRMED", "WARNING", null);
             return;
@@ -209,16 +209,13 @@ public class ConflictGateServiceImpl implements ConflictGateService {
     /**
      * 같은 사업의 다른 유형이나 회차를 상대로 뽑는 경우가 있다.
      *
-     * 그런데 단순 포함 관계로 보면 과잉 폐기가 난다.
+     * 단순 포함관계로 보면 과잉 폐기가 난다.
      * "고성군 자격증 응시료 지원" 이 "자격증 응시료 지원" 을 지목한 것은
      * 자기 자신이 아니라 다른 지자체의 같은 종류 사업이다.
      *
      * 차이는 무엇이 빠졌는가에 있다.
-     *   연도·괄호·차수가 빠졌다        → 같은 사업
-     *   지역명이나 기관명이 빠졌다      → 다른 지역의 같은 종류 사업
-     *
-     * 그래서 기준 정책명에서 연도·괄호만 걷어낸 뒤 비교한다.
-     * 지역명은 걷어내지 않으므로, 지역이 사라진 이름은 같은 사업으로 보지 않는다.
+     *   연도·괄호·차수가 빠졌다   → 같은 사업
+     *   지역명이나 기관명이 빠졌다 → 다른 지역의 같은 종류 사업
      */
     private boolean isSelfReference(ConflictCandidateVO c) {
 
@@ -236,15 +233,11 @@ public class ConflictGateServiceImpl implements ConflictGateService {
 
         if (a.equals(b)) return true;
 
-        // 추출한 이름이 기준 이름 안에 들어 있고,
-        // 빠진 부분이 연도나 차수 같은 잡음뿐일 때만 같은 사업으로 본다.
         if (a.contains(b)) {
-            String rest = a.replace(b, "");
-            return rest.length() <= 4;
+            return a.replace(b, "").length() <= 4;
         }
         if (b.contains(a)) {
-            String rest = b.replace(a, "");
-            return rest.length() <= 4;
+            return b.replace(a, "").length() <= 4;
         }
         return false;
     }
@@ -256,10 +249,10 @@ public class ConflictGateServiceImpl implements ConflictGateService {
     private String stripNoise(String name) {
         if (name == null) return "";
         String t = name;
-        t = t.replaceAll("\\([^)]*\\)", "");      // (미추홀구) (2차) (국토부)
+        t = t.replaceAll("\\([^)]*\\)", "");
         t = t.replaceAll("\\[[^\\]]*\\]", "");
-        t = t.replaceAll("20\\d{2}\\s*년?", "");   // 2026년 2025
-        t = t.replaceAll("\\b\\d{2}\\s*년", "");   // 26년 25년
+        t = t.replaceAll("20\\d{2}\\s*년?", "");
+        t = t.replaceAll("\\d{2}\\s*년", "");
         t = t.replaceAll("\\d+\\s*차", "");
         t = t.replaceAll("제\\s*\\d+\\s*기", "");
         return ConflictNormalizer.compact(t);
@@ -278,12 +271,8 @@ public class ConflictGateServiceImpl implements ConflictGateService {
     /**
      * 동기화 뒤에 부른다.
      *
-     * 두 종류를 다시 본다.
-     *   후보가 여럿이라 못 고른 건 (PENDING_DATA)
-     *   DB 에 없어 안내로만 처리한 건 (CONFIRMED / WARNING, 이름은 있음)
-     *
-     * 그 사이에 새 정책이 들어왔거나 중복 적재가 정리됐으면
-     * 이제 하나로 좁혀질 수 있다.
+     * 지난번엔 상대를 못 골랐지만 그 사이에 새 정책이 들어왔거나
+     * 중복 적재가 정리됐으면 이제 하나로 좁혀질 수 있다.
      * 관리자에게 시키지 않는 대신 시스템이 계속 다시 시도한다.
      */
     @Override
@@ -300,7 +289,6 @@ public class ConflictGateServiceImpl implements ConflictGateService {
                     resolver.resolve(c.getTargetNameRaw(), c.getSourceBenefitNo());
 
             if ("UNIQUE_MATCH".equals(r.getResolverResult())) {
-                // 이제 하나로 좁혀졌다. 다음 gate 에서 검수 대상으로 올라간다
                 mapper.updateResolve(c.getCandidateNo(), r.getMappedBenefitNo(),
                         "UNIQUE_MATCH", null, "UNRESOLVED", null);
                 promoted++;

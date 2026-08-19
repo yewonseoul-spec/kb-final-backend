@@ -12,6 +12,12 @@ public interface ConflictAiService {
     ConflictAiRunDto runAndSave(int offset, int limit);
 
     /**
+     * 상대 정책 하나를 분석해 저장한다.
+     * 후보 필터와 무관하게 호출되며, 이미 분석된 정책이면 건너뛴다.
+     */
+    int analyzeOne(int benefitNo);
+
+    /**
      * 임의의 프롬프트로 정책 한 건을 돌려본다.
      * 활성 버전을 바꾸기 전에 결과를 확인하기 위한 것이라 DB 에 쓰지 않는다.
      */

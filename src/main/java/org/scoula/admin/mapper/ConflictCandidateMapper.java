@@ -215,8 +215,7 @@ public interface ConflictCandidateMapper {
             "FROM benefit_conflict_candidate c " +
             "JOIN benefit b1 ON b1.benefit_no = c.source_benefit_no " +
             "LEFT JOIN benefit b2 ON b2.benefit_no = c.mapped_benefit_no " +
-            "WHERE c.workflow_status IN ('REVIEW_REQUIRED','DEFERRED') " +
-            "  AND (c.deferred_until IS NULL OR c.deferred_until <= NOW()) " +
+            "WHERE c.workflow_status = 'REVIEW_REQUIRED' " +
             "ORDER BY FIELD(c.enforcement_state,'PENDING_BLOCK') DESC, " +
             "         FIELD(c.review_reason,'RELATION_CHECK','DIRECTION_UNKNOWN'," +
             "               'COMBINATION_APPLICABILITY_UNKNOWN','CONDITIONAL'," +
@@ -325,4 +324,29 @@ public interface ConflictCandidateMapper {
 
     @Select("SELECT COUNT(*) FROM benefit")
     int countBenefit();
+
+    /**
+     * 보류 중인 건.
+     *
+     * 목록 조회는 만료일이 지난 건만 가져오므로
+     * 보류한 뒤 판단이 바뀌어도 만료 전까지 다시 볼 방법이 없었다.
+     * 보류는 판단을 미루는 것이지 잠그는 것이 아니므로 언제든 열람할 수 있어야 한다.
+     */
+    @Select("SELECT c.candidate_no, c.source_benefit_no, c.mapped_benefit_no," +
+            "       c.target_name_raw, c.target_category_raw, c.relation," +
+            "       c.direction, c.timing, c.subject_scope, c.restriction_stage," +
+            "       c.combination_applicability, c.condition_type, c.condition_text," +
+            "       c.evidence_text, c.evidence_verified, c.confidence," +
+            "       c.resolver_result, c.resolver_candidates, c.crosscheck_result," +
+            "       c.workflow_status, c.enforcement_state, c.review_reason," +
+            "       c.deferred_until, c.decided_at," +
+            "       b1.plcy_nm AS source_plcy_nm, b1.sprvsn_inst_cd_nm AS source_inst," +
+            "       b2.plcy_nm AS mapped_plcy_nm, b2.sprvsn_inst_cd_nm AS mapped_inst," +
+            "       b2.is_active AS mapped_active " +
+            "FROM benefit_conflict_candidate c " +
+            "JOIN benefit b1 ON b1.benefit_no = c.source_benefit_no " +
+            "LEFT JOIN benefit b2 ON b2.benefit_no = c.mapped_benefit_no " +
+            "WHERE c.workflow_status = 'DEFERRED' " +
+            "ORDER BY c.deferred_until, c.candidate_no")
+    List<Map<String, Object>> findDeferredQueue();
 }
