@@ -1140,6 +1140,8 @@ public class BenefitServiceImpl implements BenefitService {
         int pageNum = 1;
         int pageSize = 600;
         SyncDetailResultDTO result = new SyncDetailResultDTO();
+        List<String> apiPlcyNoList = new ArrayList<>();
+        boolean completedSuccessfully = false;
 
         LocalDate start = parseLocalDate(startDate);
         LocalDate end = parseLocalDate(endDate);
@@ -1177,6 +1179,7 @@ public class BenefitServiceImpl implements BenefitService {
 
             if (policyList.isEmpty()) {
                 System.out.println("[관리자 기간 동기화 전체 페이지 조회 완료] pageNum = " + pageNum);
+                completedSuccessfully = true;
                 break;
             }
 
@@ -1184,6 +1187,9 @@ public class BenefitServiceImpl implements BenefitService {
                 if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
                     continue;
                 }
+
+                // 삭제 판정은 선택 기간과 무관하게 API 전체 스냅샷을 기준으로 해야 한다.
+                apiPlcyNoList.add(item.getPlcyNo());
 
                 LocalDate frstRegDate = parseLocalDate(item.getFrstRegDt());
 
@@ -1218,6 +1224,26 @@ public class BenefitServiceImpl implements BenefitService {
             }
 
             pageNum++;
+        }
+
+        // 자동 동기화와 동일하게, 전체 페이지 조회가 정상 완료된 경우에만
+        // API에서 사라진 정책을 비활성화한다. 중간 실패 시 오삭제를 막는다.
+        if (completedSuccessfully && !apiPlcyNoList.isEmpty()) {
+            List<String> distinctApiPlcyNoList = apiPlcyNoList.stream()
+                    .filter(plcyNo -> plcyNo != null && !plcyNo.trim().isEmpty())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            List<Integer> toDelete = benefitMapper.findBenefitNosNotInApi(distinctApiPlcyNoList);
+            int deletedCnt = benefitMapper.deactivateBenefitsNotInApi(distinctApiPlcyNoList);
+
+            for (Integer benefitNo : toDelete) {
+                result.addDeleted(benefitNo, "온통청년 API 응답에 없음 (데이터는 보존)");
+            }
+
+            System.out.println("[관리자 기간 동기화 API 삭제 혜택 비활성화 완료] 건수 = " + deletedCnt);
+        } else {
+            System.out.println("[관리자 기간 동기화 API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
         }
 
         return result;

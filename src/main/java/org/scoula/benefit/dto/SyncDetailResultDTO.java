@@ -13,6 +13,7 @@ import java.util.List;
 @Data
 public class SyncDetailResultDTO {
     private int totalCount;
+    private int deleteCount;
     private List<SyncedBenefitDTO> items = new ArrayList<>();
 
     public void add(Integer benefitNo, String actionType, String changedSummary) {
@@ -20,5 +21,10 @@ public class SyncDetailResultDTO {
         if (benefitNo != null) {
             items.add(new SyncedBenefitDTO(benefitNo, actionType, changedSummary));
         }
+    }
+
+    public void addDeleted(Integer benefitNo, String changedSummary) {
+        deleteCount++;
+        add(benefitNo, "D", changedSummary);
     }
 }
