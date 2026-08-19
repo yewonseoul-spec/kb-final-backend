@@ -9,5 +9,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuthResultDTO {
     String token;
+    String refreshToken;
     UserInfoDTO user;
 }

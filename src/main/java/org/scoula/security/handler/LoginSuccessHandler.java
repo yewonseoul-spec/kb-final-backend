@@ -7,6 +7,7 @@ import org.scoula.security.account.dto.AuthResultDTO;
 import org.scoula.security.account.dto.UserInfoDTO;
 import org.scoula.security.util.JsonResponse;
 import org.scoula.security.util.JwtProcessor;
+import org.scoula.security.service.RefreshTokenService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
@@ -21,13 +22,21 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class LoginSuccessHandler implements AuthenticationSuccessHandler {
     private final JwtProcessor jwtProcessor;
+    private final RefreshTokenService refreshTokenService;
 
     private AuthResultDTO makeAuthResult(CustomUser user) {
         String username = user.getUsername();
-        // 토큰 생성
+        int memberNo = user.getMember().getMemberNo();
+
         String token = jwtProcessor.generateToken(username);
-        // 토큰 + 사용자 기본 정보 (사용자명, ...)를 묶어서 AuthResultDTO 구성
-        return new AuthResultDTO(token, UserInfoDTO.of(user.getMember()));
+        String refreshToken = jwtProcessor.generateRefreshToken(username,
+                memberNo);
+
+        // 같은 회원이 다시 로그인하면 이전 리프레시 토큰은 덮여서 무효가 된다
+        refreshTokenService.save(memberNo, refreshToken);
+
+        return new AuthResultDTO(token, refreshToken,
+                UserInfoDTO.of(user.getMember()));
     }
 
     @Override
