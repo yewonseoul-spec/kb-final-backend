@@ -37,43 +37,54 @@
     </insert>
 
     <!-- 후보 조회 · 중복 판정 · 삽입을 한 문장으로 끝낸다.
-     NOT EXISTS 가 정합성을 책임지므로 Redis 가 죽어도 중복이 안
-생긴다. -->
+      NOT EXISTS 가 정합성을 책임지므로 Redis 가 죽어도 중복이 안
+ 생긴다. -->
     <insert id="insertDeadline">
         INSERT INTO notification (member_no, noti_type, ref_no, content)
-            SELECT f.member_no,
-                   'DEADLINE',
-                   b.benefit_no,
-                   CONCAT(b.plcy_nm, '의 신청이 ',
-                          DATE_FORMAT(b.apply_end_date, '%c월 %e일'),
-                          '에 마감돼요.')
-            FROM favorite_benefit f
-                     JOIN benefit b
-                          ON b.benefit_no = f.benefit_no
-            WHERE f.member_no = #{memberNo}
-              AND b.api_deleted_yn = 'N'
-              AND b.is_active = 'Y'
-                -- aply_prd_se_cd 는 nullable 이라 != 만 쓰면 NULL 행이 통째로 사라진다
-            AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd != '0057003')
-                AND b.apply_end_date IS NOT NULL
-            AND b.apply_end_date &gt;= CURDATE()
-            AND b.apply_end_date &lt;= DATE_ADD(CURDATE(), INTERVAL #{days}
-                DAY)
-                AND NOT EXISTS (
-                SELECT 1
-                FROM notification n
-                WHERE n.member_no = f.member_no
-                  AND n.noti_type = 'DEADLINE'
-                  AND n.ref_no = b.benefit_no
-                    )
-                -- 가입 시 '혜택 알림 수신'(terms_no = 3)에 동의한 회원에게만 보낸다
-                  AND EXISTS (
-                SELECT 1
-                FROM member_terms_agree a
-                WHERE a.member_no = f.member_no
-                  AND a.terms_no = 3
-                  AND a.is_agreed = 'Y'
-                    )
+        SELECT f.member_no,
+               'DEADLINE',
+               b.benefit_no,
+               CONCAT(b.plcy_nm, '의 신청이 ',
+                      DATE_FORMAT(b.apply_end_date, '%c월 %e일'),
+                      '에 마감돼요. (마감 ',
+                      CASE DATEDIFF(b.apply_end_date, CURDATE())
+                          WHEN 14 THEN '2주'
+                          WHEN 7 THEN '일주일'
+                          WHEN 3 THEN '3일'
+                          ELSE '하루'
+                          END,
+                      ' 전 알림)')
+        FROM favorite_benefit f
+                 JOIN benefit b
+                      ON b.benefit_no = f.benefit_no
+        WHERE f.member_no = #{memberNo}
+          AND b.api_deleted_yn = 'N'
+          AND b.is_active = 'Y'
+          -- aply_prd_se_cd 는 nullable 이라 != 만 쓰면 NULL 행이 통째로 사라진다
+          AND (b.aply_prd_se_cd IS NULL OR b.aply_prd_se_cd != '0057003')
+          -- 임계일 당일에만 만든다. 날짜끼리 비교해야 인덱스를 탄다
+          AND b.apply_end_date IN (
+                                   DATE_ADD(CURDATE(), INTERVAL 14 DAY),
+                                   DATE_ADD(CURDATE(), INTERVAL 7 DAY),
+                                   DATE_ADD(CURDATE(), INTERVAL 3 DAY),
+                                   DATE_ADD(CURDATE(), INTERVAL 1 DAY))
+          AND NOT EXISTS (
+            SELECT 1
+            FROM notification n
+            WHERE n.member_no = f.member_no
+              AND n.noti_type = 'DEADLINE'
+              AND n.ref_no = b.benefit_no
+              -- 같은 날 중복만 막는다. 이 줄이 없으면 D-14 하나로 끝난다
+              AND DATE(n.created_at) = CURDATE()
+        )
+          -- 가입 시 '혜택 알림 수신'(terms_no = 3)에 동의한 회원에게만 보낸다
+          AND EXISTS (
+            SELECT 1
+            FROM member_terms_agree a
+            WHERE a.member_no = f.member_no
+              AND a.terms_no = 3
+              AND a.is_agreed = 'Y'
+        )
     </insert>
 
     <update id="markRead">
