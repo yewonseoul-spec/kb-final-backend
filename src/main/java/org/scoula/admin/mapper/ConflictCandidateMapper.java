@@ -266,9 +266,25 @@ public interface ConflictCandidateMapper {
                @Param("discardReason") String discardReason,
                @Param("memberNo") Integer memberNo);
 
+
+
     // ------------------------------------------------------------
     // Rule 생성
     // ------------------------------------------------------------
+
+    /**
+     * 이 안내 규칙이 이미 있는가.
+     *
+     * MySQL 은 UNIQUE 에서 NULL 중복을 허용하므로
+     * trigger 가 NULL 인 범주·외부 안내는 INSERT IGNORE 로 막히지 않는다.
+     * 실제로 publish 를 두 번 눌렀더니 54건이 108건이 됐다.
+     */
+    @Select("SELECT COUNT(*) FROM benefit_conflict_rule " +
+            "WHERE trigger_benefit_no IS NULL " +
+            "  AND target_benefit_no = #{targetNo} " +
+            "  AND rule_text = #{ruleText}")
+    int countExternalRule(@Param("targetNo") int targetNo,
+                          @Param("ruleText") String ruleText);
 
     /** 엔진이 실제로 쓰는 Rule 로 내린다. 이미 있으면 무시한다 */
     @Insert("INSERT IGNORE INTO benefit_conflict_rule " +
@@ -290,16 +306,23 @@ public interface ConflictCandidateMapper {
             "  AND enforcement_state IN ('CONFIRMED_BLOCK','WARNING')")
     List<ConflictCandidateVO> findConfirmedForRule();
 
-    /** 요약 화면용. 관리자가 전체 그림을 먼저 보게 한다 */
+    /**
+     * 요약 화면용.
+     *
+     * 서브쿼리와 집계를 한 SELECT 에 섞으면
+     * ONLY_FULL_GROUP_BY 설정에서 거부되는 경우가 있어 나눠 조회한다.
+     */
     @Select("SELECT " +
-            " (SELECT COUNT(*) FROM benefit) AS total_benefit," +
-            " (SELECT COUNT(*) FROM benefit_conflict_candidate) AS candidate," +
-            " SUM(workflow_status='CONFIRMED' AND enforcement_state='WARNING') AS auto_warning," +
-            " SUM(enforcement_state='CONFIRMED_BLOCK') AS auto_rule," +
-            " SUM(workflow_status='DISCARDED') AS discarded," +
-            " SUM(workflow_status='PENDING_DATA') AS pending_data," +
+            " COUNT(*) AS candidate," +
+            " SUM(workflow_status = 'CONFIRMED' AND enforcement_state = 'WARNING') AS auto_warning," +
+            " SUM(enforcement_state = 'CONFIRMED_BLOCK') AS auto_rule," +
+            " SUM(workflow_status = 'DISCARDED') AS discarded," +
+            " SUM(workflow_status = 'PENDING_DATA') AS pending_data," +
             " SUM(workflow_status IN ('REVIEW_REQUIRED','DEFERRED')) AS review," +
-            " SUM(workflow_status='DEFERRED') AS deferred " +
+            " SUM(workflow_status = 'DEFERRED') AS deferred " +
             "FROM benefit_conflict_candidate")
-    Map<String, Object> summary();
+    Map<String, Object> summaryCandidate();
+
+    @Select("SELECT COUNT(*) FROM benefit")
+    int countBenefit();
 }

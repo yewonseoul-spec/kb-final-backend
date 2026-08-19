@@ -16,7 +16,7 @@ public final class ConflictRuleTextBuilder {
     public static String build(ConflictCandidateVO c) {
 
         if (c.getMappedBenefitNo() == null) {
-            return buildCategoryText(c);
+            return buildUnmatchedText(c);
         }
 
         String name = c.getTargetNameRaw();
@@ -43,17 +43,25 @@ public final class ConflictRuleTextBuilder {
     }
 
     /**
-     * 상대를 특정할 수 없는 범주형.
+     * 우리 DB 에 상대 정책이 없는 경우.
      *
-     * AI 가 뽑는 범주 표현이 "유사사업" "유사 사업" "타 사업" "지원" 처럼
-     * 제각각이고 그중 일부는 그대로 쓰면 무슨 말인지 알 수 없다.
-     * 그래서 분야를 알아볼 수 있는 표현만 살리고,
-     * 알아볼 수 없는 것은 문장 틀로 대체한다.
+     * 두 가지를 구분해야 한다.
+     *   이름이 있다   국민취업지원제도처럼 실재하는 외부 제도다.
+     *                그 이름을 그대로 알려주는 것이 사용자에게 훨씬 유용하다.
+     *   범주뿐이다   "유사사업" 처럼 공고문 자체가 범위로만 말한 것이다.
+     *
+     * 이름이 있는데 "유사한 사업" 으로 뭉뚱그리면
+     * 사용자는 무엇을 확인해야 할지 알 수 없다.
      */
-    private static String buildCategoryText(ConflictCandidateVO c) {
+    private static String buildUnmatchedText(ConflictCandidateVO c) {
 
-        String raw = c.getTargetCategoryRaw() != null
-                ? c.getTargetCategoryRaw() : c.getTargetNameRaw();
+        String name = c.getTargetNameRaw();
+        if (name != null && !name.trim().isEmpty()) {
+            return name + "에 참여 중이거나 참여 이력이 있는 경우 신청이 제한될 수 있습니다. "
+                    + "신청 전 공고문을 확인해주세요.";
+        }
+
+        String raw = c.getTargetCategoryRaw();
         String field = extractField(raw);
 
         if (field != null) {
@@ -68,24 +76,29 @@ public final class ConflictRuleTextBuilder {
 
     /**
      * 범주 표현에서 사용자가 알아볼 수 있는 분야만 뽑는다.
-     * "유사사업" 처럼 분야가 없는 표현은 null 을 돌려 일반 문장으로 보낸다.
+     * "유사사업" "동일/유사사업" 처럼 분야가 없는 표현은 null 을 돌려
+     * 일반 문장으로 보낸다. 없는 정보를 지어내지 않기 위해서다.
      */
     private static String extractField(String raw) {
         if (raw == null) return null;
         String t = raw.replaceAll("\\s", "");
 
-        if (t.contains("자산형성")) return "자산형성";
-        if (t.contains("일자리"))   return "일자리";
-        if (t.contains("창업"))     return "창업";
-        if (t.contains("주거") || t.contains("월세") || t.contains("임차")) return "주거";
-        if (t.contains("장학"))     return "장학";
+        if (t.contains("자산형성"))                     return "자산형성";
+        if (t.contains("인력양성"))                     return "인력양성";
+        if (t.contains("일자리"))                       return "일자리";
+        if (t.contains("창업"))                         return "창업";
+        if (t.contains("중개보수") || t.contains("이사비")) return "이사비·중개보수";
+        if (t.contains("주거") || t.contains("월세")
+                || t.contains("임차") || t.contains("전세")) return "주거";
+        if (t.contains("장학") || t.contains("학자금"))  return "장학·학자금";
         if (t.contains("응시료") || t.contains("자격증")) return "자격증 응시료";
-        if (t.contains("이사비") || t.contains("중개보수")) return "이사비·중개보수";
-        if (t.contains("면접"))     return "면접";
-        if (t.contains("구직") || t.contains("취업")) return "구직·취업";
-        if (t.contains("인턴"))     return "인턴";
-        if (t.contains("문화"))     return "문화";
+        if (t.contains("면접"))                         return "면접";
+        if (t.contains("구직") || t.contains("취업"))    return "구직·취업";
+        if (t.contains("인턴"))                         return "인턴";
+        if (t.contains("문화") || t.contains("예술"))    return "문화·예술";
         if (t.contains("공동체") || t.contains("동아리")) return "공동체·동아리";
+        if (t.contains("건강") || t.contains("의료"))    return "건강·의료";
+        if (t.contains("교육") || t.contains("훈련"))    return "교육·훈련";
         return null;
     }
 

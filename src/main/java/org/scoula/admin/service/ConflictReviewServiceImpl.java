@@ -135,6 +135,10 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
             String type = ConflictRuleTextBuilder.toConflictType(c);
 
             if (c.getMappedBenefitNo() == null) {
+                // trigger 가 NULL 이면 UNIQUE 가 걸리지 않으므로 직접 확인한다
+                if (mapper.countExternalRule(c.getSourceBenefitNo(), ruleText) > 0) {
+                    continue;
+                }
                 if (mapper.insertRule(null, c.getSourceBenefitNo(), "확인필요", ruleText) > 0) {
                     external++;
                 }
@@ -158,6 +162,8 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
 
     @Override
     public Map<String, Object> summary() {
-        return mapper.summary();
+        Map<String, Object> out = new LinkedHashMap<>(mapper.summaryCandidate());
+        out.put("total_benefit", mapper.countBenefit());
+        return out;
     }
 }
