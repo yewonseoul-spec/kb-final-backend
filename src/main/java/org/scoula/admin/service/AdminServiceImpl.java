@@ -435,6 +435,7 @@ public class AdminServiceImpl implements AdminService {
             log.setInsertCnt(insertCnt);
             log.setUpdateCnt(updateCnt);
             log.setSkipCnt(0);          // upsert 방식이라 건너뛰는 건이 없다
+            log.setDeleteCnt(0);
             log.setErrorMsg(truncate(errorMsg));
             log.setDurationMs(durationMs);
             log.setMemberNo(memberNo);

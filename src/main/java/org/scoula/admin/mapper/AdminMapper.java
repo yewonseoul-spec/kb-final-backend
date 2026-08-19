@@ -90,11 +90,11 @@ public interface AdminMapper {
             "insert_cnt, update_cnt, skip_cnt, delete_cnt, error_msg, duration_ms, member_no" +
             ") VALUES (" +
             "NOW(), #{execType}, #{syncStartDate}, #{syncEndDate}, #{resultStatus}, #{totalCnt}, " +
-            "#{insertCnt}, #{updateCnt}, #{skipCnt}, #{deleteCnt}, #{errorMsg}, #{durationMs}, #{memberNo}" +
+            "#{insertCnt}, #{updateCnt}, #{skipCnt}, IFNULL(#{deleteCnt}, 0), " +
+            "#{errorMsg}, #{durationMs}, #{memberNo}" +
             ")")
     @Options(useGeneratedKeys = true, keyProperty = "logNo")
     int insertSyncLog(SyncLogVO syncLog);
-
 
     // ==================================================================
     // admin-03 : 동기화 로그 목록
