@@ -23,7 +23,6 @@ public class ProfileDTO {
     private Integer income;
     private String employStatus;
     private String major;
-    private Integer householdSize;
     private String education;
     private String mrgSttsCd;
 
@@ -39,7 +38,6 @@ public class ProfileDTO {
                 .income(income)
                 .employStatus(employStatus)
                 .major(major)
-                .householdSize(householdSize)
                 .education(education)
                 .mrgSttsCd(mrgSttsCd)
                 .build();
@@ -52,7 +50,6 @@ public class ProfileDTO {
                 .income(vo.getIncome())
                 .employStatus(vo.getEmployStatus())
                 .major(vo.getMajor())
-                .householdSize(vo.getHouseholdSize())
                 .education(vo.getEducation())
                 .mrgSttsCd(vo.getMrgSttsCd())
                 .regionName(vo.getRegionName())
