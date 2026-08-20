@@ -20,13 +20,13 @@ public class ConsumptionServiceImpl implements ConsumptionService {
     private static final int REQUIRED_MONTHS = 2;
 
     // 정기 지출 자동 등록에서 특정 카테고리 제외
-    private static final Set<Integer> EXCLUDED_CATEGORY_NOS = Set.of(
-            1, // 식비
-            2, // 카페·간식
-            6, // 생활
-            7, // 마트·편의점
-            14, // 경조사
-            15 // 기타
+    private static final Set<Long> EXCLUDED_CATEGORY_NOS = Set.of(
+            1L, // 식비
+            2L, // 카페·간식
+            6L, // 생활
+            7L, // 마트·편의점
+            14L, // 경조사
+            15L // 기타
     );
 
     private final ConsumptionMapper consumptionMapper;
