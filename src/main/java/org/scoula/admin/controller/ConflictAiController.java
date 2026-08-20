@@ -122,4 +122,29 @@ public class ConflictAiController {
         conflictReviewService.defer(candidateNo, days, memberNo);
         return ResponseEntity.ok().build();
     }
-}
+    /**
+     * 분석 전 구간 실행.
+     *
+     * 지금까지는 분석 · 대조 · 판정을 각각 API 로 불러야 했다.
+     * 운영자가 화면에서 실행할 수 없고 순서도 직접 지켜야 해서
+     * 시연 환경 담당자에게 그대로 넘길 수 없었다.
+     *
+     * 정책 수에 따라 몇 분이 걸리므로 화면에서 대기 시간을 안내한다.
+     */
+    @PostMapping("/ai/run-all")
+    public ResponseEntity<Map<String, Object>> runAll() {
+
+        long started = System.currentTimeMillis();
+
+        ConflictAiRunDto run = conflictAiService.runAndSave(0, 0);
+        Map<String, Integer> cross = conflictGateService.crossCheck();
+        List<Map<String, Object>> gate = conflictGateService.applyGate();
+
+        Map<String, Object> out = new java.util.LinkedHashMap<>();
+        out.put("candidateTotal", run.getCandidateTotal());
+        out.put("analyzed", run.getStats() == null ? 0 : run.getStats().getTotal());
+        out.put("crossCheck", cross);
+        out.put("gate", gate);
+        out.put("durationMs", System.currentTimeMillis() - started);
+        return ResponseEntity.ok(out);
+    }}
