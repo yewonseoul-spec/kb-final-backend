@@ -50,7 +50,8 @@ import java.util.List;
         "org.scoula.home.service",
         "org.scoula.admin.service",
         "org.scoula.stress.service",
-        "org.scoula.notification.service"
+        "org.scoula.notification.service",
+        "org.scoula.consumption.scheduler",
 })
 
 @EnableScheduling
