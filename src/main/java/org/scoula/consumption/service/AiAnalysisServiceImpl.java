@@ -2,6 +2,7 @@ package org.scoula.consumption.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.scoula.admin.service.PromptService;
 import org.scoula.consumption.dto.AiVerdictDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,11 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
 
     private final AiVerificationService aiVerificationService;
 
+    // [상호 추가] AI 프롬프트 관리 화면(/admin/prompt)에서 이 프롬프트를 수정할 수 있게 하려고 넣었습니다.
+    //            프롬프트가 코드에 있으면 한 줄 고칠 때마다 빌드와 재배포가 필요해서
+    //            DB 조회가 실패하면 기존 AiPrompt 상수로 그대로 떨어지므로 동작은 변하지 않습니다.
+    private final PromptService promptService;
+
     private final Map<Integer, CachedResult> cache = new HashMap<>();
 
     @Value("${openai.api-key}")
@@ -33,8 +39,11 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
     @Value("${openai.model:gpt-4o-mini}")
     private String model;
 
-    public AiAnalysisServiceImpl(AiVerificationService aiVerificationService) {
+    // [상호 수정] 생성자에 PromptService 파라미터를 하나 추가했습니다. 나머지는 그대로입니다.
+    public AiAnalysisServiceImpl(AiVerificationService aiVerificationService,
+                                 PromptService promptService) {
         this.aiVerificationService = aiVerificationService;
+        this.promptService = promptService;
     }
 
     @Override
@@ -81,7 +90,12 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
     private String callOpenAi(String summaryJson) {
         try {
             // system 프롬프트
-            String systemPrompt = AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT;
+            // [상호 수정] AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT 를 직접 쓰던 것을
+            //            DB 조회로 바꿨습니다. 관리자 화면에서 프롬프트를 고칠 수 있게 하려는 것입니다.
+            //            DB에 값이 없거나 조회가 실패하면 두 번째 인자인 기존 상수를 그대로 씁니다.
+            //            즉 AiPrompt.java 는 지우지 않고 폴백으로 계속 남아 있습니다.
+            String systemPrompt = promptService.getOrDefault(
+                    "CONSUMPTION_ANALYSIS", AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT);
 
             Map<String, Object> requestBody = Map.of(
                     "model", model,
