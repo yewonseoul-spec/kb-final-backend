@@ -7,10 +7,10 @@
     <insert id="insert">
         INSERT INTO member_profile
         (member_no, birth_date, region_code, income,
-         employ_status, major, household_size, education, mrg_stts_cd)
+         employ_status, major, education, mrg_stts_cd)
         VALUES
             (#{memberNo}, #{birthDate}, #{regionCode}, #{income},
-             #{employStatus}, #{major}, #{householdSize}, #{education}, #{mrgSttsCd})
+             #{employStatus}, #{major}, #{education}, #{mrgSttsCd})
     </insert>
     <update id="update">
         UPDATE member_profile
@@ -19,7 +19,6 @@
         income         = #{income},
         employ_status  = #{employStatus},
         major          = #{major},
-        household_size = #{householdSize},
         education      = #{education},
         mrg_stts_cd    = #{mrgSttsCd},
         updated_at     = NOW()
@@ -31,7 +30,7 @@
          상위 지역을 따로 조합할 필요가 없다. -->
     <select id="get" resultType="org.scoula.mypage.domain.MemberProfileVO">
         SELECT mp.member_no, mp.birth_date, mp.region_code, mp.income,
-               mp.employ_status, mp.major, mp.household_size, mp.education,
+               mp.employ_status, mp.major, mp.education,
                mp.mrg_stts_cd, mp.profile_img_path, mp.updated_at,
                r.region_name
         FROM member_profile mp

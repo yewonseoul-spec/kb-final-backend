@@ -1,10 +1,11 @@
 -- =====================================================================
--- [v2.6] AI 중복수혜 자동분류 + 프롬프트 관리
+-- [v2.7] AI 중복수혜 자동분류 + 프롬프트 관리
 --        ai_prompt 테이블 신설 (AI 지시문을 코드가 아니라 DB에서 버전 관리)
 --        benefit_conflict_candidate 테이블 신설 (AI 분석 결과 보존층)
 --        (Candidate 는 공고문 의미를 그대로 보존하고,
 --         benefit_conflict_rule 은 엔진이 실행할 수 있는 subset 만 담는다)
 -- =====================================================================
+-- [v2.6] member_profile household_size 컬럼·CHECK 제거
 -- =====================================================================
 -- [v2.5] notification 테이블 noti_type 에 'SECURITY' 추가, ref_no 컬럼 추가
 --        (보안 알림을 계정 알림과 분리. 수신 거부 대상이 아니기 때문)
@@ -431,7 +432,6 @@ CREATE TABLE member_profile
     income           INT          NULL COMMENT '소득(실제값)',
     employ_status    CHAR(7)      NULL COMMENT '취업상태(jobCd 0013)',
     major            CHAR(7)      NULL COMMENT '전공(plcyMajorCd 0011)',
-    household_size   TINYINT      NULL COMMENT '가구원수(1 이상)',
     education        CHAR(7)      NULL COMMENT '학력(schoolCd 0049)',
     mrg_stts_cd      CHAR(7)      NULL COMMENT '결혼상태(mrgSttsCd 0055)',
     profile_img_path VARCHAR(255) NULL COMMENT '프로필이미지경로(경로/URL만 저장)',
@@ -451,8 +451,7 @@ CREATE TABLE member_profile
     CONSTRAINT chk_member_profile_job CHECK (employ_status LIKE '0013%' AND employ_status <> '0013010'),
     CONSTRAINT chk_member_profile_major CHECK (major LIKE '0011%' AND major <> '0011009'),
     CONSTRAINT chk_member_profile_school CHECK (education LIKE '0049%' AND education <> '0049010'),
-    CONSTRAINT chk_member_profile_mrg CHECK (mrg_stts_cd LIKE '0055%' AND mrg_stts_cd <> '0055003'),
-    CONSTRAINT chk_member_profile_household CHECK (household_size IS NULL OR household_size >= 1)
+    CONSTRAINT chk_member_profile_mrg CHECK (mrg_stts_cd LIKE '0055%' AND mrg_stts_cd <> '0055003')
 ) ENGINE = InnoDB
   DEFAULT CHARSET = utf8mb4
   COLLATE = utf8mb4_0900_ai_ci COMMENT ='회원 프로필';
@@ -813,7 +812,7 @@ CREATE TABLE sync_log_detail
 
 
 -- ---------------------------------------------------------------------
--- ai_prompt  (v2.6)
+-- ai_prompt  (v2.7)
 --
 --   AI 에게 주는 지시문을 코드가 아니라 DB 에서 관리한다.
 --   프롬프트를 고칠 때마다 재배포하지 않기 위한 것이고,

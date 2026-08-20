@@ -279,7 +279,7 @@ public class AdminServiceImpl implements AdminService {
             int durationMs = (int) (System.currentTimeMillis() - startTime);
 
             saveSyncLog(EXEC_TYPE_MANUAL, null, null, STATUS_SUCCESS,
-                    totalCnt, insertCnt, updateCnt, null, durationMs, memberNo, null);
+                    totalCnt, insertCnt, updateCnt, 0, null, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_SUCCESS,
@@ -291,7 +291,7 @@ public class AdminServiceImpl implements AdminService {
             String errorMsg = normalizeErrorMsg(e);
 
             saveSyncLog(EXEC_TYPE_MANUAL, null, null, STATUS_FAIL,
-                    0, 0, 0, errorMsg, durationMs, memberNo, null);
+                    0, 0, 0, 0, errorMsg, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_FAIL,
@@ -325,10 +325,12 @@ public class AdminServiceImpl implements AdminService {
                     benefitService.syncByFrstRegDtWithDetail(startDate, endDate);
 
             int totalCnt = syncResult.getTotalCount();
+            int deleteCnt = syncResult.getDeleteCount();
             int afterCount = adminMapper.countBenefits();
 
-            int insertCnt = estimateInsertCnt(beforeCount, afterCount, totalCnt);
-            int updateCnt = Math.max(0, totalCnt - insertCnt);
+            int upsertCnt = Math.max(0, totalCnt - deleteCnt);
+            int insertCnt = estimateInsertCnt(beforeCount, afterCount, upsertCnt);
+            int updateCnt = Math.max(0, upsertCnt - insertCnt);
             int durationMs = (int) (System.currentTimeMillis() - startTime);
 
             // 0건이면 '해당 기간에 정책이 없었는지'와 'API가 중단됐는지'를 구분할 수 없다.
@@ -338,7 +340,7 @@ public class AdminServiceImpl implements AdminService {
                         + "해당 기간에 등록된 정책이 없거나 외부 API 호출이 중단됐을 수 있습니다.";
 
                 saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_PARTIAL,
-                        0, 0, 0, partialMsg, durationMs, memberNo, null);
+                        0, 0, 0, 0, partialMsg, durationMs, memberNo, null);
 
                 return new SyncResultResDto(
                         STATUS_PARTIAL,
@@ -347,7 +349,7 @@ public class AdminServiceImpl implements AdminService {
             }
 
             saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_SUCCESS,
-                    totalCnt, insertCnt, updateCnt, null, durationMs, memberNo,
+                    totalCnt, insertCnt, updateCnt, deleteCnt, null, durationMs, memberNo,
                     syncResult.getItems());
 
             return new SyncResultResDto(
@@ -360,7 +362,7 @@ public class AdminServiceImpl implements AdminService {
             String errorMsg = normalizeErrorMsg(e);
 
             saveSyncLog(EXEC_TYPE_PERIOD, startDate, endDate, STATUS_FAIL,
-                    0, 0, 0, errorMsg, durationMs, memberNo, null);
+                    0, 0, 0, 0, errorMsg, durationMs, memberNo, null);
 
             return new SyncResultResDto(
                     STATUS_FAIL,
@@ -423,7 +425,8 @@ public class AdminServiceImpl implements AdminService {
     /** 로그 기록 실패가 동기화 자체를 실패로 만들지 않도록 분리 */
     private void saveSyncLog(String execType, String startDate, String endDate,
                              String resultStatus, int totalCnt, int insertCnt,
-                             int updateCnt, String errorMsg, int durationMs, Integer memberNo,
+                             int updateCnt, int deleteCnt, String errorMsg,
+                             int durationMs, Integer memberNo,
                              List<SyncedBenefitDTO> syncedItems) {
         try {
             SyncLogVO log = new SyncLogVO();
@@ -435,7 +438,7 @@ public class AdminServiceImpl implements AdminService {
             log.setInsertCnt(insertCnt);
             log.setUpdateCnt(updateCnt);
             log.setSkipCnt(0);          // upsert 방식이라 건너뛰는 건이 없다
-            log.setDeleteCnt(0);        // 관리자 실행은 전체 목록을 받지 않으므로 삭제 판정을 하지 않는다
+            log.setDeleteCnt(deleteCnt);
             log.setErrorMsg(truncate(errorMsg));
             log.setDurationMs(durationMs);
             log.setMemberNo(memberNo);
