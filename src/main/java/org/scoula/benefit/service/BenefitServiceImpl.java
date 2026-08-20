@@ -150,42 +150,28 @@ public class BenefitServiceImpl implements BenefitService {
         return null;
     }
 
-    private boolean shouldUpdateStatus(BenefitVO benefit) {
-        String aplyPrdSeCd = benefit.getAplyPrdSeCd();
+    private boolean shouldUpdateStatus(BenefitVO before, BenefitVO after) {
+        String aplyPrdSeCd = after.getAplyPrdSeCd();
 
-        // 0057002: 상시
-        // 상시는 계속 조회수와 상태 갱신
-        if ("0057002".equals(aplyPrdSeCd)) {
-            return true;
+        // 특정기간 정책은 시작일과 종료일을 모두 정상적으로 읽은 경우에만 갱신한다.
+        // 신규 정책은 upsert 시 안전하게 N으로 저장하지만, 기존 정책은 외부 데이터 형식이
+        // 일시적으로 깨졌다는 이유만으로 N 처리하지 않고 현재 상태를 유지한다.
+        if ("0057001".equals(aplyPrdSeCd)) {
+            LocalDate startDate = parseLocalDate(after.getApplyStartDate());
+            LocalDate endDate = parseLocalDate(after.getApplyEndDate());
+            if (startDate == null || endDate == null) {
+                return false;
+            }
         }
 
-        // 0057003: 마감
-        // 이미 마감 코드면 갱신하지 않음
-        if ("0057003".equals(aplyPrdSeCd)) {
+        // 이미 비활성 상태이고 이번 계산 결과도 N이면 다시 UPDATE하지 않는다.
+        // Y -> N으로 새롭게 마감되는 정책은 true가 되어 상태 변경과 로그가 남는다.
+        if (before != null
+                && "N".equals(before.getIsActive())
+                && "N".equals(after.getIsActive())) {
             return false;
         }
 
-        // 0057001: 특정기간
-        if ("0057001".equals(aplyPrdSeCd)) {
-            LocalDate today = LocalDate.now();
-
-            LocalDate endDate = parseLocalDate(benefit.getApplyEndDate());
-
-            // 종료일을 못 읽으면 마감 여부를 확정할 수 없으므로 일단 갱신 대상
-            if (endDate == null) {
-                return true;
-            }
-
-            // 종료일이 오늘보다 이전이면 이미 마감된 혜택이므로 갱신 제외
-            if (endDate.isBefore(today)) {
-                return false;
-            }
-
-            // 시작 전이거나 진행 중이면 계속 갱신
-            return true;
-        }
-
-        // 알 수 없는 코드면 안전하게 갱신 대상에 포함
         return true;
     }
 
@@ -616,6 +602,7 @@ public class BenefitServiceImpl implements BenefitService {
         int pageSize = 100;
 
         List<String> apiPlcyNoList = new ArrayList<>();
+        List<YouthPolicyApiItemDTO> allPolicies = new ArrayList<>();
 
         while (true) {
             YouthPolicyRequestDTO requestDTO = new YouthPolicyRequestDTO();
@@ -680,57 +667,13 @@ public class BenefitServiceImpl implements BenefitService {
                 break;
             }
 
+            // 페이지를 받는 즉시 DB를 변경하지 않는다. 전체 API 조회가 끝나기 전에
+            // 실패하면 이번 시도의 수집 데이터는 버리고 DB와 로그를 함께 보존한다.
+            allPolicies.addAll(policyList);
             for (YouthPolicyApiItemDTO item : policyList) {
-                if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
-                    result.skipCnt++;
-                    result.count++;
-                    continue;
+                if (item.getPlcyNo() != null && !item.getPlcyNo().trim().isEmpty()) {
+                    apiPlcyNoList.add(item.getPlcyNo());
                 }
-
-                apiPlcyNoList.add(item.getPlcyNo());
-
-                BenefitVO benefit = convertToBenefitVO(item);
-
-                int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
-
-                if (exists == 0) {
-                    System.out.println("[신규 저장 분기] " + item.getPlcyNo());
-
-                    benefitMapper.upsertBenefit(benefit);
-
-                    Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
-
-                    if (benefitNo != null) {
-                        saveBenefitMappings(benefitNo, item);
-
-                        // [상호 추가] 신규 등록 건을 상세에 남긴다
-                        result.items.add(new SyncedBenefitDTO(benefitNo, "I", null));
-                    }
-
-
-                    result.insertCnt++;
-                } else {
-                    benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
-
-                    if (shouldUpdateStatus(benefit)) {
-                        System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
-
-                        benefitMapper.updateBenefitStatusOnly(benefit);
-                        // [상호 추가] 갱신 건을 상세에 남긴다
-                        Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
-                        if (benefitNo != null) {
-                            result.items.add(new SyncedBenefitDTO(benefitNo, "U", null));
-                        }
-
-                        result.updateCnt++;
-                    } else {
-                        System.out.println("[마감 혜택 갱신 제외] " + item.getPlcyNo());
-
-                        result.skipCnt++;
-                    }
-                }
-
-                result.count++;
             }
 
             try {
@@ -751,7 +694,61 @@ public class BenefitServiceImpl implements BenefitService {
             pageNum++;
         }
 
-        if (result.completedSuccessfully && !apiPlcyNoList.isEmpty()) {
+        if (!result.completedSuccessfully) {
+            System.out.println("[자동 동기화 DB 반영 생략] Open API 전체 조회 미완료");
+            return result;
+        }
+
+        // 전체 API 조회가 성공한 뒤에만 DB 변경을 시작한다.
+        for (YouthPolicyApiItemDTO item : allPolicies) {
+            if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
+                result.skipCnt++;
+                result.count++;
+                continue;
+            }
+
+            BenefitVO benefit = convertToBenefitVO(item);
+            int exists = benefitMapper.existsBenefitByPlcyNo(item.getPlcyNo());
+
+            if (exists == 0) {
+                System.out.println("[신규 저장 분기] " + item.getPlcyNo());
+                benefitMapper.upsertBenefit(benefit);
+
+                Integer benefitNo = benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+                if (benefitNo != null) {
+                    saveBenefitMappings(benefitNo, item);
+                    result.items.add(new SyncedBenefitDTO(benefitNo, "I", null));
+                }
+                result.insertCnt++;
+            } else {
+                BenefitVO before = benefitMapper.findBenefitByPlcyNo(item.getPlcyNo());
+                benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
+
+                if (shouldUpdateStatus(before, benefit)) {
+                    System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
+                    benefitMapper.updateBenefitStatusOnly(benefit);
+
+                    BenefitVO after = benefitMapper.findBenefitByPlcyNo(item.getPlcyNo());
+                    Integer benefitNo = before != null
+                            ? before.getBenefitNo()
+                            : benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
+                    String changedSummary = buildStatusChangeSummary(before, after);
+                    if (benefitNo != null) {
+                        result.items.add(new SyncedBenefitDTO(
+                                benefitNo, "U", changedSummary));
+                    }
+                    result.updateCnt++;
+                } else {
+                    System.out.println("[기존 상태 유지] 상태 갱신 불필요 또는 신청기간 날짜 파싱 실패: "
+                            + item.getPlcyNo());
+                    result.skipCnt++;
+                }
+            }
+
+            result.count++;
+        }
+
+        if (!apiPlcyNoList.isEmpty()) {
             List<String> distinctApiPlcyNoList = apiPlcyNoList.stream()
                     .filter(plcyNo -> plcyNo != null && !plcyNo.trim().isEmpty())
                     .distinct()
@@ -778,10 +775,24 @@ public class BenefitServiceImpl implements BenefitService {
             result.deleteCnt += deletedCnt;
             result.count += deletedCnt;
         } else {
-            System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 실패 또는 API 목록 없음");
+            System.out.println("[Open API 삭제 혜택 비활성화 생략] API 목록 없음");
         }
 
         return result;
+    }
+
+    /**
+     * 자동 동기화는 기존 정책의 전체 데이터를 upsert하지 않고 상태와 조회수만 갱신한다.
+     * 실제 저장하지 않는 필드까지 변경됐다고 기록하지 않도록 노출 상태만 비교한다.
+     */
+    private String buildStatusChangeSummary(BenefitVO before, BenefitVO after) {
+        if (before == null || after == null) {
+            return null;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        appendIfChanged(sb, "노출상태", before.getIsActive(), after.getIsActive());
+        return sb.length() == 0 ? null : sb.toString();
     }
 
     // OPEN API 실패 후 재호출 메서드
