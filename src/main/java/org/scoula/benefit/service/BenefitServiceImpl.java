@@ -725,15 +725,22 @@ public class BenefitServiceImpl implements BenefitService {
                 benefitMapper.restoreBenefitFromApi(item.getPlcyNo());
 
                 if (shouldUpdateStatus(before, benefit)) {
-                    System.out.println("[기존 상태 갱신 분기] " + item.getPlcyNo());
-                    benefitMapper.updateBenefitStatusOnly(benefit);
+                    System.out.println("[기존 혜택 전체 갱신 분기] " + item.getPlcyNo());
+                    benefitMapper.upsertBenefit(benefit);
 
                     BenefitVO after = benefitMapper.findBenefitByPlcyNo(item.getPlcyNo());
                     Integer benefitNo = before != null
                             ? before.getBenefitNo()
                             : benefitMapper.findBenefitNoByPlcyNo(item.getPlcyNo());
-                    String changedSummary = buildStatusChangeSummary(before, after);
                     if (benefitNo != null) {
+                        saveBenefitMappings(benefitNo, item);
+                    }
+
+                    String changedSummary = buildAutoChangeSummary(before, after);
+                    // 자동 동기화 상세에는 실제 내용이 달라진 혜택만 저장한다.
+                    // 조회수만 바뀌거나 모든 값이 동일한 정책은 갱신 건수에는 포함하되
+                    // 상세 목록에서는 제외한다.
+                    if (benefitNo != null && changedSummary != null) {
                         result.items.add(new SyncedBenefitDTO(
                                 benefitNo, "U", changedSummary));
                     }
@@ -781,18 +788,56 @@ public class BenefitServiceImpl implements BenefitService {
         return result;
     }
 
-    /**
-     * 자동 동기화는 기존 정책의 전체 데이터를 upsert하지 않고 상태와 조회수만 갱신한다.
-     * 실제 저장하지 않는 필드까지 변경됐다고 기록하지 않도록 노출 상태만 비교한다.
-     */
-    private String buildStatusChangeSummary(BenefitVO before, BenefitVO after) {
+    /** 자동 동기화로 실제 변경된 API 원본 컬럼을 요약한다. 조회수는 상세에서 제외한다. */
+    private String buildAutoChangeSummary(BenefitVO before, BenefitVO after) {
         if (before == null || after == null) {
             return null;
         }
 
         StringBuilder sb = new StringBuilder();
         appendIfChanged(sb, "노출상태", before.getIsActive(), after.getIsActive());
-        return sb.length() == 0 ? null : sb.toString();
+        appendIfChanged(sb, "혜택명", before.getPlcyNm(), after.getPlcyNm());
+        appendIfChanged(sb, "카테고리", before.getCategoryCode(), after.getCategoryCode());
+        appendIfChanged(sb, "상세카테고리", before.getDetailCategoryCode(), after.getDetailCategoryCode());
+        appendIfChanged(sb, "주관기관", before.getSprvsnInstCdNm(), after.getSprvsnInstCdNm());
+        appendChangeMarker(sb, "지원대상", before.getTargetDesc(), after.getTargetDesc());
+        appendChangeMarker(sb, "지원내용", before.getPlcySprtCn(), after.getPlcySprtCn());
+        appendIfChanged(sb, "지원금액", toText(before.getSupportAmount()), toText(after.getSupportAmount()));
+        appendChangeMarker(sb, "신청방법", before.getPlcyAplyMthdCn(), after.getPlcyAplyMthdCn());
+        appendChangeMarker(sb, "제출서류", before.getSbmsnDcmntCn(), after.getSbmsnDcmntCn());
+        appendIfChanged(sb, "신청시작일", before.getApplyStartDate(), after.getApplyStartDate());
+        appendIfChanged(sb, "신청종료일", before.getApplyEndDate(), after.getApplyEndDate());
+        appendIfChanged(sb, "신청기간", before.getAplyYmd(), after.getAplyYmd());
+        appendIfChanged(sb, "신청기간구분", before.getAplyPrdSeCd(), after.getAplyPrdSeCd());
+        appendIfChanged(sb, "신청URL", before.getAplyUrlAddr(), after.getAplyUrlAddr());
+        appendIfChanged(sb, "참고URL", before.getRefUrlAddr1(), after.getRefUrlAddr1());
+        appendIfChanged(sb, "최소연령", toText(before.getSprtTrgtMinAge()), toText(after.getSprtTrgtMinAge()));
+        appendIfChanged(sb, "최대연령", toText(before.getSprtTrgtMaxAge()), toText(after.getSprtTrgtMaxAge()));
+        appendIfChanged(sb, "소득조건", before.getEarnCndSeCd(), after.getEarnCndSeCd());
+        appendIfChanged(sb, "최소소득", toText(before.getEarnMinAmt()), toText(after.getEarnMinAmt()));
+        appendIfChanged(sb, "최대소득", toText(before.getEarnMaxAmt()), toText(after.getEarnMaxAmt()));
+        appendChangeMarker(sb, "기타소득조건", before.getEarnEtcCn(), after.getEarnEtcCn());
+        appendIfChanged(sb, "혼인상태", before.getMrgSttsCd(), after.getMrgSttsCd());
+        appendChangeMarker(sb, "정책설명", before.getPlcyExplnCn(), after.getPlcyExplnCn());
+
+        if (sb.length() == 0) {
+            return null;
+        }
+        String summary = sb.toString();
+        return summary.length() > 500 ? summary.substring(0, 500) : summary;
+    }
+
+    /** 긴 본문 컬럼은 원문 전체를 로그에 싣지 않고 변경 사실만 기록한다. */
+    private void appendChangeMarker(StringBuilder sb, String label, String before, String after) {
+        String b = before == null ? "" : before.trim();
+        String a = after == null ? "" : after.trim();
+        if (b.equals(a)) {
+            return;
+        }
+        if (sb.length() > 0) {
+            sb.append(", ");
+        }
+        sb.append(label).append(" 변경");
     }
 
     // OPEN API 실패 후 재호출 메서드
