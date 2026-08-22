@@ -30,6 +30,18 @@ public interface AiPromptMapper {
             "FROM ai_prompt WHERE prompt_no = #{promptNo}")
     AiPromptVO findByNo(@Param("promptNo") int promptNo);
 
+    /**
+     * 키와 버전을 지정해 한 행을 가져온다.
+     *
+     * 사용중이 아닌 버전으로도 분석을 돌려야 할 때 쓴다.
+     * 본문과 버전 번호를 같은 행에서 한 번에 얻어야
+     * "v3 로 기록했는데 실제로는 v2 본문으로 분석" 같은 어긋남이 생기지 않는다.
+     */
+    @Select("SELECT prompt_no, prompt_key, version, content, memo, is_active, member_no, created_at " +
+            "FROM ai_prompt WHERE prompt_key = #{promptKey} AND version = #{version}")
+    AiPromptVO findByKeyAndVersion(@Param("promptKey") String promptKey,
+                                   @Param("version") Integer version);
+
     @Select("SELECT DISTINCT prompt_key FROM ai_prompt ORDER BY prompt_key")
     List<String> findKeys();
 

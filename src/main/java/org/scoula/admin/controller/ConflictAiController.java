@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.scoula.admin.dto.ConflictAiRunDto;
 import org.scoula.admin.service.ConflictAiService;
 import org.scoula.admin.service.ConflictGateService;
+import org.scoula.admin.service.ConflictPipelineService;
 import org.scoula.admin.service.ConflictReviewService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,6 +25,7 @@ public class ConflictAiController {
     private final ConflictAiService conflictAiService;
     private final ConflictGateService conflictGateService;
     private final ConflictReviewService conflictReviewService;
+    private final ConflictPipelineService conflictPipelineService;
 
     // ------------------------------------------------------------
     // 분석
@@ -41,6 +43,20 @@ public class ConflictAiController {
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "30") int limit) {
         return ResponseEntity.ok(conflictAiService.runAndSave(offset, limit));
+    }
+
+    /**
+     * 후보는 저장하지 않고 AI 가 말한 관계만 기록한다.
+     *
+     * 저장 경로를 바꾸기 전에 기록 쪽이 실제로 도는지 확인하는 통로다.
+     * 기본값을 작게 둔 이유는 이 경로가 확인용이기 때문이다.
+     * 대조나 판정, 규칙 생성으로 이어지지 않는다.
+     */
+    @PostMapping("/ai/shadow-run")
+    public ResponseEntity<ConflictAiRunDto> shadowRun(
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "5") int limit) {
+        return ResponseEntity.ok(conflictAiService.shadowRun(offset, limit));
     }
 
     // ------------------------------------------------------------
@@ -133,18 +149,8 @@ public class ConflictAiController {
      */
     @PostMapping("/ai/run-all")
     public ResponseEntity<Map<String, Object>> runAll() {
-
-        long started = System.currentTimeMillis();
-
-        ConflictAiRunDto run = conflictAiService.runAndSave(0, 0);
-        Map<String, Integer> cross = conflictGateService.crossCheck();
-        List<Map<String, Object>> gate = conflictGateService.applyGate();
-
-        Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("candidateTotal", run.getCandidateTotal());
-        out.put("analyzed", run.getStats() == null ? 0 : run.getStats().getTotal());
-        out.put("crossCheck", cross);
-        out.put("gate", gate);
-        out.put("durationMs", System.currentTimeMillis() - started);
-        return ResponseEntity.ok(out);
+        // 세 단계를 여기서 따로 부르면 각 단계가 사용중인 세대를 다시 조회한다.
+        // 실행 도중 다른 세대가 적용되면 단계마다 다른 세대를 보게 되므로
+        // 세대를 한 번만 정하는 일은 서비스 쪽에서 한다.
+        return ResponseEntity.ok(conflictPipelineService.runAll());
     }}

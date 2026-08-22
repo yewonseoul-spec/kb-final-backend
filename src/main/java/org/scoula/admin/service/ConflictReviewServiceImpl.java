@@ -1,6 +1,7 @@
 package org.scoula.admin.service;
 
 import lombok.RequiredArgsConstructor;
+import org.scoula.admin.constant.ConflictPromptKeys;
 import org.scoula.admin.domain.ConflictCandidateVO;
 import org.scoula.admin.mapper.ConflictCandidateMapper;
 import org.springframework.stereotype.Service;
@@ -16,16 +17,22 @@ import java.util.Map;
 public class ConflictReviewServiceImpl implements ConflictReviewService {
 
     private final ConflictCandidateMapper mapper;
+    private final PromptService promptService;
 
     /**
      * 검수 대기 목록.
      *
      * A 와 B 가 이미 특정된 것만 온다. 관리자가 고를 상대를 찾는 일은 없다.
+     *
+     * 지금 사용중인 세대만 보여준다.
+     * 준비 중인 세대의 결과가 섞이면 아직 적용하지도 않은 분석을
+     * 관리자가 판정하게 된다.
      */
     @Override
     public List<Map<String, Object>> queue() {
 
-        List<Map<String, Object>> rows = mapper.findReviewQueue();
+        List<Map<String, Object>> rows = mapper.findReviewQueue(
+                promptService.requireActiveVersion(ConflictPromptKeys.CONFLICT_DETECTION));
 
         for (Map<String, Object> row : rows) {
             Object raw = row.get("resolver_candidates");
@@ -145,32 +152,50 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
     public Map<String, Integer> publishRules() {
 
         List<ConflictCandidateVO> list = mapper.findConfirmedForRule();
-        int pair = 0, external = 0;
+        int pair = 0, external = 0, skippedAllowed = 0, failed = 0;
 
         for (ConflictCandidateVO c : list) {
 
-            String ruleText = ConflictRuleTextBuilder.build(c);
-            String type = ConflictRuleTextBuilder.toConflictType(c);
-
-            boolean asPair = c.getMappedBenefitNo() != null
-                    && "CONFIRMED_BLOCK".equals(c.getEnforcementState());
-
-            if (!asPair) {
-                // trigger 가 NULL 이면 MySQL 이 UNIQUE 중복을 허용하므로
-                // 저장 전에 같은 내용의 규칙이 있는지 직접 확인한다
-                if (mapper.countExternalRule(c.getSourceBenefitNo(), ruleText) > 0) {
-                    continue;
-                }
-                if (mapper.insertRule(null, c.getSourceBenefitNo(), "확인필요", ruleText) > 0) {
-                    external++;
-                }
+            // 함께 받을 수 있다고 적힌 관계는 제한 규칙이 될 수 없다.
+            // Gate 가 이미 확정 대상에서 빼지만 실행 계층에서 한 번 더 막는다.
+            // 사용자 추천을 실제로 바꾸는 마지막 지점이기 때문이다.
+            if ("ALLOWED".equals(c.getRelation())) {
+                skippedAllowed++;
+                System.out.println("[Rule 생성] 허용 관계라 건너뜀 candidate_no="
+                        + c.getCandidateNo() + " source=" + c.getSourceBenefitNo());
                 continue;
             }
 
-            int a = Math.min(c.getSourceBenefitNo(), c.getMappedBenefitNo());
-            int b = Math.max(c.getSourceBenefitNo(), c.getMappedBenefitNo());
-            if (mapper.insertRule(a, b, type, ruleText) > 0) {
-                pair++;
+            try {
+                String ruleText = ConflictRuleTextBuilder.build(c);
+                String type = ConflictRuleTextBuilder.toConflictType(c);
+
+                boolean asPair = c.getMappedBenefitNo() != null
+                        && "CONFIRMED_BLOCK".equals(c.getEnforcementState());
+
+                if (!asPair) {
+                    // trigger 가 NULL 이면 MySQL 이 UNIQUE 중복을 허용하므로
+                    // 저장 전에 같은 내용의 규칙이 있는지 직접 확인한다
+                    if (mapper.countExternalRule(c.getSourceBenefitNo(), ruleText) > 0) {
+                        continue;
+                    }
+                    if (mapper.insertRule(null, c.getSourceBenefitNo(), "확인필요", ruleText) > 0) {
+                        external++;
+                    }
+                    continue;
+                }
+
+                int a = Math.min(c.getSourceBenefitNo(), c.getMappedBenefitNo());
+                int b = Math.max(c.getSourceBenefitNo(), c.getMappedBenefitNo());
+                if (mapper.insertRule(a, b, type, ruleText) > 0) {
+                    pair++;
+                }
+
+            } catch (Exception e) {
+                // 한 건이 잘못됐다고 나머지 규칙 생성까지 멈추면 안 된다
+                failed++;
+                System.out.println("[Rule 생성] 실패 candidate_no="
+                        + c.getCandidateNo() + " / " + e.getMessage());
             }
         }
 
@@ -178,6 +203,8 @@ public class ConflictReviewServiceImpl implements ConflictReviewService {
         out.put("candidate", list.size());
         out.put("pairRule", pair);
         out.put("externalWarning", external);
+        out.put("skippedAllowed", skippedAllowed);
+        out.put("failed", failed);
         System.out.println("[Rule 생성] " + out);
         return out;
     }

@@ -12,7 +12,7 @@ public class BenefitSyncScheduler {
     private final BenefitService benefitService;
 
     // 매일 오후 11시 실행
-    @Scheduled(cron = "0 1/10 * * * *", zone = "Asia/Seoul")
+    @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Seoul")
     public void syncDailyYouthPolicies() {
         int count = benefitService.syncDailyYouthPolicies();
 

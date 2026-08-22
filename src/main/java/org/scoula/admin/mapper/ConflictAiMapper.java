@@ -43,6 +43,22 @@ public interface ConflictAiMapper {
     ConflictAiSourceDto findSourceByBenefitNo(@Param("benefitNo") int benefitNo);
 
     /**
+     * [상호 추가] 관리자 프롬프트 시험 실행용.
+     *
+     * 화면 입력을 benefit_no 에서 plcy_no 로 바꾸면서 필요해졌다.
+     * benefit_no 는 DB 를 다시 적재하면 전부 재배정되어, 화면에 적어둔 예시 번호가
+     * 어느 순간 엉뚱한 정책을 가리키게 된다. 실제로 그런 일이 있었다.
+     * plcy_no 는 온통청년이 부여한 번호라 재적재해도 그대로이고
+     * 온통청년 공고에서 대조할 수도 있다.
+     *
+     * plcy_no 는 20자리 숫자 문자열이라 int 가 아니라 String 으로 받는다.
+     */
+    @Select("SELECT benefit_no, plcy_nm, sprvsn_inst_cd_nm, " +
+            "       plcy_sprt_cn, plcy_aply_mthd_cn, target_desc, earn_etc_cn, is_active " +
+            "FROM benefit WHERE plcy_no = #{plcyNo}")
+    ConflictAiSourceDto findSourceByPlcyNo(@Param("plcyNo") String plcyNo);
+
+    /**
      * 정책명 사전. 2,717건이라 통째로 메모리에 올려도 부담이 없다.
      * SQL 에서 정규화 비교를 하려면 REPLACE 중첩이 되어 읽기도 고치기도 어렵다.
      */

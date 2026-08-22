@@ -61,6 +61,43 @@ public class PromptServiceImpl implements PromptService {
         }
     }
 
+    /**
+     * 저장을 동반하는 경로에서 쓴다.
+     *
+     * 활성 버전이 없는 상태에서 분석을 계속하면
+     * prompt_version 이 비어 있는 Candidate 가 쌓이고,
+     * 그 행은 세대별 조회 어디에도 걸리지 않아 조용히 묻힌다.
+     * 그래서 여기서 멈춘다.
+     */
+    @Override
+    public Integer requireActiveVersion(String promptKey) {
+        Integer version = getActiveVersion(promptKey);
+        if (version == null) {
+            throw new IllegalStateException(
+                    "사용중인 프롬프트 버전이 없어 분석을 진행할 수 없습니다: " + promptKey);
+        }
+        return version;
+    }
+
+    /**
+     * 사용중이 아닌 버전도 가져온다.
+     *
+     * 새 버전을 활성화하기 전에 결과를 먼저 쌓아보려면
+     * 활성 버전을 건드리지 않고 그 버전으로 분석할 수 있어야 한다.
+     */
+    @Override
+    public AiPromptVO getVersion(String promptKey, Integer version) {
+        if (version == null) {
+            throw new IllegalArgumentException("프롬프트 버전을 지정해야 합니다: " + promptKey);
+        }
+        AiPromptVO prompt = aiPromptMapper.findByKeyAndVersion(promptKey, version);
+        if (prompt == null) {
+            throw new IllegalStateException(
+                    "해당 프롬프트 버전이 없습니다: " + promptKey + " v" + version);
+        }
+        return prompt;
+    }
+
     @Override
     public List<AiPromptVO> getVersions(String promptKey) {
         return aiPromptMapper.findVersions(promptKey);
