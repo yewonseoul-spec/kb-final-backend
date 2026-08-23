@@ -1,4 +1,15 @@
 -- =====================================================================
+-- [v2.8] AI 관측 원본 보존층
+--        benefit_conflict_analysis_run 테이블 신설 (AI 를 부른 사실 자체를 남긴다)
+--        benefit_conflict_observation 테이블 신설 (AI 가 말한 관계를 정리 이전 원본으로 남긴다)
+--        benefit_conflict_candidate 에 canonical_run_no / reconciliation_status /
+--        observation_count 컬럼 추가 (정리 결과를 관측과 이어붙인다)
+--        (같은 정책을 다시 분석해 결과가 달라졌을 때
+--         AI 가 다르게 말한 것인지 정리 규칙이 다르게 접은 것인지 구분하기 위해서다)
+--        ★ 팀 대화에서는 이 변경을 「v2.7」이라고 불렀다.
+--          아래 [v2.7] 이 이미 다른 변경을 가리키고 있어 번호를 올렸다.
+--          증분 스크립트 : db/migration/v2.8_conflict_observation.sql
+-- =====================================================================
 -- [v2.7] AI 중복수혜 자동분류 + 프롬프트 관리
 --        ai_prompt 테이블 신설 (AI 지시문을 코드가 아니라 DB에서 버전 관리)
 --        benefit_conflict_candidate 테이블 신설 (AI 분석 결과 보존층)
@@ -80,6 +91,11 @@ SET NAMES utf8mb4;
 -- ---------------------------------------------------------------------
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS benefit_conflict_candidate;
+-- (v2.8) 아래 둘은 FK 때문에 순서가 있다.
+--        observation 과 candidate 가 analysis_run 을 참조하므로
+--        analysis_run 을 마지막에 지운다.
+DROP TABLE IF EXISTS benefit_conflict_observation;
+DROP TABLE IF EXISTS benefit_conflict_analysis_run;
 DROP TABLE IF EXISTS ai_prompt;
 DROP TABLE IF EXISTS sync_log_detail;
 DROP TABLE IF EXISTS sync_log;
@@ -843,6 +859,120 @@ CREATE TABLE ai_prompt
 
 
 -- ---------------------------------------------------------------------
+-- benefit_conflict_analysis_run  (v2.8)
+--
+--   AI 를 한 번 부른 사실 자체를 남긴다.
+--   응답이 비어 있어도, 실패해도 행이 생긴다.
+--   「분석했는데 관계가 없었다」와 「분석을 못 했다」를 구분하기 위해서다.
+--
+--   is_current 를 CHAR(1) NULL 로 둔 이유
+--     MySQL 은 UNIQUE 에서 NULL 중복을 허용한다.
+--     그래서 (정책, 프롬프트, 세대) 당 현재 실행은 'Y' 하나만 존재하고
+--     지난 실행은 NULL 로 얼마든지 쌓일 수 있다.
+--     CHECK 로 'Y' 외의 값을 막아 두었다.
+-- ---------------------------------------------------------------------
+CREATE TABLE benefit_conflict_analysis_run
+(
+    run_no              INT          NOT NULL AUTO_INCREMENT COMMENT '실행번호',
+
+    source_benefit_no   INT          NOT NULL COMMENT '분석한 정책',
+    prompt_key          VARCHAR(50)  NOT NULL COMMENT 'CONFLICT_DETECTION 등',
+    prompt_version      INT          NOT NULL COMMENT 'ai_prompt.version',
+    source_text_hash    CHAR(64)     NOT NULL COMMENT '분석 대상 본문의 SHA-256',
+    model_name          VARCHAR(50)  NULL COMMENT '분석에 쓴 모델',
+
+    extraction_status   VARCHAR(30)  NOT NULL DEFAULT 'STARTED' COMMENT 'STARTED/OBSERVATIONS_READY/PARTIAL/FAILED. AI 재호출 판단용',
+    canonical_status    VARCHAR(30)  NOT NULL DEFAULT 'PENDING' COMMENT 'PENDING/READY/FAILED/NOT_SELECTED. 실행 근거 사용 가능 여부',
+    is_current          CHAR(1)      NULL COMMENT 'Y 또는 NULL. 현재 실행 세대',
+
+    relations_extracted INT          NOT NULL DEFAULT 0 COMMENT 'AI 가 반환한 관계 수',
+    observations_saved  INT          NOT NULL DEFAULT 0 COMMENT '관측 저장 성공',
+    observations_failed INT          NOT NULL DEFAULT 0 COMMENT '관측 저장 실패',
+    candidates_written  INT          NOT NULL DEFAULT 0 COMMENT '정리 결과로 쓴 후보 수',
+
+    failure_reason      VARCHAR(500) NULL COMMENT '실패 사유',
+
+    started_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    completed_at        DATETIME     NULL,
+
+    PRIMARY KEY (run_no),
+    CONSTRAINT fk_run_source FOREIGN KEY (source_benefit_no)
+        REFERENCES benefit (benefit_no),
+    -- 현재 세대는 (정책, 프롬프트, 버전) 당 하나뿐이다. 지난 실행은 is_current NULL 로 쌓인다.
+    CONSTRAINT uk_run_current UNIQUE (source_benefit_no, prompt_key, prompt_version, is_current),
+    CONSTRAINT chk_run_extraction CHECK (extraction_status IN ('STARTED', 'OBSERVATIONS_READY', 'PARTIAL', 'FAILED')),
+    CONSTRAINT chk_run_canonical CHECK (canonical_status IN ('PENDING', 'READY', 'FAILED', 'NOT_SELECTED')),
+    CONSTRAINT chk_run_current CHECK (is_current = 'Y'),
+    KEY idx_run_lookup (source_benefit_no, prompt_version, source_text_hash, extraction_status)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci COMMENT ='AI 중복수혜 분석 실행 이력';
+
+
+-- ---------------------------------------------------------------------
+-- benefit_conflict_observation  (v2.8)
+--
+--   AI 가 말한 관계를 정리하기 전 원본 그대로 남긴다.
+--
+--   dedupe_key 가 UNIQUE 가 아닌 이유
+--     Candidate 쪽 dedupe_key 는 중복을 막는 열쇠지만
+--     여기서는 같은 의미의 관측을 묶어 보기 위한 표시일 뿐이다.
+--     한 실행 안에서 AI 가 같은 관계를 두 번 말하는 일이 실제로 있고,
+--     그것도 관측이므로 지우지 않는다.
+--
+--   observation_index
+--     AI 응답 배열 안에서의 순번이다.
+--     (run_no, observation_index) 를 UNIQUE 로 묶어
+--     같은 실행을 두 번 저장하는 사고를 막는다.
+-- ---------------------------------------------------------------------
+CREATE TABLE benefit_conflict_observation
+(
+    observation_no            INT           NOT NULL AUTO_INCREMENT COMMENT '관측번호',
+
+    run_no                    INT           NOT NULL COMMENT '어느 실행에서 나왔는가',
+    observation_index         INT           NOT NULL COMMENT 'AI 응답 안에서의 순번',
+    source_benefit_no         INT           NOT NULL COMMENT '이 문장이 실린 정책',
+
+    scope                     VARCHAR(20)   NOT NULL COMMENT 'OTHER_POLICY/SAME_POLICY/NOT_CONFLICT/UNCERTAIN/ERROR',
+    relation                  VARCHAR(20)   NULL COMMENT 'FORBIDDEN/CONDITIONAL/ALLOWED',
+
+    target_name_raw           VARCHAR(300)  NULL COMMENT '본문에 적힌 상대 정책명 그대로',
+    target_category_raw       VARCHAR(300)  NULL COMMENT '범주로만 적혔을 때 그 표현 그대로',
+
+    direction                 VARCHAR(20)   NULL COMMENT 'BIDIRECTIONAL/SOURCE_TO_TARGET/UNKNOWN',
+    timing                    VARCHAR(20)   NULL COMMENT 'CURRENT/PAST/CURRENT_OR_PAST/UNKNOWN',
+    subject_scope             VARCHAR(20)   NULL COMMENT 'APPLICANT/HOUSEHOLD/UNKNOWN',
+    restriction_stage         VARCHAR(30)   NULL COMMENT 'APPLICATION/SELECTION/BENEFIT_RECEIPT/HISTORY/UNKNOWN',
+    combination_applicability VARCHAR(10)   NULL COMMENT 'YES/NO/UNKNOWN',
+    trigger_scope             VARCHAR(20)   NULL COMMENT 'APPLIED/APPROVED/CURRENT/PAST/UNKNOWN',
+
+    condition_type            VARCHAR(30)   NULL COMMENT 'AI 가 말한 값 그대로',
+    condition_text            VARCHAR(500)  NULL COMMENT '조건부일 때 그 조건 문장',
+
+    evidence_text             TEXT          NULL COMMENT '판단 근거가 된 본문 문장 원문',
+    evidence_verified         CHAR(1)       NOT NULL DEFAULT 'N' COMMENT '추출한 이름이 근거 문장에 있는가',
+    confidence                DECIMAL(4, 3) NULL COMMENT 'AI 자기보고. 판정에 쓰지 않는다',
+
+    dedupe_key                VARCHAR(300)  NOT NULL COMMENT '의미 기반 묶음 키. UNIQUE 아님',
+
+    created_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (observation_no),
+    CONSTRAINT fk_observation_run FOREIGN KEY (run_no)
+        REFERENCES benefit_conflict_analysis_run (run_no),
+    CONSTRAINT fk_observation_source FOREIGN KEY (source_benefit_no)
+        REFERENCES benefit (benefit_no),
+    -- 같은 실행을 두 번 저장하는 사고를 막는다. 의미 중복은 막지 않는다.
+    CONSTRAINT uk_observation_index UNIQUE (run_no, observation_index),
+    CONSTRAINT chk_observation_scope CHECK (scope IN ('OTHER_POLICY', 'SAME_POLICY', 'NOT_CONFLICT', 'UNCERTAIN', 'ERROR')),
+    CONSTRAINT chk_observation_evidence CHECK (evidence_verified IN ('Y', 'N')),
+    KEY idx_observation_group (run_no, dedupe_key)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4
+  COLLATE = utf8mb4_0900_ai_ci COMMENT ='AI 가 반환한 원본 관계(정리 이전)';
+
+
+-- ---------------------------------------------------------------------
 -- benefit_conflict_candidate  (v2.6)
 --
 --   AI 가 공고문에서 찾아낸 중복수혜 관계를 담는다.
@@ -916,6 +1046,12 @@ CREATE TABLE benefit_conflict_candidate
 
     dedupe_key                VARCHAR(300)  NOT NULL COMMENT '의미 기반 중복 방지 키',
 
+    -- (v2.8) 관측 원본 보존층과 이어붙이는 컬럼.
+    --        이 세 값은 정리 결과가 어느 실행에서 몇 건을 접은 것인지를 남긴다.
+    canonical_run_no          INT           NULL COMMENT '이 후보를 만든 분석 실행',
+    reconciliation_status     VARCHAR(20)   NULL COMMENT 'STABLE/CONFLICTING. 자동 판단에 쓰는 값에서 관측이 갈렸는가',
+    observation_count         INT           NULL COMMENT '몇 건의 관측을 정리한 결과인가',
+
     created_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at                DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -931,6 +1067,10 @@ CREATE TABLE benefit_conflict_candidate
     CONSTRAINT chk_candidate_analysis CHECK (analysis_status IN ('SUCCESS', 'FAILED', 'STALE')),
     CONSTRAINT chk_candidate_enforcement CHECK (enforcement_state IN ('NONE', 'PENDING_BLOCK', 'CONFIRMED_BLOCK', 'WARNING')),
     CONSTRAINT chk_candidate_evidence CHECK (evidence_verified IN ('Y', 'N')),
+    -- (v2.8) 정리 이전 관측으로 되돌아갈 수 있게 실행을 가리킨다.
+    CONSTRAINT fk_candidate_run FOREIGN KEY (canonical_run_no)
+        REFERENCES benefit_conflict_analysis_run (run_no),
+    CONSTRAINT chk_candidate_reconciliation CHECK (reconciliation_status IN ('STABLE', 'CONFLICTING')),
     KEY idx_candidate_source (source_benefit_no),
     KEY idx_candidate_mapped (mapped_benefit_no),
     KEY idx_candidate_enforce (enforcement_state),
