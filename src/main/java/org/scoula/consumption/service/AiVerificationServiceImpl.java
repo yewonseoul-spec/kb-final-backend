@@ -37,13 +37,30 @@ public class AiVerificationServiceImpl implements AiVerificationService {
 
     @Override
     public AiVerdictDTO verify(String requestJson, String responseJson) {
+        // [상호 수정] 본문을 아래 오버로드로 옮기고 여기서는 null 을 넘겨 호출만 합니다.
+        //            null 이면 예전과 똑같이 DB 활성 버전을 읽으므로 동작은 변하지 않습니다.
+        return verify(requestJson, responseJson, null);
+    }
+
+    /**
+     * [상호 추가] 관리자 프롬프트 시험 실행용 오버로드.
+     *
+     * systemPromptOverride 에 값이 있으면 그것을 쓰고,
+     * 없으면 기존과 같이 DB 활성 버전(없으면 코드 상수)을 씁니다.
+     */
+    @Override
+    public AiVerdictDTO verify(String requestJson, String responseJson, String systemPromptOverride) {
         try {
             String userMessage = "원본 데이터: " + requestJson + "\n\n분석 결과: " + responseJson;
 
             // [상호 수정] AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT 를 직접 쓰던 것을
             //            DB 조회로 바꿨습니다. DB에 값이 없으면 기존 상수를 그대로 씁니다.
-            String systemPrompt = promptService.getOrDefault(
-                    "CONSUMPTION_VERIFICATION", AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT);
+            String systemPrompt =
+                    (systemPromptOverride != null && !systemPromptOverride.isBlank())
+                            ? systemPromptOverride
+                            : promptService.getOrDefault(
+                            "CONSUMPTION_VERIFICATION",
+                            AiVerificationPrompt.VERIFICATION_SYSTEM_PROMPT);
 
             Map<String, Object> requestBody = Map.of(
                     "model", model,

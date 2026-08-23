@@ -79,21 +79,68 @@ public final class ConflictNormalizer {
         return s == null || s.trim().isEmpty();
     }
 
-    /** dedupe_key 생성. 같은 의미가 두 번 저장되지 않게 한다 */
-    public static String buildDedupeKey(Integer sourceNo, Integer mappedNo,
-                                        String direction, String category,
-                                        String timing, String subject) {
-        if (mappedNo != null) {
-            if ("BIDIRECTIONAL".equals(direction)) {
-                int a = Math.min(sourceNo, mappedNo);
-                int b = Math.max(sourceNo, mappedNo);
-                return "PAIR:BIDIR:" + a + ":" + b;
-            }
-            return "PAIR:DIR:" + sourceNo + ":" + mappedNo;
+    /**
+     * dedupe_key 생성. 같은 의미가 두 번 저장되지 않게 한다.
+     *
+     * 여기 들어가는 것은 "이 공고문이 누구에 대해 어떤 관계를 말했는가" 뿐이다.
+     *
+     * timing·subject·restrictionStage·direction 은 넣지 않는다.
+     * 같은 본문을 다시 분석해도 값이 흔들릴 수 있기 때문이다.
+     * 실제로 같은 정책·같은 본문·같은 프롬프트인데 timing 만 달라
+     * 두 행으로 저장된 사례가 여러 정책에서 나왔다.
+     * 흔들리는 값을 키에 넣으면 같은 관계가 실행할 때마다 쌓인다.
+     *
+     * mappedBenefitNo 도 넣지 않는다.
+     * 그 값은 Resolver 가 나중에 채우거나 바꾸는 것이라,
+     * 키에 넣으면 매칭 상태가 변할 때 같은 추출 사실의 정체성이 바뀐다.
+     *
+     * 대신 상대 이름을 넣는다.
+     * 예전에는 이름이 키에 없어서 한 공고가 지목한 서로 다른 외부 제도 둘이
+     * 같은 키가 되어 하나가 조용히 사라질 수 있었다.
+     *
+     * 개별쌍을 min/max 로 묶는 것은 Rule 쪽 표현이다.
+     * A 공고가 B 를 말한 것과 B 공고가 A 를 말한 것은
+     * 서로 다른 공식 근거이므로 Candidate 에서는 합치지 않는다.
+     */
+    public static String buildDedupeKey(Integer sourceNo, String relation,
+                                        String targetName, String category) {
+
+        String rel = isBlank(relation) ? "UNKNOWN" : relation.trim();
+
+        if (!isBlank(targetName)) {
+            return "NAME:" + sourceNo + ":" + rel + ":" + compact(targetName);
         }
-        return "WARN:" + sourceNo + ":"
-                + (isBlank(category) ? "NONE" : compact(category)) + ":"
-                + (isBlank(timing) ? "UNKNOWN" : timing) + ":"
-                + (isBlank(subject) ? "UNKNOWN" : subject);
+        return "CAT:" + sourceNo + ":" + rel + ":"
+                + (isBlank(category) ? "NONE" : compact(category));
+    }
+
+    /**
+     * 상대 지목을 이름과 범주로 가른 결과.
+     *
+     * AI 가 targetName 에 범주 표현을 계속 넣어서 저장 단계에서 옮겨 담는데,
+     * 그 계산이 후보 저장과 관측 기록 두 곳에서 필요하다.
+     * 두 곳이 각자 계산하면 한쪽만 고쳤을 때 조용히 어긋나고,
+     * 그러면 같은 AI 출력이 서로 다른 키를 갖게 된다.
+     */
+    public record TargetIdentity(String name, String category) {}
+
+    /**
+     * targetName 이 고유 정책명이 아니면 범주 쪽으로 옮긴다.
+     *
+     * 옮길 범주가 이미 있으면 그것을 쓰고, 없으면 이름을 그대로 범주로 삼는다.
+     * 이름이 범주였다는 사실 자체가 정보이므로 버리지 않는다.
+     *
+     * 이 메서드는 기존 저장 로직에서 그대로 뽑아낸 것이다.
+     * 값이 달라지면 안 되므로 뽑아내기 전후를 비교하는 테스트가 함께 있다.
+     */
+    public static TargetIdentity normalizeTarget(String targetName, String targetCategory) {
+        String name = targetName;
+        String category = targetCategory;
+
+        if (!isRealPolicyName(name)) {
+            if (isBlank(category)) category = name;
+            name = null;
+        }
+        return new TargetIdentity(name, isBlank(category) ? null : category);
     }
 }

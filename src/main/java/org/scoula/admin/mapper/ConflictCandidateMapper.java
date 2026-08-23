@@ -64,28 +64,53 @@ public interface ConflictCandidateMapper {
     // Cross-check
     // ------------------------------------------------------------
 
-    /** Cross-check 대상. 우리 DB 정책으로 연결됐고 근거도 확인된 것만 */
+    /**
+     * Cross-check 대상. 우리 DB 정책으로 연결됐고 근거도 확인된 것만.
+     *
+     * 세대를 지정해서 가져온다.
+     * 상호 대조는 같은 프롬프트로 분석한 것끼리 해야 의미가 있는데,
+     * 세대를 가리지 않으면 예전 분석 결과가 근거로 섞여 들어온다.
+     * 낡음으로 표시된 행도 현재 실행에서는 쓰지 않는다.
+     */
     @Select("SELECT candidate_no, source_benefit_no, mapped_benefit_no, direction, " +
             "       relation, combination_applicability, target_name_raw " +
             "FROM benefit_conflict_candidate " +
             "WHERE resolver_result = 'UNIQUE_MATCH' AND evidence_verified = 'Y' " +
             "  AND workflow_status = 'UNRESOLVED' " +
+            "  AND analysis_status = 'SUCCESS' " +
+            "  AND prompt_version = #{promptVersion} " +
             "ORDER BY candidate_no")
-    List<ConflictCandidateVO> findCrosscheckTargets();
+    List<ConflictCandidateVO> findCrosscheckTargets(@Param("promptVersion") Integer promptVersion);
 
     /**
-     * 상대 정책이 나를 되짚었는가.
-     * 상대 공고문이 독립적으로 같은 관계를 말했다면 양방향 근거가 된다.
-     * AI 한 쪽만 보고는 절대 알 수 없는 정보다.
+     * 한 공고가 상대 하나에 대해 말한 근거를 전부 가져온다.
+     *
+     * 예전에는 관계 하나만 LIMIT 1 로 뽑았는데,
+     * 한 공고가 같은 상대에 대해 "원칙은 불가, 다만 이 경우는 가능" 처럼
+     * 여러 관계를 말할 수 있어 어느 것이 뽑힐지 정해지지 않았다.
+     *
+     * 관계 종류로 미리 좁히지 않는다.
+     * 금지 근거만 골라 오면 같은 공고에 있는 허용 근거를 못 보게 되고,
+     * 그러면 상충하는 상태를 상호 확인으로 잘못 읽는다.
+     * 무엇을 쓸지는 가져온 뒤 자바에서 정한다.
+     *
+     * from 이 말한 to 에 대한 근거를 찾는다.
+     * 반대편 근거가 필요하면 두 번호를 바꿔 부르면 된다.
      */
-    @Select("SELECT relation FROM benefit_conflict_candidate " +
-            "WHERE source_benefit_no = #{mappedNo} AND mapped_benefit_no = #{sourceNo} " +
-            "  AND evidence_verified = 'Y' LIMIT 1")
-    String findCounterpartRelation(@Param("sourceNo") int sourceNo,
-                                   @Param("mappedNo") int mappedNo);
-
-    @Select("SELECT COUNT(*) FROM benefit_conflict_candidate WHERE source_benefit_no = #{benefitNo}")
-    int countBySource(@Param("benefitNo") int benefitNo);
+    @Select("SELECT candidate_no, source_benefit_no, mapped_benefit_no, relation," +
+            "       workflow_status, review_reason, evidence_verified, resolver_result," +
+            "       condition_type, combination_applicability, crosscheck_result," +
+            "       analysis_status, prompt_version " +
+            "FROM benefit_conflict_candidate " +
+            "WHERE source_benefit_no = #{fromBenefitNo} " +
+            "  AND mapped_benefit_no = #{toBenefitNo} " +
+            "  AND analysis_status = 'SUCCESS' " +
+            "  AND prompt_version = #{promptVersion} " +
+            "  AND evidence_verified = 'Y' " +
+            "ORDER BY candidate_no")
+    List<ConflictCandidateVO> findPairEvidence(@Param("fromBenefitNo") int fromBenefitNo,
+                                               @Param("toBenefitNo") int toBenefitNo,
+                                               @Param("promptVersion") Integer promptVersion);
 
     @Update("UPDATE benefit_conflict_candidate SET crosscheck_result = #{result}, " +
             "       direction = #{direction} WHERE candidate_no = #{candidateNo}")
@@ -93,23 +118,26 @@ public interface ConflictCandidateMapper {
                          @Param("result") String result,
                          @Param("direction") String direction);
 
-    /** 상호 확인된 관계는 한쪽의 강한 근거를 반대편에도 적용한다 */
-    @Update("UPDATE benefit_conflict_candidate SET combination_applicability = 'YES' " +
-            "WHERE source_benefit_no = #{sourceNo} AND mapped_benefit_no = #{mappedNo} " +
-            "  AND combination_applicability <> 'YES'")
-    int propagateApplicability(@Param("sourceNo") int sourceNo,
-                               @Param("mappedNo") int mappedNo);
+    // combination_applicability 를 반대편 Candidate 에 옮겨 적던 propagateApplicability 는
+    // 제거했다. 그 값은 각 공고문이 스스로 무엇을 말했는지를 담는 자리인데,
+    // 상호 확인이 됐다는 이유로 반대편 값을 덮어쓰면
+    // 그 공고가 실제로 한 말이 사라진다.
+    // 개별쌍 규칙은 한쪽 Candidate 가 확정되면 만들어지므로 옮겨 적을 이유도 없다.
 
     // ------------------------------------------------------------
     // Gate
     // ------------------------------------------------------------
 
+    /** 판정 대상. 지정한 세대의 유효한 분석만 본다 */
     @Select("SELECT candidate_no, source_benefit_no, mapped_benefit_no, target_name_raw," +
             "       target_category_raw, relation, direction, timing, subject_scope," +
             "       restriction_stage, combination_applicability, condition_type," +
             "       evidence_verified, resolver_result, crosscheck_result " +
-            "FROM benefit_conflict_candidate WHERE workflow_status = 'UNRESOLVED'")
-    List<ConflictCandidateVO> findUnresolved();
+            "FROM benefit_conflict_candidate " +
+            "WHERE workflow_status = 'UNRESOLVED' " +
+            "  AND analysis_status = 'SUCCESS' " +
+            "  AND prompt_version = #{promptVersion}")
+    List<ConflictCandidateVO> findUnresolved(@Param("promptVersion") Integer promptVersion);
 
     /**
      * 폐기 이유도 함께 저장한다.
@@ -164,10 +192,12 @@ public interface ConflictCandidateMapper {
             "  AND evidence_verified = 'Y' " +
             "  AND resolve_retry_cnt < 30 " +
             "  AND decided_by IS NULL " +
+            "  AND analysis_status = 'SUCCESS' " +
+            "  AND prompt_version = #{promptVersion} " +
             "  AND ( workflow_status = 'PENDING_DATA' " +
             "     OR (workflow_status = 'CONFIRMED' AND enforcement_state = 'WARNING') ) " +
             "ORDER BY candidate_no")
-    List<ConflictCandidateVO> findResolvableAgain();
+    List<ConflictCandidateVO> findResolvableAgain(@Param("promptVersion") Integer promptVersion);
 
     @Update("UPDATE benefit_conflict_candidate SET " +
             "  mapped_benefit_no = #{mappedNo}, resolver_result = #{result}," +
@@ -216,12 +246,14 @@ public interface ConflictCandidateMapper {
             "JOIN benefit b1 ON b1.benefit_no = c.source_benefit_no " +
             "LEFT JOIN benefit b2 ON b2.benefit_no = c.mapped_benefit_no " +
             "WHERE c.workflow_status = 'REVIEW_REQUIRED' " +
+            "  AND c.analysis_status = 'SUCCESS' " +
+            "  AND c.prompt_version = #{promptVersion} " +
             "ORDER BY FIELD(c.enforcement_state,'PENDING_BLOCK') DESC, " +
             "         FIELD(c.review_reason,'RELATION_CHECK','DIRECTION_UNKNOWN'," +
             "               'COMBINATION_APPLICABILITY_UNKNOWN','CONDITIONAL'," +
             "               'CONTRADICTORY_EVIDENCE','EXTRACTION_INVALID'), " +
             "         c.candidate_no")
-    List<Map<String, Object>> findReviewQueue();
+    List<Map<String, Object>> findReviewQueue(@Param("promptVersion") Integer promptVersion);
 
     @Select("SELECT c.*, b1.plcy_nm AS source_plcy_nm, b1.sprvsn_inst_cd_nm AS source_inst, " +
             "       b2.plcy_nm AS mapped_plcy_nm, b2.sprvsn_inst_cd_nm AS mapped_inst " +

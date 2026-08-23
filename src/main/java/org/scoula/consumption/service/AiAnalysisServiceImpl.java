@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.scoula.admin.service.PromptService;
 import org.scoula.consumption.dto.AiVerdictDTO;
+import org.scoula.consumption.dto.ConsumptionPromptTestDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,8 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,16 +89,112 @@ public class AiAnalysisServiceImpl implements AiAnalysisService {
         return "{\"summaryText\": \"분석 결과를 불러오는 데 문제가 있어요. 잠시 후 다시 시도해 주세요.\", \"insights\": []}";
     }
 
+    /**
+     * [상호 추가] 관리자 프롬프트 시험 실행.
+     *
+     * analyze() 와 흐름은 같지만 캐시를 쓰지 않고 시도 이력을 남깁니다.
+     * 기존 analyze() 는 한 줄도 고치지 않았습니다.
+     */
+    @Override
+    public ConsumptionPromptTestDTO testAnalyze(String summaryJson,
+                                                String analysisPrompt,
+                                                String verificationPrompt) {
+        long startedAt = System.currentTimeMillis();
+        List<ConsumptionPromptTestDTO.Attempt> attempts = new ArrayList<>();
+
+        String finalContent = null;
+        boolean passed = false;
+
+        try {
+            for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                String content = callOpenAi(summaryJson, analysisPrompt);
+
+                RuleBasedValidator.ValidationResult ruleResult =
+                        RuleBasedValidator.validate(summaryJson, content);
+
+                attempts.add(ConsumptionPromptTestDTO.Attempt.builder()
+                        .no(attempt)
+                        .content(content)
+                        .rulePassed(ruleResult.isPassed())
+                        .violations(splitViolations(ruleResult))
+                        .build());
+
+                if (ruleResult.isPassed()) {
+                    passed = true;
+                    finalContent = content;
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            return ConsumptionPromptTestDTO.builder()
+                    .summaryJson(summaryJson)
+                    .attempts(attempts)
+                    .finallyPassed(false)
+                    .durationMs(System.currentTimeMillis() - startedAt)
+                    .errorMsg("분석 호출에 실패했습니다: " + e.getMessage())
+                    .build();
+        }
+
+        // AI 검증은 규칙 검증을 통과한 경우에만 돌린다.
+        // 실제 운영 흐름과 같게 맞추기 위해서다.
+        boolean aiPassed = true;
+        String aiReason = "규칙 검증을 통과하지 못해 실행하지 않았습니다.";
+
+        if (passed) {
+            AiVerdictDTO verdict =
+                    aiVerificationService.verify(summaryJson, finalContent, verificationPrompt);
+            aiPassed = verdict.isPassed();
+            aiReason = verdict.getReason();
+        }
+
+        return ConsumptionPromptTestDTO.builder()
+                .summaryJson(summaryJson)
+                .attempts(attempts)
+                .finallyPassed(passed)
+                .finalContent(finalContent)
+                .aiVerdictPassed(aiPassed)
+                .aiVerdictReason(aiReason)
+                .durationMs(System.currentTimeMillis() - startedAt)
+                .build();
+    }
+
+    /**
+     * RuleBasedValidator 는 위반 사유를 " / " 로 이어 한 문장으로 돌려준다.
+     * 한 번에 대여섯 개가 나올 수 있어 그대로 두면 화면에서 읽을 수가 없다.
+     */
+    private List<String> splitViolations(RuleBasedValidator.ValidationResult result) {
+        if (result.isPassed()) {
+            return List.of();
+        }
+        return Arrays.stream(result.getReason().split(" / "))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+    }
+
     // 실제로 OpenAi API를 호출해서 분석 결과를 받아온다
     private String callOpenAi(String summaryJson) {
+        // [상호 수정] 본문을 아래 오버로드로 옮기고 여기서는 null 을 넘겨 호출만 합니다.
+        //            null 이면 예전과 똑같이 DB 활성 버전을 읽으므로 동작은 변하지 않습니다.
+        return callOpenAi(summaryJson, null);
+    }
+
+    /**
+     * [상호 추가] 프롬프트를 지정해 호출하는 형태.
+     * systemPromptOverride 가 null 이거나 비어 있으면 기존과 같이 DB 활성 버전을 씁니다.
+     */
+    private String callOpenAi(String summaryJson, String systemPromptOverride) {
         try {
             // system 프롬프트
             // [상호 수정] AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT 를 직접 쓰던 것을
             //            DB 조회로 바꿨습니다. 관리자 화면에서 프롬프트를 고칠 수 있게 하려는 것입니다.
             //            DB에 값이 없거나 조회가 실패하면 두 번째 인자인 기존 상수를 그대로 씁니다.
             //            즉 AiPrompt.java 는 지우지 않고 폴백으로 계속 남아 있습니다.
-            String systemPrompt = promptService.getOrDefault(
-                    "CONSUMPTION_ANALYSIS", AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT);
+            String systemPrompt =
+                    (systemPromptOverride != null && !systemPromptOverride.isBlank())
+                            ? systemPromptOverride
+                            : promptService.getOrDefault(
+                            "CONSUMPTION_ANALYSIS", AiPrompt.SPENDING_ANALYSIS_SYSTEM_PROMPT);
 
             Map<String, Object> requestBody = Map.of(
                     "model", model,

@@ -19,6 +19,15 @@ public final class ConflictRuleTextBuilder {
 
     public static String build(ConflictCandidateVO c) {
 
+        // 함께 받을 수 있다고 적힌 관계로 제한 문구를 만들면
+        // 원문과 정반대되는 안내가 사용자에게 나간다.
+        // publishRules 가 먼저 걸러내므로 여기 도달하면 호출 쪽 잘못이다.
+        if ("ALLOWED".equals(c.getRelation())) {
+            throw new IllegalArgumentException(
+                    "함께 받을 수 있는 관계로는 제한 문구를 만들 수 없습니다. candidate_no="
+                            + c.getCandidateNo());
+        }
+
         if (c.getMappedBenefitNo() == null) {
             return buildUnmatchedText(c);
         }
@@ -56,8 +65,18 @@ public final class ConflictRuleTextBuilder {
      */
     private static String buildUnmatchedText(ConflictCandidateVO c) {
 
+        // 상대를 특정하지 못했다고 해서 관계 종류까지 잊으면 안 된다.
+        // 조건에 따라 달라지는 관계를 "제한될 수 있습니다" 로 내보내면
+        // 원문보다 강한 말이 사용자에게 나간다.
+        boolean conditional = "CONDITIONAL".equals(c.getRelation());
+
         String name = c.getTargetNameRaw();
         if (name != null && !name.trim().isEmpty()) {
+            if (conditional) {
+                return name + "과(와) 함께 지원받는 경우 "
+                        + "지원 조건이나 지원 내용이 달라질 수 있습니다. "
+                        + "신청 전 공고문을 확인해주세요.";
+            }
             return name + "에 참여 중이거나 참여 이력이 있는 경우 신청이 제한될 수 있습니다. "
                     + "신청 전 공고문을 확인해주세요.";
         }
@@ -66,11 +85,21 @@ public final class ConflictRuleTextBuilder {
         String field = extractField(raw);
 
         if (field != null) {
+            if (conditional) {
+                return "정부나 다른 지자체의 " + field + " 관련 사업과 함께 지원받는 경우 "
+                        + "지원 조건이나 지원 내용이 달라질 수 있습니다. "
+                        + "신청 전 공고문을 확인해주세요.";
+            }
             return "정부나 다른 지자체의 " + field + " 관련 사업에 참여 중이거나 "
                     + "참여 이력이 있는 경우 신청이 제한될 수 있습니다. "
                     + "신청 전 공고문을 확인해주세요.";
         }
 
+        if (conditional) {
+            return "정부나 다른 지자체의 유사한 사업과 함께 지원받는 경우 "
+                    + "지원 조건이나 지원 내용이 달라질 수 있습니다. "
+                    + "신청 전 공고문을 확인해주세요.";
+        }
         return "정부나 다른 지자체의 유사한 사업에 참여 중이거나 참여 이력이 있는 경우 "
                 + "신청이 제한될 수 있습니다. 신청 전 공고문을 확인해주세요.";
     }
@@ -110,6 +139,11 @@ public final class ConflictRuleTextBuilder {
      * 과거 이력이나 가구원 조건은 해당 여부를 우리가 모르므로 감점 근거가 없다.
      */
     public static String toConflictType(ConflictCandidateVO c) {
+        if ("ALLOWED".equals(c.getRelation())) {
+            throw new IllegalArgumentException(
+                    "함께 받을 수 있는 관계에는 제한 유형을 붙일 수 없습니다. candidate_no="
+                            + c.getCandidateNo());
+        }
         if (c.getMappedBenefitNo() == null) return "확인필요";
 
         if ("PARTIAL".equals(c.getConflictDecision())
