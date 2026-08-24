@@ -491,7 +491,8 @@ public class BenefitServiceImpl implements BenefitService {
         for (int attempt = 1; attempt <= maxWholeRetryCount + 1; attempt++) {
             System.out.println("[청년혜택 자동 동기화 시작] 전체 시도 = " + attempt);
 
-            SyncRunResult result = runDailySyncOnce(attempt);
+            boolean isFinalAttempt = attempt == maxWholeRetryCount + 1;
+            SyncRunResult result = runDailySyncOnce(attempt, isFinalAttempt);
 
             finalResult = result;
 
@@ -595,7 +596,7 @@ public class BenefitServiceImpl implements BenefitService {
         return finalResult.count;
     }
 
-    private SyncRunResult runDailySyncOnce(int attemptNo) {
+    private SyncRunResult runDailySyncOnce(int attemptNo, boolean applyPartialOnFailure) {
         SyncRunResult result = new SyncRunResult();
 
         int pageNum = 1;
@@ -667,8 +668,8 @@ public class BenefitServiceImpl implements BenefitService {
                 break;
             }
 
-            // 페이지를 받는 즉시 DB를 변경하지 않는다. 전체 API 조회가 끝나기 전에
-            // 실패하면 이번 시도의 수집 데이터는 버리고 DB와 로그를 함께 보존한다.
+            // 페이지를 받는 즉시 DB를 변경하지 않는다. 1차 시도가 실패하면 수집 데이터는
+            // 폐기하고, 마지막 재시도까지 실패한 경우에만 성공한 페이지 범위를 부분 반영한다.
             allPolicies.addAll(policyList);
             for (YouthPolicyApiItemDTO item : policyList) {
                 if (item.getPlcyNo() != null && !item.getPlcyNo().trim().isEmpty()) {
@@ -694,12 +695,19 @@ public class BenefitServiceImpl implements BenefitService {
             pageNum++;
         }
 
-        if (!result.completedSuccessfully) {
-            System.out.println("[자동 동기화 DB 반영 생략] Open API 전체 조회 미완료");
+        if (!result.completedSuccessfully
+                && (!applyPartialOnFailure || allPolicies.isEmpty())) {
+            System.out.println("[자동 동기화 DB 반영 생략] Open API 전체 조회 미완료"
+                    + (applyPartialOnFailure ? " 또는 반영 가능한 정책 없음" : " (재시도 예정)"));
             return result;
         }
 
-        // 전체 API 조회가 성공한 뒤에만 DB 변경을 시작한다.
+        if (!result.completedSuccessfully) {
+            System.out.println("[자동 동기화 부분 반영 시작] 마지막 재시도에서 수집 성공한 정책 = "
+                    + allPolicies.size() + "건");
+        }
+
+        // 전체 조회 성공 시 전체를, 마지막 재시도 실패 시 수집에 성공한 범위만 반영한다.
         for (YouthPolicyApiItemDTO item : allPolicies) {
             if (item.getPlcyNo() == null || item.getPlcyNo().trim().isEmpty()) {
                 result.skipCnt++;
@@ -755,7 +763,7 @@ public class BenefitServiceImpl implements BenefitService {
             result.count++;
         }
 
-        if (!apiPlcyNoList.isEmpty()) {
+        if (result.completedSuccessfully && !apiPlcyNoList.isEmpty()) {
             List<String> distinctApiPlcyNoList = apiPlcyNoList.stream()
                     .filter(plcyNo -> plcyNo != null && !plcyNo.trim().isEmpty())
                     .distinct()
@@ -782,7 +790,7 @@ public class BenefitServiceImpl implements BenefitService {
             result.deleteCnt += deletedCnt;
             result.count += deletedCnt;
         } else {
-            System.out.println("[Open API 삭제 혜택 비활성화 생략] API 목록 없음");
+            System.out.println("[Open API 삭제 혜택 비활성화 생략] 전체 조회 미완료 또는 API 목록 없음");
         }
 
         return result;
