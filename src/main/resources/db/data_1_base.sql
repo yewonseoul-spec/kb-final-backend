@@ -15,7 +15,7 @@
 -- =====================================================================
 --  청년타파 - data_1_base.sql   base + 회원 · 자산
 --  실행 전제 : schema.sql(28개 테이블) + data_0_code.sql(코드 마스터) 완료
---  실행 순서 : schema.sql -> data_0_code.sql -> ★이 파일★ -> data_2_benefit.sql
+--  실행 순서 : schema.sql -> data_0_code.sql -> 이 파일 -> data_2_ai_prompt.sql
 --  ★ 코드 테이블이 FK 부모이므로 data_0_code.sql 을 먼저 실행해야 한다.
 --  ---------------------------------------------------------------------
 --  · 자산 테이블(account, finance_product, member_finance_product,

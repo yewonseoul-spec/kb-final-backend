@@ -176,11 +176,10 @@ MySQL에 데이터베이스를 만든 뒤 `kb-final-backend/src/main/resources/d
 schema.sql
 data_0_code.sql
 data_1_base.sql
-data_2_benefit_real.sql
-data_3_ai_prompt.sql
+data_2_ai_prompt.sql
 ```
 
-`engine_test_data.sql`, `stress_test_data.sql`, `sync_error_test.sql`은 기능 검증이 필요할 때 선택적으로 사용합니다.
+`engine_test_data.sql`, `sync_error_test.sql`은 기능 검증이 필요할 때 선택적으로 사용합니다.
 
 ### 2-1. Redis 실행
 

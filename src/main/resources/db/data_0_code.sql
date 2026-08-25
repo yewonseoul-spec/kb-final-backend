@@ -4,7 +4,7 @@
 --
 --  공통코드 + 사전 카테고리, 지역 코드 insert 포함
 --  출처      : 온통청년 청년정책 API 코드 정보 (API코드정보.xlsx > 코드정보 탭)
---  실행 순서 : schema.sql -> ★이 파일★ -> data_1_base.sql -> data_2_benefit.sql
+--  실행 순서 : schema.sql -> 이 파일 -> data_1_base.sql -> data_2_ai_prompt.sql
 --  ---------------------------------------------------------------------
 --  · 11개 코드군 69건. common_code 통합 테이블 1개로 관리한다.
 --  · api_field 는 온통청년 API 응답의 필드명(jobCd 등)으로, 동기화 시
