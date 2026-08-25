@@ -1,5 +1,7 @@
 # 청년타파 (Youthtapa)
 
+<img width="1385" height="778" alt="청년타파 서비스 소개" src="https://github.com/user-attachments/assets/15ce80bc-74e6-44c3-8357-024b564adfdd" />
+
 > 흩어진 청년정책을 한곳에서 찾고, 개인의 조건·소비·목표에 맞는 혜택과 최적의 조합까지 추천하는 청년 자산관리 서비스
 
 청년타파는 정부·지자체의 청년 정책을 단순히 나열하는 데서 그치지 않고, 사용자의 프로필과 금융 생활을 바탕으로 **지금 신청할 수 있는 혜택을 발견하고 활용하도록 돕는 서비스**입니다. 온통청년 Open API 정책 데이터와 사용자의 자산·소비·목표 정보를 연결해 탐색, 추천, 조합 최적화, 사후 관리까지 하나의 흐름으로 제공합니다.
@@ -180,6 +182,24 @@ data_3_ai_prompt.sql
 
 `engine_test_data.sql`, `stress_test_data.sql`, `sync_error_test.sql`은 기능 검증이 필요할 때 선택적으로 사용합니다.
 
+### 2-1. Redis 실행
+
+로컬에 설치된 Redis 서버를 실행합니다.
+
+```bash
+redis-server
+```
+
+정상 실행 여부는 아래 명령으로 확인할 수 있습니다.
+
+```bash
+redis-cli ping
+```
+
+`PONG` 응답이 오면 정상입니다.
+
+> Docker를 사용한다면 `docker run -d -p 6379:6379 redis`로 대체할 수 있습니다.
+
 ### 3. 백엔드 설정
 
 `kb-final-backend/src/main/resources/application.properties`를 생성하거나 환경에 맞게 설정합니다. 실제 비밀번호와 API 키는 Git에 커밋하지 않습니다.
@@ -187,12 +207,15 @@ data_3_ai_prompt.sql
 ```properties
 jdbc.driver=net.sf.log4jdbc.sql.jdbcapi.DriverSpy
 jdbc.url=jdbc:log4jdbc:mysql://localhost:3306/youthtapa
+jdbc.username=${DB_USERNAME}
+jdbc.password=${DB_PASSWORD}
 
 redis.host=localhost
+redis.port=6379
 
 jwt.secret=${JWT_SECRET}
 
-youthcenter.api.url=[YOUR_YOUTH_CENTER_API_URL](https://www.youthcenter.go.kr/go/ythip/getPlcy)
+youthcenter.api.url=https://www.youthcenter.go.kr/go/ythip/getPlcy
 youthcenter.api.key=${YOUTH_CENTER_API_KEY}
 
 openai.api-key=${openai.api-key}
