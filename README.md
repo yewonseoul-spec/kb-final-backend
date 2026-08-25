@@ -246,6 +246,10 @@ cd ../kb-final-backend
 
 Windows에서는 마지막 명령을 `gradlew.bat clean war`로 실행합니다. 생성된 `build/libs/kb-final-backend-1.0-SNAPSHOT.war`를 Tomcat 9에 배포합니다.
 
+### 6. 관리자 기간별 동기화 실행
+
+실행 날짜는 2023-11-01부터 현재 날짜까지로 설정
+
 ## 정책 동기화 처리 원칙
 
 - 자동 동기화는 활성 정책의 API 제공 필드를 최신 값으로 갱신합니다.
